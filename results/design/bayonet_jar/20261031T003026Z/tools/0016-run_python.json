@@ -1,0 +1,36 @@
+{
+  "seq": 16,
+  "iteration": 8,
+  "name": "run_python",
+  "arguments": {
+    "code": "import trimesh, numpy as np\nfrom collections import defaultdict\nm = trimesh.load('/work/exports/model.jar.47460a51.stl')\nedges = m.edges_sorted\nuniq, counts = np.unique(edges, axis=0, return_counts=True)\nbad = uniq[counts != 2]\nprint('bad edges', len(bad), 'counts hist', np.bincount(counts))\nv = m.vertices\npts = v[bad[:6]]\nprint('sample bad edge endpoints:\\n', np.round(pts,3))\n# faces incident to first bad edge\ne0 = tuple(bad[0])\nface_of_edge = defaultdict(list)\nfor fi, f in enumerate(m.faces):\n    for a,b in [(f[0],f[1]),(f[1],f[2]),(f[2],f[0])]:\n        face_of_edge[tuple(sorted((a,b)))].append(fi)\nfor fi in face_of_edge[e0]:\n    f = m.faces[fi]\n    print('face', fi, 'verts', np.round(v[f],2).tolist(), 'normal', np.round(m.face_normals[fi],3).tolist())\n# distribution of bad edge midpoints\nmid = v[bad].mean(axis=1)\nr = np.hypot(mid[:,0], mid[:,1])\nprint('bad mid r range', r.min(), r.max(), 'z range', mid[:,2].min(), mid[:,2].max())\n# any duplicate faces?\nfu, fc = np.unique(np.sort(m.faces,axis=1), axis=0, return_counts=True)\nprint('dup faces', (fc>1).sum())\n"
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 1.128,
+    "stdout": "bad edges 320 counts hist [    0     0 10022     0   320]\nsample bad edge endpoints:\n [[[-29.101 -19.445  64.   ]\n  [-28.316 -20.572  64.   ]]\n\n [[-29.101 -19.445  64.   ]\n  [-29.842 -18.287  64.   ]]\n\n [[-20.572 -28.316  64.   ]\n  [-19.445 -29.101  64.   ]]\n\n [[-20.572 -28.316  64.   ]\n  [-21.668 -27.486  64.   ]]\n\n [[-19.445 -29.101  64.   ]\n  [-18.287 -29.842  64.   ]]\n\n [[-23.758 -25.701  64.   ]\n  [-24.749 -24.749  64.   ]]]\nface 1704 verts [[-28.32, -20.57, 2.4], [-29.1, -19.44, 64.0], [-28.32, -20.57, 64.0]] normal [0.82, 0.572, 0.0]\nface 1731 verts [[-31.1, -20.78, 64.0], [-28.32, -20.57, 64.0], [-29.1, -19.44, 64.0]] normal [0.0, 0.0, 1.0]\nface 1735 verts [[-28.32, -20.57, 64.0], [-29.1, -19.44, 64.0], [-28.44, -19.0, 64.0]] normal [0.0, 0.0, -1.0]\nface 1737 verts [[-28.32, -20.57, 64.0], [-28.32, -20.57, 65.5], [-29.1, -19.44, 64.0]] normal [-0.82, -0.572, 0.0]\nbad mid r range 34.19340762746627 34.99325341687228 z range 64.0 66.29999999701977\ndup faces 0\n",
+    "stderr": "",
+    "stdout_bytes": 979,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 1.583,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "a32bbf049fb018c5"
+}

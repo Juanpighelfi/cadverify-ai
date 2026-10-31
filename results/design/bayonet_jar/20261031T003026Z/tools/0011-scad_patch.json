@@ -1,0 +1,35 @@
+{
+  "seq": 11,
+  "iteration": 6,
+  "name": "scad_patch",
+  "arguments": {
+    "path": "model.scad",
+    "old": "module jar_detents() {\n    // small bump on the groove floor near the locked end of each slot;\n    // lug (0.4 above floor) rides over the 0.7 bump (0.3 press) then settles past it\n    for (i = [0 : lug_count - 1]) {\n        a = i * 360 / lug_count;\n        rotate([0, 0, a + 80])\n            rotate_extrude(angle = 4)\n                polygon(points = [[slot_bot_r - 0.1, slot_z_bot], [34.0, slot_z_bot],\n                                  [34.0, slot_z_bot + detent_h], [slot_bot_r - 0.1, slot_z_bot + detent_h]]);\n    }\n}\n\nmodule jar() {\n    difference() {\n        union() {\n            jar_body();\n            jar_detents();\n        }\n        jar_slot_cutters();\n    }\n}",
+    "new": "module jar_detents() {\n    // small bump on the groove floor just behind the lug's locked position;\n    // lug (0.4 above floor) rides over the 0.6 bump (0.2 press) then settles past it.\n    // Added after the slot cut so the cutter cannot remove it.\n    for (i = [0 : lug_count - 1]) {\n        a = i * 360 / lug_count;\n        rotate([0, 0, a + 71.5])\n            rotate_extrude(angle = 6)\n                polygon(points = [[slot_bot_r - 0.1, slot_z_bot], [34.0, slot_z_bot],\n                                  [34.0, slot_z_bot + detent_h], [slot_bot_r - 0.1, slot_z_bot + detent_h]]);\n    }\n}\n\nmodule jar() {\n    union() {\n        difference() {\n            jar_body();\n            jar_slot_cutters();\n        }\n        jar_detents();\n    }\n}"
+  },
+  "result": {
+    "ok": true,
+    "path": "model.scad",
+    "line": 76,
+    "lines_removed": 21,
+    "lines_added": 22,
+    "bytes": 8692,
+    "lines": 217,
+    "sha256": "c1e689325281c5b6cb51153abf18fcdce066ec395fed5c03b9231aebe67dd6e6"
+  },
+  "seconds": 0.423,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [
+      "model.scad"
+    ],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [
+    "model.scad"
+  ],
+  "rule": null,
+  "source": "1c870684a7d06ebc"
+}

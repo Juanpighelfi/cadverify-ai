@@ -1,0 +1,36 @@
+{
+  "seq": 8,
+  "iteration": 5,
+  "name": "run_python",
+  "arguments": {
+    "code": "import trimesh, numpy as np\nm = trimesh.load('/work/exports/model.jar.47460a51.stl')\nprint(type(m), m.is_watertight)\ncomps = m.split(only_watertight=False)\nfor c in comps:\n    print('comp vol %.1f bounds' % c.volume, np.round(c.bounds,1).tolist(), 'wt', c.is_watertight)\n# material inside r<28, z 72..80 ?\npts,_ = trimesh.sample.sample_surface(m, 200000)\n# instead: ray cast grid\nimport itertools\nhits=[]\nfor ang in np.linspace(0,2*np.pi,72,endpoint=False):\n    for r in [10,20,27]:\n        o=np.array([r*np.cos(ang), r*np.sin(ang), 90.0]); d=np.array([0,0,-1.0])\n        loc,_,_ = m.ray.intersects_location(o[None,:], d[None,:], multiple_hits=True)\n        if len(loc): hits.append((round(np.degrees(ang)), r, np.round(np.sort(loc[:,2]),1).tolist()))\nprint(hits[:20])\n# slice at z=76\ns = m.section(plane_origin=[0,0,76], plane_normal=[0,0,1])\nprint('slice76 entities', len(s.entities) if s else None)\nif s:\n    for e in s.entities: print('  closed', e.closed, 'pts', len(e.points))\ns = m.section(plane_origin=[0,0,40], plane_normal=[0,0,1])\nprint('slice40 entities', len(s.entities) if s else None)\nif s:\n    for e in s.entities: print('  closed', e.closed, 'pts', len(e.points))\n"
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 1.291,
+    "stdout": "<class 'trimesh.base.Trimesh'> False\ncomp vol 280589.2 bounds [[-37.4, -37.4, 0.0], [37.4, 37.4, 64.0]] wt False\ncomp vol -237003.7 bounds [[-35.0, -35.0, 2.4], [35.0, 35.0, 64.0]] wt False\ncomp vol -8518.5 bounds [[-35.0, -35.0, 64.0], [35.0, 35.0, 66.3]] wt False\ncomp vol 8779.3 bounds [[-35.0, -35.0, 64.0], [35.0, 35.0, 66.3]] wt False\ncomp vol 9362.5 bounds [[-34.2, -34.2, 66.3], [34.2, 34.2, 82.4]] wt True\n[(0, 10, [0.0, 2.4]), (0, 20, [0.0, 2.4]), (0, 27, [0.0, 2.4]), (5, 10, [0.0, 2.4]), (5, 20, [0.0, 2.4]), (5, 27, [0.0, 2.4]), (10, 10, [0.0, 2.4]), (10, 20, [0.0, 2.4]), (10, 27, [0.0, 2.4]), (15, 10, [0.0, 2.4]), (15, 20, [0.0, 2.4]), (15, 27, [0.0, 2.4]), (20, 10, [0.0, 2.4]), (20, 20, [0.0, 2.4]), (20, 27, [0.0, 2.4]), (25, 10, [0.0, 2.4]), (25, 20, [0.0, 2.4]), (25, 27, [0.0, 2.4]), (30, 10, [0.0, 2.4]), (30, 20, [0.0, 2.4])]\nslice76 entities 2\n  closed True pts 321\n  closed True pts 519\nslice40 entities 2\n  closed True pts 321\n  closed True pts 321\n",
+    "stderr": "",
+    "stdout_bytes": 976,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 1.689,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "8cbd97d67ca2e79a"
+}
