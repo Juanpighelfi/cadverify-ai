@@ -1,0 +1,48 @@
+[project]
+name = "cadverify"
+version = "0.1.0"
+description = "CADVerify AI: verified OpenSCAD design agent on Muse Wonder"
+license = "MIT"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "httpx==0.28.1",
+    "jsonschema==4.26.0",
+    "manifold3d==3.5.4",
+    "matplotlib==3.11.2",
+    "moderngl==5.13.0",
+    "networkx==3.7",
+    "numpy==2.5.4",
+    "pillow==13.0.0",
+    "python-dotenv==1.2.4",
+    "rtree==1.4.1",
+    "scipy==1.18.1",
+    "shapely==2.2.0",
+    "trimesh==5.2.0",
+]
+
+[project.scripts]
+cadverify = "cadverify.cli:main"
+cadcheck = "cadverify.cadcheck.cli:main"
+
+[build-system]
+requires = ["hatchling==1.32.4"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/cadverify"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[dependency-groups]
+dev = [
+    "pytest==9.1.1",
+    "ruff==0.17.2",
+]
