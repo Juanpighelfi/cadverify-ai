@@ -22,12 +22,16 @@ Built during the [Meta AI Developer Hackathon](https://cerebralvalley.ai/e/meta-
 
 ## How it works
 
-```
-request ──► Muse Wonder ──tool calls──► sandbox (OpenSCAD, measurements, renders)
-                ▲                              │
-                └──── JSON + images ◄──────────┘
-                                               │ .scad only
-                         close ◄── gates G1..G8 ◄── fresh verification container
+```mermaid
+flowchart LR
+    request["request.md"] --> model["Muse Wonder"]
+    model -- "tool calls" --> sandbox["sandbox: OpenSCAD,<br/>measurements, renders"]
+    sandbox -- "JSON + images" --> model
+    sandbox -- ".scad files only" --> verify["fresh verification<br/>container"]
+    verify --> gates{"gates<br/>G1..G8"}
+    model -- "close" --> gates
+    gates -- "red: what failed" --> model
+    gates -- "all green" --> done["close accepted"]
 ```
 
 - **Twelve tools** in a hardened Docker sandbox: write and patch `.scad`, compile, export with a
@@ -79,9 +83,10 @@ they appear in `<run>/questions/NN.md`; write the answer to another file and ren
 `<run>/questions/NN.answer.md`.
 
 ```sh
-uv run cadverify summary results/design/bayonet_jar/<UTC>   # a session as a Markdown table
-uv run cadverify spent                                      # USD spent against the budget
-uv run cadverify hostile                                    # attacks on the real sandbox, no API
+uv run cadverify replay results/design/bayonet_jar/<UTC>   # the session as a static page
+uv run cadverify summary results/design/bayonet_jar/<UTC>  # the session as a Markdown table
+uv run cadverify spent      # USD spent against the budget
+uv run cadverify hostile    # attacks on the real sandbox, no API
 ```
 
 Inside the image, `cadcheck` runs every tool from a shell (`docker run --rm -v "$PWD:/work"

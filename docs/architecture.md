@@ -5,19 +5,15 @@ CADVerify is a design loop with two halves that do not trust each other. Muse Wo
 decides what to change. A deterministic harness runs every tool, measures every mesh and owns
 the verdict: the model cannot end a session while a gate is red.
 
-```
-            host (orchestrator, cadverify.agent)                    Meta Model API
- request.md ──► loop.py ──── Responses API, streamed, chained ────► muse-wonder-1.0
-                  │  ▲          (tool calls, images, reasoning)          │
-     tool calls   │  │ JSON + images                                     │
-                  ▼  │                                                   │
-          session sandbox container  ◄─── docker exec cadcheck ... ──────┘
-          (no network, /work in memory, the model's code runs here)
-                  │
-                  │ .scad files only
-                  ▼
-          verification container, new per source version
-          (cadcheck verify: compile, export, measure) ──► gates G1..G8 ──► close accepted or refused
+```mermaid
+flowchart LR
+    request["request.md"] --> loop["orchestrator<br/>(host, agent/loop.py)"]
+    loop <-->|"Responses API, streamed:<br/>tool calls, images, reasoning"| api["Meta Model API<br/>muse-wonder-1.0"]
+    loop -->|"docker exec cadcheck"| session["session sandbox<br/>no network, /work in memory,<br/>the model's code runs here"]
+    session -->|"JSON + images"| loop
+    session -->|".scad files only"| verify["verification container<br/>new per source version"]
+    verify -->|"measurements"| gates{"gates<br/>G1..G8"}
+    gates -->|"accept or refuse<br/>the close"| loop
 ```
 
 ## The loop
