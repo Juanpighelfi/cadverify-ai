@@ -1,0 +1,37 @@
+{
+  "seq": 28,
+  "iteration": 20,
+  "name": "run_shell",
+  "arguments": {
+    "cmd": "grep -n \"def printable_parts\" -A 15 /opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/verify.py; grep -n \"assembly_order\\|direction.*norm\\|_order\\|slide\\|straight\" /opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/assembly.py | head -30",
+    "timeout_s": 30.0
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.007,
+    "stdout": "20:def printable_parts(source: str) -> list[str | None]:\n21-    \"\"\"The options of the `part` selector except the assembly, or [None] without a selector.\"\"\"\n22-    return [p for p in customizer_options(source, PART) if p != ASSEMBLY] or [None]\n23-\n24-\n25-def verify(\n26-    path: str | Path,\n27-    out_dir: str | Path | None = None,\n28-    assembly: bool = False,\n29-    requirements: dict[str, Any] | None = None,\n30-) -> dict[str, Any]:\n31-    path = Path(path).resolve()\n32-    out_dir = Path(out_dir) if out_dir else path.parent / \"checks\" / \"exports\"\n33-    compiled = scad_compile(path)\n34-    source = path.read_text(encoding=\"utf-8\")\n35-    parts = []\n38:- `assembly_order` lists every instance once, in order: each step's instances arrive from far away\n40:  steps before placed. The straight approach is checked whole with two depth maps along the\n180:    steps = spec.get(\"assembly_order\", [])\n182:    report[\"assembly_steps\"] = _assembly_order(steps, instances, names, skip, out_dir, g4)\n183:    report[\"assembly_order_ok\"] = len(g4) == before\n685:    The deepest point can be inside a face (a ridge as wide as the slider over it has every\n777:def _assembly_order(\n784:            \"the assembly order is missing (assembly_order in the assembly's spec): every \"\n795:            problems.append(f\"assembly_order {what} {items}\")\n797:        problems.append(f\"assembly_order does not say when {missing} comes in\")\n815:                        f\"assembly_order, step {k} ({', '.join(step['instances'])}): no direction \"\n828:                direction /= np.linalg.norm(direction)\n847:                        f\"assembly_order, step {k}: {', '.join(step['instances'])} does not go in \"\n875:                            f\"assembly_order, step {k}: turning {span:g}° into place, \"\n",
+    "stderr": "",
+    "stdout_bytes": 1782,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 0.411,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "887ac4a7766e2b28"
+}

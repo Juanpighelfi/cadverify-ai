@@ -1,0 +1,32 @@
+{
+  "seq": 39,
+  "iteration": 28,
+  "name": "scad_write",
+  "arguments": {
+    "content": "part = \"assembly\"; // [base, lid, pin, assembly]\ncadverify_only = \"\";\nmodule instance(name, part, unit = 1) {\n  echo(cadverify_instance = [name, part, unit]);\n  if (cadverify_only == \"\" || cadverify_only == name) children();\n}\nYa = -33.5; Za = 20; Kr = 3.0; Br = 1.9; Pr = 1.5;\nBX = [[-30,-18],[-6,6],[18,30]];\nLX = [[-17.5,-6.5],[6.5,17.5]];\nmodule barrelX(x0, x1) {\n  difference() {\n    translate([0,Ya,Za]) rotate([0,90,0]) translate([0,0,(x0+x1)/2])\n      cylinder(h=x1-x0, r=Kr, center=true, $fn=48);\n    translate([0,Ya,Za]) rotate([0,90,0]) translate([0,0,(x0+x1)/2])\n      cylinder(h=(x1-x0)+1.0, r=Br, center=true, $fn=24);\n  }\n}\nmodule base_geom() {\n  union() {\n    difference() {\n      translate([-40,-30,0]) cube([80,60,30]);\n      translate([-37.6,-27.6,3]) cube([75.2,55.2,27.01]);\n    }\n    for (b=BX) {\n      translate([b[0],-36.5,0]) cube([b[1]-b[0],6.5,17.5]);\n      barrelX(b[0], b[1]);\n    }\n    translate([5,0,0]) rotate([0,-90,0]) linear_extrude(height=10)\n      polygon([[29.5,26.5],[31,28.5],[31,30.65],[29.5,30.65]]);\n  }\n}\nmodule lid_open() {\n  difference() {\n    union() {\n      translate([-40,-97,0]) cube([80,60,3]);\n      translate([-40,-97,3]) cube([80,2.4,6.85]);\n      translate([-40,-39.4,3]) cube([80,2.4,6.85]);\n      translate([-40,-97,3]) cube([2.4,60,6.85]);\n      translate([37.6,-97,3]) cube([2.4,60,6.85]);\n      for (b=LX) {\n        translate([b[0],-39,0]) cube([b[1]-b[0],8.5,6]);\n        translate([b[0],-35.5,3]) cube([b[1]-b[0],4,17.5]);\n        barrelX(b[0], b[1]);\n      }\n    }\n    translate([-5.6,-98.6,9.25]) cube([11.2,3,0.76]);\n  }\n}\nmodule pin_geom() {\n  union() {\n    translate([-29.2,0,1.5]) rotate([0,90,0])\n      cylinder(h=58.4, r=Pr, center=false, $fn=32);\n    translate([-29.2,-0.9,0]) cube([58.4,1.8,0.6]);\n  }\n}\nmodule lid_closed() {\n  translate([0,Ya,Za]) rotate([180,0,0]) translate([0,-Ya,-Za]) lid_open();\n}\nmodule pin_placed() {\n  translate([0,Ya,Za-1.5]) pin_geom();\n}\nif (part==\"base\") {\n  base_geom();\n  echo(cadverify_spec=[\n    [\"bounds\", [[-40,-36.5,0],[40,31,30.65]]],\n    [\"bodies\", 1],\n    [\"support_faces\", [[\"base\",\"-z\",4000]]],\n    [\"overhangs_allowed\", [[\"hinge\", [[-30,-37,16],[30,-30,24]]]]],\n    [\"copies\", 1],\n    [\"details\", [\n      [\"bottom\",\"thickness\",[0,0,-1],[0,0,1],3],\n      [\"cavity\",\"void\",[[-37.6,-27.6,3],[37.6,27.6,30]],0.9],\n      [\"knuckle\",\"material\",[[-30,-36.5,17],[-18,-30.5,23]],0.5],\n      [\"bore\",\"hole\",[-31,-33.5,20],[1,0,0],[[0,3.8],[10,3.8]]],\n      [\"catch\",\"material\",[[-5,30,26.5],[5,31,30.65]],0.6]\n    ]]\n  ]);\n} else if (part==\"lid\") {\n  lid_open();\n  echo(cadverify_spec=[\n    [\"bounds\", [[-40,-97,0],[40,-30.5,23.5]]],\n    [\"bodies\", 1],\n    [\"support_faces\", [[\"lid\",\"-z\",4000]]],\n    [\"overhangs_allowed\", [[\"hinge\", [[-30,-37,16],[30,-30,24]]]]],\n    [\"copies\", 1],\n    [\"details\", [\n      [\"plate\",\"thickness\",[0,-67,-1],[0,0,1],3],\n      [\"pocket\",\"void\",[[-37.6,-94.6,3],[37.6,-39.4,9.85]],0.9],\n      [\"knuckle\",\"material\",[[-17.5,-36.5,17],[-6.5,-30.5,23]],0.8],\n      [\"bore\",\"hole\",[-18,-33.5,20],[1,0,0],[[0,3.8],[9,3.8]]],\n      [\"notch\",\"void\",[[-5.6,-97,9.25],[5.6,-95.6,9.85]],0.9]\n    ]]\n  ]);\n} else if (part==\"pin\") {\n  pin_geom();\n  echo(cadverify_spec=[\n    [\"bounds\", [[-29.2,-1.5,0],[29.2,1.5,3]]],\n    [\"bodies\", 1],\n    [\"support_faces\", [[\"pin\",\"-z\",50]]],\n    [\"overhangs_allowed\", [[\"flanks\", [[-29.2,-1.5,0],[29.2,1.5,3]]]]],\n    [\"copies\", 1],\n    [\"details\", [\n      [\"shaft\",\"thickness\",[0,5,1.5],[0,-1,0],3]\n    ]]\n  ]);\n} else {\n  instance(\"base\",\"base\") base_geom();\n  instance(\"lid\",\"lid\") lid_closed();\n  instance(\"pin\",\"pin\") pin_placed();\n  echo(cadverify_spec=[\n    [\"bounds\", [[-40,-36.5,0],[40,31,40]]],\n    [\"support_faces\", [[\"bed\",\"-z\",4000]]],\n    [\"motions\", [[\"swing\",[\"lid\"],\"rotate\",[0,-33.5,20],[1,0,0],[0,180],[\"flex\",[[\"lid\",\"base\",0.5,\"catch entry\"]]]]]],\n    [\"assembly_order\", [[[\"base\"],[0,0,0]],[[\"lid\"],[0,0,1]],[[\"pin\"],[-1,0,0]]]],\n    [\"print_in_place\", 0.4],\n    [\"print_pose\", [[\"swing\",180]]],\n    [\"overhangs_allowed\", [[\"hinge\", [[-30,-37,16],[30,-30,24]]]]]\n  ]);\n}\n",
+    "path": "model.scad"
+  },
+  "result": {
+    "ok": true,
+    "path": "model.scad",
+    "replaced": true,
+    "bytes": 4053,
+    "lines": 119,
+    "sha256": "9a76a6e50ca763c4f3ce33cb6deb8892de3c2f9df8de22088321cfd13e8676fe"
+  },
+  "seconds": 0.432,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [
+      "model.scad"
+    ],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [
+    "model.scad"
+  ],
+  "rule": null,
+  "source": "034da80da4499d65"
+}

@@ -1,0 +1,37 @@
+{
+  "seq": 38,
+  "iteration": 21,
+  "name": "run_python",
+  "arguments": {
+    "code": "import trimesh, numpy as np\nm = trimesh.load('checks/assembly/print-in-place.stl')\nprint('bounds', m.bounds)\n# sample: the bridge ceiling z=33.5 zone: get faces near z 33.5 with normal -z?\n# just print verts around y -37..-33, z 33..34\nv = np.asarray(m.vertices)\nsel = v[(np.abs(v[:,2]-33.5)<0.6)&(v[:,1]>-38)&(v[:,1]<-33)]\nprint('count', len(sel))\nif len(sel): print('x', sel[:,0].min(), sel[:,0].max(), 'y', sel[:,1].min(), sel[:,1].max(), 'z', sel[:,2].min(), sel[:,2].max())\n",
+    "timeout_s": 60.0
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.91,
+    "stdout": "bounds [[-40.         -54.37473681   0.        ]\n [ 41.          30.          92.53529232]]\ncount 70\nx -40.0 40.0 y -36.07738412785867 -33.14088903408511 z 32.94235584120969 33.446827135542726\n",
+    "stderr": "",
+    "stdout_bytes": 193,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 1.297,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "3b85b2bf77d58958"
+}

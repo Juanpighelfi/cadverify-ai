@@ -1,0 +1,35 @@
+{
+  "seq": 2,
+  "iteration": 4,
+  "name": "scad_patch",
+  "arguments": {
+    "new": "function D(h,y0,z0) = [[y0-h,-z0],[y0,-z0-h],[y0+h,-z0],[y0,-z0+h]];\nmodule dia(h,y0,z0,x0,x1) {\n    translate([x0,0,0]) rotate([0,90,0])\n        linear_extrude(height=x1-x0, convexity=4) polygon(D(h,y0,z0));\n}\nmodule base_geo() {\n    difference() {\n        union() {\n            translate([-40,0,0]) cube([80,60,2.5]);            // floor\n            translate([-40,0,0]) cube([80,2,30]);              // back wall\n            translate([-40,58,0]) cube([80,2,30]);             // front wall\n            translate([-40,2,0]) cube([2,56,30]);              // left wall\n            translate([38,2,0]) cube([2,56,30]);               // right wall\n            for (cy=[12.6,24.2,35.8,47.4])\n                translate([-38,cy-1,2.5]) cube([76,2,27.5]);   // dividers\n            dia(outH,0,axZ,bx10,bx11);                         // knuckles\n            dia(outH,0,axZ,bx20,bx21);\n            dia(outH,0,axZ,bx30,bx31);\n        }\n        // bore channels + cap pockets\n        dia(boreH,0,axZ,bx10,bx11); dia(cbH,0,axZ,-27.6,-24.4);\n        dia(boreH,0,axZ,bx20,bx21);\n        dia(boreH,0,axZ,bx30,bx31); dia(cbH,0,axZ,24.4,27.6);\n        // back-wall notches under lid knuckles\n        dia(boreH+clrR,0,axZ,lx10,lx11);\n        dia(boreH+clrR,0,axZ,lx20,lx21);\n        // catch groove in front wall outer face\n        translate([-6,58.8,27.5]) cube([12,1.21,1.5]);\n    }\n}",
+    "old": "module base_geo() {\n    difference() {\n        union() {\n            // floor + walls\n            cube([W, D, floorT], center=false); // placeholder, moved below\n        }\n        // subtractions added in step 1b\n        cube([0.01,0.01,0.01]);\n    }\n}",
+    "path": "model.scad"
+  },
+  "result": {
+    "ok": true,
+    "path": "model.scad",
+    "line": 47,
+    "lines_removed": 10,
+    "lines_added": 30,
+    "bytes": 3251,
+    "lines": 89,
+    "sha256": "57ed70c3b177ebdd96e4cb79e4d8f483758bb8159fbe11a40f527fb397c85476"
+  },
+  "seconds": 0.357,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [
+      "model.scad"
+    ],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [
+    "model.scad"
+  ],
+  "rule": null,
+  "source": "c54b15a63d939f8e"
+}

@@ -1,0 +1,37 @@
+{
+  "seq": 64,
+  "iteration": 38,
+  "name": "run_shell",
+  "arguments": {
+    "cmd": "nl -ba /work/model.scad | sed -n '90,165p'",
+    "timeout_s": 30.0
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.005,
+    "stdout": "    90\tpin_zmin = 0; pin_zmax = pin_len;\n    91\tasm_xmin = -W/2; asm_xmax = W/2;\n    92\tasm_ymin = axisY - kn_r; asm_ymax = D/2;\n    93\tasm_zmin = 0; asm_zmax = Hb + lift + Hl;\n    94\tox0 = -(hinge_half+4); ox1 = (hinge_half+4);\n    95\toy0 = axisY-kn_r-1; oy1 = axisY+kn_r+1;\n    96\toz0 = axisZ-kn_r-1; oz1 = axisZ+kn_r+1;\n    97\tif (part == \"box\") {\n    98\t    echo(cadverify_spec = [\n    99\t        [\"bounds\", [[box_xmin, box_ymin, box_zmin], [box_xmax, box_ymax, box_zmax]]],\n   100\t        [\"bodies\", 1],\n   101\t        [\"support_faces\", [[\"base\", \"-z\", W*D-800]]],\n   102\t        [\"overhangs_allowed\", [[\"hinge\", [[ox0, oy0, oz0], [ox1, oy1, oz1]]]]],\n   103\t        [\"copies\", 1],\n   104\t        [\"details\", [\n   105\t            [\"wall_thickness\", \"thickness\", [W/2+1, 0, Hb/2], [-1, 0, 0], wall],\n   106\t            [\"floor_thickness\", \"thickness\", [0, 0, -1], [0, 0, 1], floor_t],\n   107\t            [\"catch_notch\", \"void\", [[-notch_half, D/2-wall-0.1, notch_bottom], [notch_half, D/2+1, Hb+1]], 0.9],\n   108\t            [\"knuckle_bore\", \"hole\", [-31, axisY, axisZ], [1, 0, 0], [[0, 2*bore_r], [10, 2*bore_r]]]\n   109\t        ]]\n   110\t    ]);\n   111\t} else if (part == \"lid\") {\n   112\t    echo(cadverify_spec = [\n   113\t        [\"bounds\", [[lid_xmin, lid_ymin, lid_zmin], [lid_xmax, lid_ymax, lid_zmax]]],\n   114\t        [\"bodies\", 1],\n   115\t        [\"support_faces\", [[\"base\", \"-z\", W*D-800]]],\n   116\t        [\"overhangs_allowed\", [[\"hinge\", [[ox0, oy0, oz0], [ox1, oy1, oz1]]]]],\n   117\t        [\"copies\", 1],\n   118\t        [\"details\", [\n   119\t            [\"lid_thickness\", \"thickness\", [0, 2*axisY, Hl+1], [0, 0, -1], Hl],\n   120\t            [\"catch_tab\", \"material\", [[-(notch_half-0.2), 2*axisY-(D/2-1.4)-1.0, Hl], [(notch_half-0.2), 2*axisY-(D/2-1.4), Hl+3]], 0.9],\n   121\t            [\"knuckle_bore\", \"hole\", [-16.75, axisY, axisZ], [1, 0, 0], [[0, 2*bore_r], [8, 2*bore_r]]]\n   122\t        ]]\n   123\t    ]);\n   124\t} else if (part == \"pin\") {\n   125\t    echo(cadverify_spec = [\n   126\t        [\"bounds\", [[pin_xmin, pin_ymin, pin_zmin], [pin_xmax, pin_ymax, pin_zmax]]],\n   127\t        [\"bodies\", 1],\n   128\t        [\"support_faces\", [[\"base\", \"-z\", 10]]],\n   129\t        [\"copies\", 1],\n   130\t        [\"details\", [\n   131\t            [\"shaft_thickness\", \"thickness\", [pin_r+0.3, 0, pin_len/2], [-1, 0, 0], 2*pin_r]\n   132\t        ]]\n   133\t    ]);\n   134\t} else if (part == \"assembly\") {\n   135\t    echo(cadverify_spec = [\n   136\t        [\"bounds\", [[asm_xmin, asm_ymin, asm_zmin], [asm_xmax, asm_ymax, asm_zmax]]],\n   137\t        [\"support_faces\", [[\"base\", \"-z\", W*D-800]]],\n   138\t        [\"motions\", [\n   139\t            [\"lid_swing\", [\"lid_body\"], \"rotate\", [0, axisY, axisZ], [1, 0, 0], [0, 180]]\n   140\t        ]],\n   141\t        [\"assembly_order\", [\n   142\t            [[\"pin_body\"], [0, 0, 0]],\n   143\t            [[\"box_body\", \"lid_body\"], [1, 0, 0]]\n   144\t        ]],\n   145\t        [\"print_in_place\", 0.3],\n   146\t        [\"print_pose\", [[\"lid_swing\", 180]]],\n   147\t        [\"overhangs_allowed\", [\n   148\t            [\"hinge_clearance\", [[ox0, oy0, oz0], [ox1, oy1, oz1]]],\n   149\t            [\"lid_bridges\", [[-17, -36, 4], [17, -30, 6]]]\n   150\t        ]]\n   151\t    ]);\n   152\t}\n   153\tif (part == \"box\") {\n   154\t    box_part();\n   155\t} else if (part == \"lid\") {\n   156\t    lid_open();\n   157\t} else if (part == \"pin\") {\n   158\t    pin_canonical();\n   159\t} else if (part == \"assembly\") {\n   160\t    instance(\"box_body\", \"box\") box_part();\n   161\t    instance(\"lid_body\", \"lid\") lid_closed();\n   162\t    instance(\"pin_body\", \"pin\") pin_horizontal();\n   163\t}\n",
+    "stderr": "",
+    "stdout_bytes": 3600,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 0.358,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "3e3563f8c735c94d"
+}

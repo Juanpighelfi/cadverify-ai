@@ -1,0 +1,37 @@
+{
+  "seq": 18,
+  "iteration": 9,
+  "name": "run_python",
+  "arguments": {
+    "code": "import trimesh, numpy as np\n# load print-in-place combined\nm = trimesh.load('checks/assembly/print-in-place.stl')\nprint('pip bounds', m.bounds, 'vol', m.volume)\n# slice near z=33 to see profile: section at z=32.9\nsec = m.section(plane_origin=[0,0,32.9], plane_normal=[0,0,1])\nif sec is not None:\n    p,_ = sec.to_planar()\n    print('section entities', len(sec.entities), 'verts', len(sec.vertices))\n    print('section bounds xyz', sec.bounds)\nelse:\n    print('no section')\n# load instances closed\nbox = trimesh.load('checks/assembly/model.assembly.d40d2008.stl')\nlid = trimesh.load('checks/assembly/model.assembly.80ac5204.stl')\nprint('box bounds', box.bounds)\nprint('lid bounds', lid.bounds)\n# apply lid rotation 90 about x at (0,-33,30)\nth = np.deg2rad(90)\nc,s = np.cos(th), np.sin(th)\nR = np.array([[1,0,0],[0,c,-s],[0,s,c]])\np0 = np.array([0.,-33.,30.])\ndef rot(mesh):\n    v = np.asarray(mesh.vertices) - p0\n    v = v @ R.T\n    v = v + p0\n    m2 = mesh.copy(); m2.vertices = v\n    return m2\nlid90 = rot(lid)\nprint('lid90 bounds', lid90.bounds)\n# min distance approx via nearest vertex sampling\nfrom scipy.spatial import cKDTree\ndef min_gap(a,b):\n    t = cKDTree(np.asarray(b.vertices))\n    d,_ = t.query(np.asarray(a.vertices))\n    return d.min()\nprint('gap box-lid90 approx (vert)', min_gap(box,lid90))\nprint('gap box-lid closed approx', min_gap(box,lid))\n# sample more: face midpoints too\n# find verts of lid90 near z=33\nv = np.asarray(lid90.vertices)\nsel = v[np.abs(v[:,2]-33)<0.6]\nprint('lid90 verts near z33 count', len(sel))\nif len(sel): print('x range', sel[:,0].min(), sel[:,0].max(), 'y range', sel[:,1].min(), sel[:,1].max())\n# box verts near hinge\nbv = np.asarray(box.vertices)\nselb = bv[(np.abs(bv[:,2]-30)<4)&(bv[:,1]<-29)]\nprint('box hinge verts y range', selb[:,1].min(), selb[:,1].max(), 'z range', selb[:,2].min(), selb[:,2].max())\n",
+    "timeout_s": 60.0
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.939,
+    "stdout": "pip bounds [[-40. -43.   0.]\n [ 40.  30.  93.]] vol 62734.002789392194\nsection entities 6 verts 127\nsection bounds xyz [[-40.  -35.   32.9]\n [ 40.   30.   32.9]]\nbox bounds [[-40. -36.   0.]\n [ 40.  30.  33.]]\nlid bounds [[-40. -36.  27.]\n [ 40.  30.  40.]]\nlid90 bounds [[-40. -43.  27.]\n [ 40. -30.  93.]]\ngap box-lid90 approx (vert) 0.0\ngap box-lid closed approx 0.0\nlid90 verts near z33 count 60\nx range -40.0 40.0 y range -43.0 -31.333289300941193\nbox hinge verts y range -36.0 -29.5 z range 27.0 33.0\n",
+    "stderr": "<string>:8: DeprecationWarning: DEPRECATED: replace `path.to_planar`->`path.to_2D), removal 1/1/2026\n",
+    "stdout_bytes": 507,
+    "stderr_bytes": 101,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 1.331,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "f2e405240c7b709a"
+}

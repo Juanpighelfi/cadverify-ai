@@ -1,0 +1,52 @@
+{
+  "seq": 16,
+  "iteration": 17,
+  "name": "run_shell",
+  "arguments": {
+    "cmd": "sed -i 's/cadverify_spec=\\[\\[/cadverify_spec=[/' model.scad\ngrep -c 'cadverify_spec=\\[' model.scad\npython3 -c \"\nfor i,l in enumerate(open('/work/model.scad').read().split('\\n'),1):\n    if 'echo(cadverify_spec' in l:\n        s=[c for c in l if c in '[]']\n        print(i, 'open',s.count('['), 'close',s.count(']'))\n\"\nopenscad model.scad -o /tmp/m.stl 2>&1 | head -8"
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.157,
+    "stdout": "4\n73 open 42 close 42\n76 open 50 close 50\n79 open 19 close 19\n82 open 41 close 41\nECHO: cadverify_spec = [\"bounds\", [[-40, -34, 0], [40, 32.7, 40]]], [\"support_faces\", [[\"bottom\", \"-z\", 4000]]], [\"allowed_interferences\", []], [\"motions\", [[\"lid_open\", [\"lid\"], \"rotate\", [0, -30, 30], [1, 0, 0], [0, 110]]]], [\"assembly_order\", [[[\"base\"], [0, 0, 0]], [[\"lid\"], [0, 0, 30]], [[\"pin\"], [80, 0, 0]]]], [\"print_in_place\", 0.3], [\"print_pose\", [[\"lid_open\", 90]]], [\"overhangs_allowed\", [[\"hinge barrels and bores as printed\", [[-30, -36, 24], [30, -24, 36]]], [\"catch lip as printed\", [[-10, -40, 85], [10, -22, 92]]]]]\nECHO: cadverify_instance = [\"base\", \"box\", 1]\nECHO: cadverify_instance = [\"lid\", \"lid\", 1]\nECHO: cadverify_instance = [\"pin\", \"pin\", 1]\nGeometries in cache: 56\nGeometry cache size in bytes: 314048\nCGAL Polyhedrons in cache: 21\nCGAL cache size in bytes: 2753750\n",
+    "stderr": "",
+    "stdout_bytes": 878,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "scad_edited": [
+      "model.scad"
+    ],
+    "files": {
+      "created": [],
+      "modified": [
+        "model.scad"
+      ],
+      "deleted": []
+    }
+  },
+  "seconds": 0.824,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [
+      "model.scad"
+    ],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [
+    "model.scad"
+  ],
+  "rule": {
+    "seq": 16,
+    "tool": "run_shell",
+    "scad": [
+      "model.scad"
+    ],
+    "edit": "allowed"
+  },
+  "source": "7852153d114f55cb"
+}

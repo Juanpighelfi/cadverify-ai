@@ -1,0 +1,32 @@
+{
+  "seq": 1,
+  "iteration": 3,
+  "name": "scad_write",
+  "arguments": {
+    "content": "/* Box with print-in-place hinge - step 1: params + base */\npart = \"assembly\"; // [base, lid, pin, assembly]\n\ncadverify_only = \"\";\nmodule instance(name, part, unit = 1) {\n    echo(cadverify_instance = [name, part, unit]);\n    if (cadverify_only == \"\" || cadverify_only == name) children();\n}\n\n// ---- parameters (mm) ----\nW = 80; D = 60; H = 40;          // body outer, closed\nbaseH = 30;                      // base height\ngapZLid = 0.3;                   // lid-base vertical gap\nlidBot = baseH + gapZLid;        // 30.3\nlidTop = H;                      // 40\naxY = 0; axZ = baseH + gapZLid/2; // hinge axis (0, 30.15)\nwallT = 2; floorT = 2.5; lidTopT = 2.5;\npinH = 1.8; boreH = 2.2; outH = 4.0; cbH = 3.2; capH = 2.8;\nclrR = 0.4; clrA = 0.4;\ndivT = 2; divTop = 37.2;\n\n// knuckle X intervals\nbx10=-40; bx11=-24; lx10=-23.6; lx11=-7.6;\nbx20=-7.2; bx21=7.2; lx20=7.6; lx21=23.6; bx30=24; bx31=40;\n\n// generic prism along X from polygon in (Z,Y) mapped: poly points [z,y]\nmodule prism_x(poly, x0, len) {\n    translate([x0, 0, 0]) rotate([0,90,0])\n        linear_extrude(height=len) polygon(poly);\n}\nfunction diamond(h) = [[-h,0],[0,-h],[h,0],[0,h]];\n\nmodule knuckle_out(x0, len) {\n    // diamond cross-section points [z,y] centered at (axZ, axY)\n    p = diamond(outH);\n    translate([0, axY, axZ]) prism_x(p, x0, len);\n}\nmodule bore_small(x0, len) {\n    p = diamond(boreH);\n    translate([0, axY, axZ]) prism_x(p, x0, len);\n}\nmodule bore_cb(x0, len) {\n    p = diamond(cbH);\n    translate([0, axY, axZ]) prism_x(p, x0, len);\n}\n\nmodule base_geo() {\n    difference() {\n        union() {\n            // floor + walls\n            cube([W, D, floorT], center=false); // placeholder, moved below\n        }\n        // subtractions added in step 1b\n        cube([0.01,0.01,0.01]);\n    }\n}\n\n// stubs\nmodule lid_geo() { cube([0.01,0.01,0.01]); }\nmodule pin_geo() { cube([0.01,0.01,0.01]); }\n\nif (part==\"base\") { base_geo(); }\nelse if (part==\"lid\") { lid_geo(); }\nelse if (part==\"pin\") { pin_geo(); }\nelse if (part==\"assembly\") {\n    instance(\"base\",\"base\") base_geo();\n    instance(\"lid\",\"lid\") lid_geo();\n    instance(\"pin\",\"pin\") pin_geo();\n}\n",
+    "path": "model.scad"
+  },
+  "result": {
+    "ok": true,
+    "path": "model.scad",
+    "replaced": false,
+    "bytes": 2134,
+    "lines": 69,
+    "sha256": "da9be9292bb9a21e4e991a61302efcff6f5dcebd7c9f4ab4976dd38e404f6c6d"
+  },
+  "seconds": 0.289,
+  "image": null,
+  "files": {
+    "new": [
+      "model.scad"
+    ],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [
+    "model.scad"
+  ],
+  "rule": null,
+  "source": "a89344c2abcd9a61"
+}

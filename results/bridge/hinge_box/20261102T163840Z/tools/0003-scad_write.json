@@ -1,0 +1,32 @@
+{
+  "seq": 3,
+  "iteration": 4,
+  "name": "scad_write",
+  "arguments": {
+    "content": "part = \"assembly\"; // [base, lid, pin, assembly]\ncadverify_only = \"\";\nmodule instance(name, part, unit = 1) {\n    echo(cadverify_instance = [name, part, unit]);\n    if (cadverify_only == \"\" || cadverify_only == name) children();\n}\nBx=80; By=60; Hb=30; Hl=10; Wt=2.4; Bt=3; Lt=3; Sk=7;\nYa=-32; Za=3.2; Kr=3.5; Br=1.9; Pr=1.5; CapR=3.0; CapT=1.5;\nHp=36.8; Lift=40;\nB0x0=-30; B0x1=-18; L0x0=-17.5; L0x1=-6.5; B1x0=-6; B1x1=6;\nL1x0=6.5; L1x1=17.5; B2x0=18; B2x1=30;\nmodule barrel(x0,x1,y,z,ro,ri) {\n  difference() {\n    translate([0,y,z]) rotate([0,90,0])\n      translate([0,0,(x0+x1)/2]) cylinder(h=x1-x0, r=ro, center=true, $fn=48);\n    translate([0,y,z]) rotate([0,90,0])\n      translate([0,0,(x0+x1)/2]) cylinder(h=(x1-x0)+0.6, r=ri, center=true, $fn=32);\n  }\n}\nmodule base_raw() {\n  difference() {\n    translate([-Bx/2,-By/2,0]) cube([Bx,By,Hb]);\n    translate([-Bx/2+Wt,-By/2+Wt,Bt]) cube([Bx-2*Wt,By-2*Wt,Hb-Bt+0.01]);\n  }\n  for (b=[[B0x0,B0x1],[B1x0,B1x1],[B2x0,B2x1]]) {\n    translate([b[0],-35,0]) cube([b[1]-b[0],5,Za]);\n    barrel(b[0],b[1],Ya,Za,Kr,Br);\n  }\n  translate([-5,27.8,Hb]) cube([10,2.0,1.0]);\n}\nmodule base_geom() {\n  intersection() {\n    base_raw();\n    translate([-100,-100,0]) cube([200,200,120]);\n  }\n}\nmodule lid_raw_print() {\n  difference() {\n    translate([-Bx/2,-By/2,0]) cube([Bx,By,Lt]);\n    translate([0,0,0]) cube([0.01,0.01,0.01]);\n  }\n  difference() {\n    translate([-Bx/2,-By/2,Lt]) cube([Bx,By,Sk]);\n    translate([-Bx/2+Wt,-By/2+Wt,Lt]) cube([Bx-2*Wt,By-2*Wt,Sk+0.01]);\n  }\n  for (b=[[L0x0,L0x1],[L1x0,L1x1]]) {\n    translate([b[0],-35,0]) cube([b[1]-b[0],7.4,38]);\n    barrel(b[0],b[1],Ya,Hp,Kr,Br);\n  }\n  translate([-Bx/2,-By/2,0]) cube([Bx,By,Lt]);\n}\nmodule lid_notch() {\n  translate([-5.2,27.6,Lt]) cube([10.4,2.4,1.2]);\n}\nmodule lid_geom() {\n  difference() {\n    lid_raw_print();\n    lid_notch();\n    for (b=[[L0x0,L0x1],[L1x0,L1x1]])\n      translate([0,Ya,Hp]) rotate([0,90,0]) translate([0,0,(b[0]+b[1])/2])\n        cylinder(h=(b[1]-b[0])+0.6, r=Br, center=true, $fn=32);\n  }\n}\nmodule pin_raw_vert() {\n  translate([0,0,CapT]) cylinder(h=62, r=Pr, center=false, $fn=32);\n  translate([0,0,CapT/2]) cylinder(h=CapT, r=CapR, center=true, $fn=32);\n  translate([0,0,CapT+62+CapT/2]) cylinder(h=CapT, r=CapR, center=true, $fn=32);\n}\nmodule pin_geom() { pin_raw_vert(); }\nmodule lid_closed() {\n  translate([0,0,Lift]) rotate([0,180,0]) lid_geom();\n}\nmodule pin_placed() {\n  translate([0,Ya,Za]) rotate([0,90,0]) translate([0,0,0])\n    rotate([0,-90,0]) translate([0,0,0]) pin_geom_place();\n}\nmodule pin_geom_place() {\n  translate([0,0,0]) children();\n}\nif (part==\"base\") { base_geom();\n  echo(cadverify_spec=[[\"bounds\",[[-40,-35.5,0],[40,30,31]]],[\"bodies\",1],[\"support_faces\",[[\"base\",\"-z\",4000]]],[\"overhangs_allowed\",[[\"hinge bores\",[[-30,-35.5,0],[30,-28.5,6.7]]]]],[\"copies\",1],[\"details\":[[\"bottom\",\"thickness\",[0,0,-1],[0,0,1],3],[\"cavity\",\"void\",[[-37.6,-27.6,3],[37.6,27.6,30]],0.95],[\"knuckle\",\"material\",[[-30,-35.5,0],[-18,-28.5,6.7]],0.8],[\"bore\",\"hole\",[-32,-32,3.2],[1,0,0],[[0,3.8],[12,3.8]]],[\"catch_bump\",\"material\",[[-5,27.8,30],[5,29.8,31]],0.9]]]);\n} else if (part==\"lid\") { lid_geom();\n  echo(cadverify_spec=[[\"bounds\",[[-40,-35.5,0],[40,30,40.3]]],[\"bodies\",1],[\"support_faces\",[[\"lid\",\"-z\",4000]]],[\"overhangs_allowed\",[[\"hinge bores\",[[-30,-35.5,33],[30,-28.5,40.5]]]]],[\"copies\",1],[\"details\":[[\"top\",\"thickness\",[0,0,-1],[0,0,1],3],[\"pocket\",\"void\",[[-37.6,-27.6,3],[37.6,27.6,10]],0.95],[\"knuckle\",\"material\",[[-17.5,-35.5,33],[-6.5,-28.5,40.3]],0.6],[\"bore\",\"hole\",[-17.8,-32,36.8],[1,0,0],[[0,3.8],[11,3.8]]],[\"notch\",\"void\",[[-5.2,27.6,3],[5.2,30.0,4.2]],0.9]]]);\n} else if (part==\"pin\") { pin_geom();\n  echo(cadverify_spec=[[\"bounds\",[[-3,-3,0],[3,3,65]]],[\"bodies\",1],[\"support_faces\",[[\"pin\",\"-z\",20]]],[\"overhangs_allowed\",[[\"top cap\",[[-3,-3,62.5],[3,3,65]]]]],[\"copies\",1],[\"details\":[[\"shaft\",\"thickness\",[5,0,32],[ -1,0,0],3]]]);\n} else if (part==\"assembly\") {\n  instance(\"base\",\"base\") base_geom();\n  instance(\"lid\",\"lid\") lid_closed();\n  instance(\"pin\",\"pin\") translate([0,Ya,Za]) rotate([0,90,0]) translate([0,0,-(CapT+31)]) pin_geom();\n  echo(cadverify_spec=[[\"bounds\",[[-40,-35.5,0],[40,30,40]]],[\"support_faces\",[[\"bed\",\"-z\",4000]]],[\"motions\",[[\"swing\",[\"lid\"],\"rotate\",[0,-32,3.2],[1,0,0],[0,110]]]],[\"assembly_order\",[[[\"base\"],[0,0,0]], [[\"lid\"],[0,0,-1]], [[\"pin\"],[-1,0,0]]]],[\"print_in_place\",0.2],[\"print_pose\",[[\"swing\",40]]],[\"overhangs_allowed\",[[\"hinge\",[[-30,-35.5,0],[30,-28.5,6.7]]]]]]);\n}\n",
+    "path": "model.scad"
+  },
+  "result": {
+    "ok": true,
+    "path": "model.scad",
+    "replaced": true,
+    "bytes": 4486,
+    "lines": 91,
+    "sha256": "4ba603a6e39e3257a40fcbc694c37a2a06c2695c9bbd7279f705e02645530410"
+  },
+  "seconds": 0.327,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [
+      "model.scad"
+    ],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [
+    "model.scad"
+  ],
+  "rule": null,
+  "source": "2c45526a1d7b3cb8"
+}

@@ -1,0 +1,35 @@
+{
+  "seq": 70,
+  "iteration": 46,
+  "name": "scad_patch",
+  "arguments": {
+    "new": "module lid_part() {\n    difference() {\n        union() {\n            // solid lid slab\n            translate([-ox/2,-oy/2,lid_bot]) cube([ox,oy,lid_top-lid_bot]);\n            // lid knuckles (merge into the slab)\n            for (s=lid_segs) {\n                translate([0,y0,z0]) knuckle_cyl(s[0],s[1],Rk);\n            }\n            // lid webs: merge lid slab into lid knuckles\n            for (cx=lid_cx) {\n                translate([cx-4,-28,30.4]) cube([8,2.0,3.0]);\n            }\n        }\n        // holes through lid knuckles (extend 0.3 into gaps)\n        translate([0,y0,z0]) rotate([0,90,0]) translate([0,0,-23.9-0.3]) cylinder(h=(-8.3+0.3)-(-23.9-0.3), r=Rh, $fn=32);\n        translate([0,y0,z0]) rotate([0,90,0]) translate([0,0,8.3-0.3]) cylinder(h=(23.9+0.3)-(8.3-0.3), r=Rh, $fn=32);\n        // catch notch (void, open at the lid front edge)\n        translate([-5.4,26.8,29.9]) cube([10.8,3.2,2.3]);\n        // hinge pockets where box knuckles pass (0.3 clearance each side, open at back)\n        for (cx=[-32.2,0,32.2]) {\n            translate([cx-4.3,-33.5,lid_bot]) cube([8.6,6.5,3.3]);\n        }\n    }\n}",
+    "old": "module lid_part() {\n    difference() {\n        union() {\n            // pyramid field (single closed polyhedron) + top slab\n            polyhedron(\n                points = concat(\n                    [for (y=[0:ny], x=[0:nx]) [-ox/2+px*x, -oy/2+py*y, fld_z]],\n                    [for (j=[0:ny-1], i=[0:nx-1]) [-ox/2+px*i+px/2, -oy/2+py*j+py/2, lid_bot]]\n                ),\n                faces = concat(\n                    [for (j=[0:ny-1], x=[0:nx-1])\n                        [j*(nx+1)+x, j*(nx+1)+x+1, (j+1)*(nx+1)+x+1, (j+1)*(nx+1)+x]],\n                    [for (j=[0:ny-1], i=[0:nx-1]) let(\n                        a=(nx+1)*(ny+1)+j*nx+i,\n                        p0=j*(nx+1)+i, p1=j*(nx+1)+i+1,\n                        p2=(j+1)*(nx+1)+i+1, p3=(j+1)*(nx+1)+i)\n                        each [[a,p1,p0],[a,p2,p1],[a,p3,p2],[a,p0,p3]]]\n                )\n            );\n            translate([-ox/2,-oy/2,fld_z]) cube([ox,oy,lid_top-fld_z]);\n            // lid knuckles (merge into the slab)\n            for (s=lid_segs) {\n                translate([0,y0,z0]) knuckle_cyl(s[0],s[1],Rk);\n            }\n        }\n        // holes through lid knuckles (extend 0.3 into gaps)\n        translate([0,y0,z0]) rotate([0,90,0]) translate([0,0,-23.9-0.3]) cylinder(h=(-8.3+0.3)-(-23.9-0.3), r=Rh, $fn=32);\n        translate([0,y0,z0]) rotate([0,90,0]) translate([0,0,8.3-0.3]) cylinder(h=(23.9+0.3)-(8.3-0.3), r=Rh, $fn=32);\n        // catch notch (void, open at the lid front edge)\n        translate([-5.4,26.8,29.9]) cube([10.8,3.2,2.3]);\n    }\n}",
+    "path": "model.scad"
+  },
+  "result": {
+    "ok": true,
+    "path": "model.scad",
+    "line": 88,
+    "lines_removed": 32,
+    "lines_added": 25,
+    "bytes": 8029,
+    "lines": 202,
+    "sha256": "a16203fa2d92d9db37247dca7261cc607b0a44e134679f6103fd274e1d00e971"
+  },
+  "seconds": 0.36,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [
+      "model.scad"
+    ],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [
+    "model.scad"
+  ],
+  "rule": null,
+  "source": "ca41150d591f6b20"
+}

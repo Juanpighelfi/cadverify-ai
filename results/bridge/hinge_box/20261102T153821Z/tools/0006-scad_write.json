@@ -1,0 +1,32 @@
+{
+  "seq": 6,
+  "iteration": 11,
+  "name": "scad_write",
+  "arguments": {
+    "content": "// Print-in-hand hinged box 80x60x40 (hinge knuckles protrude 9 at back).\n// Parts print separately in one job, no supports; pin slides in, caps press on.\n// Assembly shown closed; lid swings 0..110 deg about X axis at (y=-35,z=30).\npart = \"box\";\n$fn = 32;\n\nW=80; D=60; Hb=30; GAP=0.4; HL=9.6;\nWT=2.4; FT=2.4;\nAXY=-35; AXZ=30; KR=4; BR=2.35; KL=12.6; PITCH=13.1;\nBOXC=[-26.2,0,26.2]; LIDC=[-13.1,13.1];\nSKT=26;                    // skirt/knuckle Bauteil-Unterkante (Druck)\nPIN_R=2; PIN_L=67.5; CAP_R=3; CAP_HOLE=1.85; CAP_T=2;\n\ncadverify_only = \"\";\nmodule instance(name, part, unit = 1) {\n    echo(cadverify_instance = [name, part, unit]);\n    if (cadverify_only == \"\" || cadverify_only == name) children();\n}\n\nmodule knuckle(cx, ay, az) {\n    translate([cx, ay, az]) rotate([0,90,0])\n        difference() {\n            cylinder(r=KR, h=KL, center=true);\n            cylinder(r=BR, h=KL+0.4, center=true);\n        }\n}\nmodule webbox(cx) translate([cx-KL/2, -36, 26]) cube([KL, 6, 4]);\nmodule webblid(cx) translate([cx-KL/2, -36, 26]) cube([KL, 6, 4.4]);\n\nmodule box_part() {\n    difference() {\n        union() {\n            difference() {\n                cube([W, D, Hb]);\n                translate([WT, WT, FT]) cube([W-2*WT, D-2*WT, Hb]);\n            }\n            for (cx=BOXC) { knuckle(cx, AXY, AXZ); webbox(cx); }\n            for (nx=[-20,20]) translate([nx-2, 28, 30]) cube([4, 2, 1]);\n        }\n    }\n}\n\nmodule lid_part() {\n    // printed upside down: slab on bed, skirt up, notch pits open upward\n    difference() {\n        union() {\n            translate([-40, -29.6, 0]) cube([80, 59.6, HL]);\n            // skirt walls (outer 74.2 x 54.2, 2 thick), z 9.6..14\n            translate([-37.1, -27.1, 9.6]) cube([74.2, 2, 4.4]);\n            translate([-37.1, 25.1, 9.6]) cube([74.2, 2, 4.4]);\n            translate([-37.1, -27.1, 9.6]) cube([2, 54.2, 4.4]);\n            translate([35.1, -27.1, 9.6]) cube([2, 54.2, 4.4]);\n            for (cx=LIDC) { knuckle(cx, AXY, 10); webblid(cx);\n                translate([cx-KL/2, -30, 9.6]) cube([KL, 0.4, 0.8]); }\n        }\n        for (nx=[-20,20]) translate([nx-2.4, 27.6, 8.5]) cube([4.8, 2.4, 1.2]);\n    }\n}\n\nmodule pin_part() cylinder(r=PIN_R, h=PIN_L);\nmodule cap_part() difference() {\n    cylinder(r=CAP_R, h=CAP_T);\n    translate([0,0,-0.2]) cylinder(r=CAP_HOLE, h=CAP_T+0.4);\n}\n\nif (part == \"box\") {\n    echo(cadverify_spec = [\n        [\"bounds\", [[-40, -39, 0], [40, 30, 34]]],\n        [\"bodies\", 1], [\"through_holes\", 3],\n        [\"support_faces\", [[\"base\", \"-z\", 4000]]],\n        [\"overhangs_allowed\", [[\"hinge knuckles and bores, bridges to 4.7\",\n            [[-33, -39, 25.5], [33, -31, 34.5]]]]],\n        [\"copies\", 1],\n        [\"details\", [\n            [\"wall\", \"thickness\", [0, 32, 15], [0, -1, 0], 2.4],\n            [\"floor\", \"thickness\", [0, 0, -1], [0, 0, 1], 2.4],\n            [\"knuckle\", \"material\", [[-6.3, -39, 26], [6.3, -31, 34]], 0.3],\n            [\"bore\", \"hole\", [8, -35, 30], [-1, 0, 0], [[0, 4.7], [12.6, 4.7]]],\n            [\"nub\", \"material\", [[18, 28, 30], [22, 30, 31]], 0.9]\n        ]]\n    ]);\n    translate([-40, -30, 0]) box_part();\n}\nif (part == \"lid\") {\n    echo(cadverify_spec = [\n        [\"bounds\", [[-40, -39, 0], [40, 30, 14]]],\n        [\"bodies\", 1], [\"through_holes\", 2],\n        [\"support_faces\", [[\"top\", \"-z\", 4000]]],\n        [\"overhangs_allowed\", [[\"hinge knuckle undersides and bore roofs, bridges to 4.7\",\n            [[-33, -39, 6], [33, -31, 14]]]]],\n        [\"copies\", 1],\n        [\"details\", [\n            [\"top\", \"thickness\", [0, 0, 15], [0, 0, -1], 9.6],\n            [\"knuckle\", \"material\", [[-19.4, -39, 6], [-6.8, -31, 14]], 0.3],\n            [\"bore\", \"hole\", [-4, -35, 10], [-1, 0, 0], [[0, 4.7], [12.6, 4.7]]],\n            [\"notch\", \"void\", [[17.6, 27.6, 8.4], [22.4, 30, 9.7]], 0.8]\n        ]]\n    ]);\n    translate([0, 0, 0]) lid_part();\n}\nif (part == \"pin\") {\n    echo(cadverify_spec = [\n        [\"bounds\", [[-2, -2, 0], [2, 2, 67.5]]],\n        [\"bodies\", 1], [\"through_holes\", 0],\n        [\"support_faces\", [[\"base\", \"-z\", 8]]],\n        [\"copies\", 1],\n        [\"details\", [\n            [\"shaft\", \"thickness\", [3, 0, 30], [-1, 0, 0], 4]\n        ]]\n    ]);\n    pin_part();\n}\nif (part == \"cap\") {\n    echo(cadverify_spec = [\n        [\"bounds\", [[-3, -3, 0], [3, 3, 2]]],\n        [\"bodies\", 1], [\"through_holes\", 1],\n        [\"support_faces\", [[\"base\", \"-z\", 12]]],\n        [\"copies\", 2],\n        [\"details\", [\n            [\"ring\", \"thickness\", [2.4, 0, 3], [0, 0, -1], 2]\n        ]]\n    ]);\n    cap_part();\n}\nif (part == \"assembly\") {\n    echo(cadverify_spec = [\n        [\"bounds\", [[-40, -39, 0], [40, 30, 40]]],\n        [\"support_faces\", [[\"bed\", \"-z\", 4000]]],\n        [\"allowed_interferences\", [[\"cap_plus\", \"pin\", \"cap bore press fit 0.15\"],\n            [\"cap_minus\", \"pin\", \"cap bore press fit 0.15\"]]],\n        [\"motions\", [\n            [\"lid_swing\", [\"lid\"], \"rotate\", [0, -35, 30], [1, 0, 0], [0, 110]]\n        ]],\n        [\"assembly_order\", [\n            [[\"box\"]],\n            [[\"lid\"], [0, 0, -1]],\n            [[\"pin\"], [-1, 0, 0]],\n            [[\"cap_plus\"], [-1, 0, 0]],\n            [[\"cap_minus\"], [1, 0, 0]]\n        ]]\n    ]);\n    instance(\"box\", \"box\") translate([-40, -30, 0]) box_part();\n    instance(\"lid\", \"lid\") translate([0, 0, 40]) rotate([0, 0, 180]) rotate([180, 0, 0]) lid_part();\n    instance(\"pin\", \"pin\") translate([-33.75, -35, 30]) rotate([0, 90, 0]) pin_part();\n    instance(\"cap_plus\", \"cap\") translate([32.7, -35, 30]) rotate([0, 90, 0]) cap_part();\n    instance(\"cap_minus\", \"cap\") translate([-32.7, -35, 30]) rotate([0, -90, 0]) cap_part();\n}\n",
+    "path": "model.scad"
+  },
+  "result": {
+    "ok": true,
+    "path": "model.scad",
+    "replaced": true,
+    "bytes": 5594,
+    "lines": 147,
+    "sha256": "9019bdc45d40decf36752420add6e25d2638b7b9718edfb2bc8f353d96f8fc01"
+  },
+  "seconds": 0.299,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [
+      "model.scad"
+    ],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [
+    "model.scad"
+  ],
+  "rule": null,
+  "source": "b1b8f7320362b387"
+}

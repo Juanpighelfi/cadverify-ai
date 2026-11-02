@@ -1,0 +1,37 @@
+{
+  "seq": 27,
+  "iteration": 19,
+  "name": "run_shell",
+  "arguments": {
+    "cmd": "grep -rn \"printable option\\|neither a printable\" /opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/assembly.py | head; grep -n \"part\" /opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/assembly.py | head -40",
+    "timeout_s": 30.0
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.016,
+    "stdout": "283:                f\"neither a printable option of the part selector ({sorted(parts)}) nor \"\n1:\"\"\"assembly_report: the parts of an assembly measured where the assembly places them.\n3:The assembly (`part = \"assembly\"`) places each part through a module the prompt gives the model:\n6:    module instance(name, part, unit = 1) {\n7:        echo(cadverify_instance = [name, part, unit]);\n13:outside instance(): it must be nothing. `part` is the printable part the instance is, or\n17:- each instance is its printable part moved, not a variant of it: the same volume, area and\n18:  principal moments of inertia (a mirror image passes: the moments do not tell it apart);\n19:- every printable part is in unit 1, as many times as its spec's `copies`;\n24:- the instances touch each other (1 mm or less apart, manifold3d's min_gap) as one group;\n32:  parts are rigid: an elastic feature (a detent bump, a snap) is declared in the motion's\n35:  from the surface of the other solid) and the parts are free at both ends of the range: a\n41:  direction (the farthest point of the moving parts against the nearest of the placed ones, on a\n44:And G5, for an assembly that declares `print_in_place` (printed whole, all its parts at once):\n46:bed), go through the printability of a part with the assembly's `overhangs_allowed`\n48:apart: closer, or a press fit, and they print fused. They print in the assembly pose, or in the\n50:clearances are measured again in that pose, and an overlap there is a G5 problem. The parts as\n108:    parts: dict[str, dict[str, Any]] | None = None,\n112:    \"\"\"Every check of the module docstring. `parts` maps each printable part to its export\n113:    ({\"path\", \"spec\"}, as verify made it); without it, the parts are exported here.\"\"\"\n138:            \"the assembly does not place its parts with instance(name, part, unit): the harness \"\n139:            \"cannot take them apart to measure them\"\n146:            f\"the assembly draws geometry outside instance() (bounds {where}): every part of \"\n153:    if parts is None:\n154:        parts = _export_parts(path, out_dir, timeout_s)\n161:    _congruence(good, parts, g3)\n163:    report[\"copies\"] = _copies(instances, parts, g3)\n200:def _export_parts(path: Path, out_dir: Path, timeout_s: float) -> dict[str, dict[str, Any]]:\n201:    from cadverify.cadcheck.verify import printable_parts\n204:    for part in printable_parts(path.read_text(encoding=\"utf-8\")):\n205:        if part is None:\n207:        export = scad_export(path, part, out_dir=out_dir, timeout_s=timeout_s)\n209:            out[part] = {\"path\": export[\"path\"], \"spec\": export.get(\"spec\")}\n250:def _congruence(instances: list[dict], parts: dict[str, dict], problems: list[str]) -> None:\n253:        part = inst[\"part\"]\n254:        if part == EXTERNAL or part not in parts:\n257:        if part not in cache:\n258:            cache[part] = _properties(load_exact(parts[part][\"path\"]))\n259:        volume, area, inertia = cache[part]\n272:                f\"the instance {inst['name']} is not the part {part} that is printed: volume \"\n274:                \"assembly must place the same part, moved)\"\n",
+    "stderr": "",
+    "stdout_bytes": 3110,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 0.44,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "887ac4a7766e2b28"
+}

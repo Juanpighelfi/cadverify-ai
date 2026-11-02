@@ -1,0 +1,37 @@
+{
+  "seq": 40,
+  "iteration": 23,
+  "name": "run_python",
+  "arguments": {
+    "code": "import trimesh, numpy as np\n# load instances from checks\nbox = trimesh.load('checks/assembly/model.assembly.d40d2008.stl')\nlid = trimesh.load('checks/assembly/model.assembly.80ac5204.stl')\nprint(\"box bounds\", box.bounds)\nprint(\"lid bounds\", lid.bounds)\n# sample lid bottom face triangles (normal -z)\n# get faces with normal ~ [0,0,-1]\nn = lid.face_normals\nc = lid.triangles_center\nmask = (np.abs(n[:,2]+1)<0.01)\nprint(\"lid bottom faces\", mask.sum(), \"area\", lid.area_faces[mask].sum())\npts = c[mask]\nprint(\"x range\", pts[:,0].min(), pts[:,0].max(), \"y range\", pts[:,1].min(), pts[:,1].max())\n# box top faces at z=30 (normals +z)\nnb = box.face_normals; cb = box.triangles_center\n# triangles near z=30 top\nmaskb = (np.abs(nb[:,2]-1)<0.01) & (np.abs(cb[:,2]-30.0)<0.01)\nprint(\"box top faces\", maskb.sum(), \"area\", box.area_faces[maskb].sum())\nprint(\"box tops bounds\", cb[maskb].min(0) if maskb.sum() else None, cb[maskb].max(0) if maskb.sum() else None)\n# for a few sample points on lid bottom (centers of bays), compute horizontal distance to nearest box top triangle center\n# take grid of points\nxs = np.linspace(-37,37,15); ys = np.linspace(-24,24,11)\nxx,yy = np.meshgrid(xs,ys)\nq = np.stack([xx.ravel(), yy.ravel()],axis=1)\n# box top support points: use vertices of box at z=30\nverts = box.vertices[(np.abs(box.vertices[:,2]-30.0)<0.01)]\nprint(\"num verts at z30\", len(verts))\nfrom scipy.spatial import cKDTree\ntree = cKDTree(verts[:,:2])\nd,_ = tree.query(q)\nprint(\"max horizontal dist to z30 support:\", d.max(), \"mean\", d.mean())\nprint(\"fraction >5mm:\", (d>5).mean(), \"count\", (d>5).sum(), \"/\", len(d))\n# show worst points\nworst = q[np.argsort(d)[-10:]]\nprint(\"worst pts\", worst, d[np.argsort(d)[-10:]])\n",
+    "timeout_s": 60.0
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.975,
+    "stdout": "box bounds [[-40.  -33.4   0. ]\n [ 42.   27.   36.4]]\nlid bounds [[-40.  -33.4  30.4]\n [ 40.   27.   40. ]]\nlid bottom faces 50 area 4381.893875031741\nx range -37.666666666666664 38.833333333333336 y range -30.6610523844401 25.933333333333334\nbox top faces 258 area 1544.0\nbox tops bounds [-39.2        -26.83333333  30.        ] [39.2 26.2 30. ]\nnum verts at z30 190\nmax horizontal dist to z30 support: 5.537924167197729 mean 2.7347418095314713\nfraction >5mm: 0.03636363636363636 count 6 / 165\nworst pts [[ 31.71428571   0.        ]\n [-31.71428571   0.        ]\n [-15.85714286   0.        ]\n [ 15.85714286   0.        ]\n [ -5.28571429   9.6       ]\n [  5.28571429   9.6       ]\n [ -5.28571429  -9.6       ]\n [  5.28571429  -9.6       ]\n [  5.28571429   0.        ]\n [ -5.28571429   0.        ]] [4.7737411  4.7737411  4.97840561 4.97840561 5.11748025 5.11748025\n 5.11748025 5.11748025 5.53792417 5.53792417]\n",
+    "stderr": "",
+    "stdout_bytes": 909,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 1.395,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "a6f8ed95a66bbeac"
+}

@@ -1,0 +1,37 @@
+{
+  "seq": 51,
+  "iteration": 33,
+  "name": "run_shell",
+  "arguments": {
+    "cmd": "python3 << 'EOF'\nimport trimesh, numpy as np\nm = trimesh.load('/tmp/lid.stl')\nn = m.face_normals; c = m.triangles_center\nov = n[:,2] < -0.7071\nsel = ov & (np.abs(c[:,2]-30.4)<0.01)\npts = c[sel]\nprint(\"z30.4 overhang faces:\", sel.sum(), \"area:\", m.area_faces[sel].sum())\nprint(\"x range:\", pts[:,0].min(), pts[:,0].max())\nprint(\"y range:\", pts[:,1].min(), pts[:,1].max())\n# histogram over x in bins of 2\nxs = np.floor(pts[:,0]/2)*2\nimport collections\ncnt = collections.Counter(xs)\nfor k in sorted(cnt): print(f\"  x~{k}: {cnt[k]} faces\")\n# histogram over y\nys = np.floor(pts[:,1]/2)*2\ncnt = collections.Counter(ys)\nfor k in sorted(cnt): print(f\"  y~{k}: {cnt[k]} faces\")\nEOF",
+    "timeout_s": 60.0
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.848,
+    "stdout": "z30.4 overhang faces: 266 area: 1561.203465791882\nx range: -39.199999999999996 39.199999999999996\ny range: -30.530526192220048 26.2\n  x~-40.0: 10 faces\n  x~-38.0: 1 faces\n  x~-36.0: 7 faces\n  x~-34.0: 5 faces\n  x~-32.0: 1 faces\n  x~-30.0: 20 faces\n  x~-28.0: 1 faces\n  x~-26.0: 6 faces\n  x~-24.0: 6 faces\n  x~-20.0: 22 faces\n  x~-18.0: 2 faces\n  x~-16.0: 6 faces\n  x~-14.0: 5 faces\n  x~-12.0: 1 faces\n  x~-10.0: 18 faces\n  x~-8.0: 6 faces\n  x~-6.0: 2 faces\n  x~-4.0: 5 faces\n  x~-2.0: 9 faces\n  x~0.0: 10 faces\n  x~2.0: 4 faces\n  x~4.0: 2 faces\n  x~6.0: 6 faces\n  x~8.0: 20 faces\n  x~10.0: 1 faces\n  x~12.0: 6 faces\n  x~14.0: 6 faces\n  x~16.0: 3 faces\n  x~18.0: 20 faces\n  x~22.0: 5 faces\n  x~24.0: 8 faces\n  x~28.0: 18 faces\n  x~30.0: 1 faces\n  x~32.0: 5 faces\n  x~34.0: 6 faces\n  x~36.0: 1 faces\n  x~38.0: 11 faces\n  y~-32.0: 4 faces\n  y~-28.0: 12 faces\n  y~-26.0: 24 faces\n  y~-24.0: 2 faces\n  y~-22.0: 7 faces\n  y~-20.0: 9 faces\n  y~-16.0: 31 faces\n  y~-14.0: 2 faces\n  y~-12.0: 6 faces\n  y~-10.0: 7 faces\n  y~-6.0: 29 faces\n  y~-2.0: 10 faces\n  y~0.0: 8 faces\n  y~4.0: 30 faces\n  y~8.0: 10 faces\n  y~10.0: 7 faces\n  y~12.0: 2 faces\n  y~14.0: 31 faces\n  y~18.0: 10 faces\n  y~20.0: 7 faces\n  y~22.0: 2 faces\n  y~24.0: 14 faces\n  y~26.0: 2 faces\n",
+    "stderr": "",
+    "stdout_bytes": 1248,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 1.194,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "2cee01e66f4b3f8e"
+}

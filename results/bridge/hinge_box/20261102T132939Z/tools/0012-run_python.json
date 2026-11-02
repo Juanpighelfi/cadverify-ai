@@ -1,0 +1,36 @@
+{
+  "seq": 12,
+  "iteration": 6,
+  "name": "run_python",
+  "arguments": {
+    "code": "import trimesh, numpy as np, glob\nfrom scipy.spatial import cKDTree\nfiles = sorted(glob.glob('checks/assembly/model.assembly.*.stl'))\nprint(files)\nmeshes={}\nfor f in files:\n    m=trimesh.load(f); meshes[f]=m; print(f, m.bounds, m.volume)\n# identify by volume: box 33602, lid 20358, pin 802\nbox=[m for m in meshes.values() if abs(m.volume-33602)<10][0]\nlid=[m for m in meshes.values() if abs(m.volume-20358)<10][0]\nlidf=lid.copy(); v=lidf.vertices.copy(); v[:,1]=112-v[:,1]; v[:,2]=40-v[:,2]; lidf.vertices=v\nprint('flipped lid bounds', lidf.bounds)\nfor name,a,b in [('box-lidf',box,lidf)]:\n    ta=cKDTree(a.vertices); d,i=ta.query(b.vertices)\n    k=np.argsort(d)[:15]\n    for j in k: print(name, round(float(d[j]),3), 'lidpt', np.round(b.vertices[j],2), 'boxpt', np.round(a.vertices[i[j]],2))\n    tb=cKDTree(b.vertices); d2,i2=tb.query(a.vertices)\n    k=np.argsort(d2)[:10]\n    for j in k: print(name+' rev', round(float(d2[j]),3), 'boxpt', np.round(a.vertices[j],2), 'lidpt', np.round(b.vertices[i2[j]],2))\n"
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.928,
+    "stdout": "['checks/assembly/model.assembly.07b3764e.stl', 'checks/assembly/model.assembly.2963ebe5.stl', 'checks/assembly/model.assembly.9d2a2e24.stl']\nchecks/assembly/model.assembly.07b3764e.stl [[ 0.  0. 16.]\n [80. 60. 40.]] 20358.93197792418\nchecks/assembly/model.assembly.2963ebe5.stl [[11.  53.9 17.9]\n [69.  58.1 22.1]] 802.2663729118403\nchecks/assembly/model.assembly.9d2a2e24.stl [[ 0.  0.  0.]\n [80. 60. 30.]] 33602.58206510471\nflipped lid bounds [[  0.  52.   0.]\n [ 80. 112.  24.]]\nbox-lidf 0.6 lidpt [21.4  59.53 21.89] boxpt [20.8  59.53 21.89]\nbox-lidf 0.6 lidpt [21.4  59.7  21.53] boxpt [20.8  59.7  21.53]\nbox-lidf 0.6 lidpt [21.4  59.83 21.16] boxpt [20.8  59.83 21.16]\nbox-lidf 0.6 lidpt [21.4  59.92 20.78] boxpt [20.8  59.92 20.78]\nbox-lidf 0.6 lidpt [21.4  59.53 18.11] boxpt [20.8  59.53 18.11]\nbox-lidf 0.6 lidpt [21.4  59.7  18.47] boxpt [20.8  59.7  18.47]\nbox-lidf 0.6 lidpt [21.4  54.11 16.47] boxpt [20.8  54.11 16.47]\nbox-lidf 0.6 lidpt [21.4  55.49 17.45] boxpt [20.8  55.49 17.45]\nbox-lidf 0.6 lidpt [21.4  55.22 16.08] boxpt [20.8  55.22 16.08]\nbox-lidf 0.6 lidpt [21.4  55.25 17.51] boxpt [20.8  55.25 17.51]\nbox-lidf 0.6 lidpt [21.4  54.84 16.17] boxpt [20.8  54.84 16.17]\nbox-lidf 0.6 lidpt [21.4  55.01 17.6 ] boxpt [20.8  55.01 17.6 ]\nbox-lidf 0.6 lidpt [21.4 56.  17.4] boxpt [20.8 56.  17.4]\nbox-lidf 0.6 lidpt [21.4  55.75 17.41] boxpt [20.8  55.75 17.41]\nbox-lidf 0.6 lidpt [21.4  55.61 16.02] boxpt [20.8  55.61 16.02]\nbox-lidf rev 0.6 boxpt [20.8  54.77 22.29] lidpt [21.4  54.77 22.29]\nbox-lidf rev 0.6 boxpt [20.8  55.01 22.4 ] lidpt [21.4  55.01 22.4 ]\nbox-lidf rev 0.6 boxpt [20.8  55.25 22.49] lidpt [21.4  55.25 22.49]\nbox-lidf rev 0.6 boxpt [20.8  55.49 22.55] lidpt [21.4  55.49 22.55]\nbox-lidf rev 0.6 boxpt [20.8  55.75 22.59] lidpt [21.4  55.75 22.59]\nbox-lidf rev 0.6 boxpt [20.8 56.  22.6] lidpt [21.4 56.  22.6]\nbox-lidf rev 0.6 boxpt [20.8  56.25 22.59] lidpt [21.4  56.25 22.59]\nbox-lidf rev 0.6 boxpt [20.8  56.75 22.49] lidpt [21.4  56.75 22.49]\nbox-lidf rev 0.6 boxpt [20.8  56.99 22.4 ] lidpt [21.4  56.99 22.4 ]\nbox-lidf rev 0.6 boxpt [20.8  57.23 22.29] lidpt [21.4  57.23 22.29]\n",
+    "stderr": "",
+    "stdout_bytes": 2136,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 1.294,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "c61295516c6867b5"
+}

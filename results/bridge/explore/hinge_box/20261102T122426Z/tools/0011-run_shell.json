@@ -1,0 +1,36 @@
+{
+  "seq": 11,
+  "iteration": 12,
+  "name": "run_shell",
+  "arguments": {
+    "cmd": "head -72 model.scad > /tmp/h.scad; echo 'cube(1);' >> /tmp/h.scad\nopenscad /tmp/h.scad -o /tmp/outh.stl 2>&1 | head; echo \"EXIT:$?\"\necho \"=== lines 48-72 ===\"\nsed -n '48,72p' model.scad > /tmp/m2.scad; cat /tmp/m2.scad | head -30\npython3 -c \"\nlines=open('/work/model.scad').read().split('\\n')\nopen('/tmp/m2.scad','w').write('\\n'.join(lines[47:72]))\nprint(open('/tmp/m2.scad').read()[-500:])\n\""
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.09,
+    "stdout": "ERROR: Parser error: syntax error in file ../tmp/h.scad, line 75\nCan't parse file '/tmp/h.scad'!\n\nEXIT:0\n=== lines 48-72 ===\nmodule lid_part_geo(){\n // printed top-down: top plate z0..2.4, skirt up to 10, hinge axis at z=10,y=-D/2\n difference(){\n  union(){\n   difference(){\n    translate([-W/2,-D/2,0]) cube([W,D,Hl]);\n    translate([-W/2+T,-D/2+T,0-1]) cube([W-2*T,D-2*T,Hl-2.4+1]);\n    // top plate is at bottom: cavity from top down to 2.4\n   }\n   // lid knuckles L1 L2\n   barrelX(-17.5,-6.5,-D/2,10,HR); barrelX(6.5,17.5,-D/2,10,HR);\n   // catch lip: top bridge + lower leg\n   translate([-LIPW/2,D/2-0.01-2.4,8]) cube([LIPW,2.4+2.4,2]);\n   translate([-LIPW/2,D/2+LIPG,8-7+2]) cube([LIPW,2.4,7]);\n  }\n  // base notches in back wall (upper near opening)\n  translate([-12.5,-D/2-5,5.6]) cube([13,5+T+0.5,4.5]);\n  translate([-0.5+6,-D/2-5,5.6]) cube([13,5+T+0.5,4.5]);\n  // bores thru\n  barrelX(-17.5-0.2,-6.5+0.2,-D/2,10,BORE_D/2);\n  barrelX(6.5-0.2,17.5+0.2,-D/2,10,BORE_D/2);\n }\n}\nmodule pin_geo(){ translate([0,0,0]) cylinder(h=57,r=PIN_D/2); }\nif(part==\"box\"){\n + lower leg\n   translate([-LIPW/2,D/2-0.01-2.4,8]) cube([LIPW,2.4+2.4,2]);\n   translate([-LIPW/2,D/2+LIPG,8-7+2]) cube([LIPW,2.4,7]);\n  }\n  // base notches in back wall (upper near opening)\n  translate([-12.5,-D/2-5,5.6]) cube([13,5+T+0.5,4.5]);\n  translate([-0.5+6,-D/2-5,5.6]) cube([13,5+T+0.5,4.5]);\n  // bores thru\n  barrelX(-17.5-0.2,-6.5+0.2,-D/2,10,BORE_D/2);\n  barrelX(6.5-0.2,17.5+0.2,-D/2,10,BORE_D/2);\n }\n}\nmodule pin_geo(){ translate([0,0,0]) cylinder(h=57,r=PIN_D/2); }\nif(part==\"box\"){\n",
+    "stderr": "",
+    "stdout_bytes": 1567,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 0.467,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "70e3ef839f6e8ad6"
+}

@@ -1,0 +1,36 @@
+{
+  "seq": 18,
+  "iteration": 9,
+  "name": "run_shell",
+  "arguments": {
+    "cmd": "sed -n 1,60p model.scad; echo ....; sed -n 85,115p model.scad"
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.006,
+    "stdout": "// Print-in-place hinged box, Bambu Lab A1 / PLA, 0.4 mm nozzle.\n// Closed (assembly) size: 80 (X) x 60 (Y incl. hinge) x 40 (Z) mm.\n// Box body is 30 mm high, lid is the top 10 mm.\n// Hinge axis is offset below the lid top (axis_z = 20 = lid_top/2), so that\n// with the lid swung 180 deg the lid plate lies flat on the bed behind the\n// box: that is the print-in-place print pose (print_pose hinge_open = 180).\n// Radial pin/bore clearance 0.5 mm, axial knuckle clearance 0.6 mm.\n\npart = \"assembly\";\n\n$fn = 64;\n\nW = 80;          // overall width\nDbody = 53;      // box/lid body depth (hinge knuckles extend this to 60)\nHbox = 30;       // box height, also lid seat plane\nHlid = 10;       // lid height\nHtot = Hbox + Hlid; // 40\nwall = 3;\naxis_y = 56;     // hinge axis, behind body back face (53)\naxis_z = 20;     // hinge axis height (= Htot/2, see header)\nr_out = 4.0;     // knuckle outer radius\nr_bore = 2.6;    // knuckle bore radius\nr_pin = 2.1;     // pin radius (0.5 radial clearance)\n\n// knuckle segments along X [x0, x1], 0.6 mm axial gaps\nbox_segs = [[8.8, 20.8], [34.0, 46.0], [59.2, 71.2]];\nlid_segs = [[21.4, 33.4], [46.6, 58.6]];\npin_x0 = 11.0;   // pin spans 11..69 (0.6 clear of the end caps)\npin_len = 58;\n\ncadverify_only = \"\";\nmodule instance(name, part, unit = 1) {\n    echo(cadverify_instance = [name, part, unit]);\n    if (cadverify_only == \"\" || cadverify_only == name) children();\n}\n\n// 180 deg flip about the hinge axis (its own inverse): closed <-> print pose\nmodule hinge_flip() {\n    translate([0, axis_y, axis_z]) rotate([180, 0, 0])\n        translate([0, -axis_y, -axis_z]) children();\n}\n\nmodule tube_x(x0, len, r) {\n    translate([x0, axis_y, axis_z]) rotate([0, 90, 0]) cylinder(h = len, r = r);\n}\n\n// ---------------------------------------------------------------- box (print = assembly pose)\nmodule box_part() {\n    union() {\n        // floor and shell\n        cube([W, Dbody, 3]);                                   // floor\n        translate([0, 0, 0]) cube([W, wall, Hbox]);            // front wall\n        translate([0, 0, 0]) cube([wall, Dbody, Hbox]);        // left wall\n        translate([W - wall, 0, 0]) cube([wall, Dbody, Hbox]); // right wall\n        // back wall: low strip full width + upper parts only at box knuckles\n        translate([0, Dbody - wall, 0]) cube([W, wall, 15]);\n        for (s = [[0, 21.1], [33.7, 46.3], [58.9, 80]])\n            translate([s[0], Dbody - wall, 14]) cube([s[1] - s[0], wall, Hbox - 15]);\n        // hinge knuckles (box segments), arms and end caps\n        for (i = [0 : len(box_segs) - 1]) {\n....\n        translate([0, 0, Hbox]) cube([wall, Dbody, Hlid]);     // left skirt\n        translate([W - wall, 0, Hbox]) cube([wall, Dbody, Hlid]); // right skirt\n        translate([0, Dbody - wall, Hbox]) cube([W, wall, Hlid]); // back skirt\n        // front catch tab, hanging inside the front wall, with snap groove\n        difference() {\n            translate([32, 3.4, 26]) cube([16, 2.8, 11]);\n            translate([34, 3.4, 27.2]) cube([12, 0.9, 2.6]);   // groove\n        }\n        // hinge knuckles (lid segments) and their arms to the back skirt\n        for (s = lid_segs) {\n            difference() {\n                tube_x(s[0], s[1] - s[0], r_out);\n                tube_x(s[0] - 0.2, s[1] - s[0] + 0.4, r_bore);\n            }\n            hull() {\n                translate([(s[0] + s[1]) / 2 - 3.5, Dbody - wall, 31]) cube([7, 3.5, 6]);\n                tube_x((s[0] + s[1]) / 2 - 3.5, 7, r_out);\n            }\n        }\n    }\n}\n\n// lid as printed: flipped 180 deg about the hinge axis, plate flat on the bed\nmodule lid_part() { hinge_flip() lid_closed(); }\n\n// ---------------------------------------------------------------- pin (print-local: lying on bed)\nmodule pin_part() {\n    translate([0, r_pin, r_pin]) rotate([0, 90, 0]) cylinder(h = pin_len, r = r_pin);\n}\n\n// ---------------------------------------------------------------- selector / assembly\n",
+    "stderr": "",
+    "stdout_bytes": 3946,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 0.356,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "ddec252509dad1c9"
+}

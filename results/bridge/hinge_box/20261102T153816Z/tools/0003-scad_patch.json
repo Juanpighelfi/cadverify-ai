@@ -1,0 +1,35 @@
+{
+  "seq": 3,
+  "iteration": 5,
+  "name": "scad_patch",
+  "arguments": {
+    "new": "module lid_geo() {\n    difference() {\n        union() {\n            // top plate: x -40..40, y 0..60, z 37.5..40\n            translate([-40,0,37.5]) cube([80,60,2.5]);\n            // lid skirt walls 2mm, y 0..60, z 30.3..37.5\n            translate([-40,0,30.3]) cube([80,2,7.2]);    // back band\n            translate([-40,58,30.3]) cube([80,2,7.2]);   // front band\n            translate([-40,2,30.3]) cube([2,56,7.2]);    // left band\n            translate([38,2,30.3]) cube([2,56,7.2]);     // right band\n            // lid skirt inner closure panels (also skirt divider walls)\n            for (cy=[12.6,24.2,35.8,47.4])\n                translate([-38,cy-1,30.3]) cube([76,2,4.2]);  // up to 34.5\n            // lid knuckles + catch tongue\n            dia(outH,0,axZ,lx10,lx11);\n            dia(outH,0,axZ,lx20,lx21);\n            translate([-6,58.3,27.5]) cube([12,1.7,3.4]);  // tongue tab below front band\n        }\n        // bore channels\n        dia(boreH,0,axZ,lx10,lx11);\n        dia(boreH,0,axZ,lx20,lx21);\n        // clearance pockets opposite base knuckles\n        dia(boreH+clrR,0,axZ,-27.6,-23.6);\n        dia(boreH+clrR,0,axZ,-7.6,-7.2);\n        dia(boreH+clrR,0,axZ,7.2,7.6);\n        dia(boreH+clrR,0,axZ,23.6,27.6);\n    }\n}\n// stubs\nmodule pin_geo() { cube([0.01,0.01,0.01]); }",
+    "old": "// stubs\nmodule lid_geo() { cube([0.01,0.01,0.01]); }\nmodule pin_geo() { cube([0.01,0.01,0.01]); }",
+    "path": "model.scad"
+  },
+  "result": {
+    "ok": true,
+    "path": "model.scad",
+    "line": 78,
+    "lines_removed": 3,
+    "lines_added": 30,
+    "bytes": 4448,
+    "lines": 116,
+    "sha256": "a80d4ff4a2874540bc9454f240d96ced802c1776b238f69b453d82a2dd08dddb"
+  },
+  "seconds": 0.358,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [
+      "model.scad"
+    ],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [
+    "model.scad"
+  ],
+  "rule": null,
+  "source": "5493b31704babd73"
+}

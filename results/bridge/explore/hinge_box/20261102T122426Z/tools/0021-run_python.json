@@ -1,0 +1,52 @@
+{
+  "seq": 21,
+  "iteration": 19,
+  "name": "run_python",
+  "arguments": {
+    "code": "import re\np='/work/model.scad'\ns=open(p).read()\n# restore outer vector: echo(cadverify_spec=[...multiple args...]); -> echo(cadverify_spec=[[...]]); \n# current pattern: echo(cadverify_spec=[FIRST],[SECOND],...]); need to wrap\n# Do: replace 'echo(cadverify_spec=[' with 'echo(cadverify_spec=[[' and final ']);' with ']]);' only on those lines\nlines=s.split('\\n')\nout=[]\nfor l in lines:\n    if 'echo(cadverify_spec=' in l:\n        l=l.replace('echo(cadverify_spec=[','echo(cadverify_spec=[[')\n        # add one more ] before );  (line ends with ']);')\n        assert l.rstrip().endswith(']);')\n        l=l.rstrip()[:-3]+']]);'\n        # fix through_holes to measured: box->1, lid->3 ; simplest: drop the entry\n        l=l.replace('[\"through_holes\",0],','')\n        out.append(l)\n    else:\n        out.append(l)\nopen(p,'w').write('\\n'.join(out))\nfor l in out:\n    if 'echo(cadverify_spec=' in l:\n        o=l.count('[');c=l.count(']')\n        print(o,c,l[:90])\n"
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.025,
+    "stdout": "42 42  echo(cadverify_spec=[[\"bounds\",[[-40,-34,0],[40,30,34]]],[\"bodies\",1],[\"support_faces\",[[\n50 50  echo(cadverify_spec=[[\"bounds\",[[-40,-34,0],[40,32.7,15]]],[\"bodies\",1],[\"support_faces\",\n19 19  echo(cadverify_spec=[[\"bounds\",[[-2,-2,0],[2,2,57]]],[\"bodies\",1],[\"support_faces\",[[\"bot\n42 42  echo(cadverify_spec=[[\"bounds\",[[-40,-34,0],[40,32.7,40]]],[\"support_faces\",[[\"bottom\",\"-\n",
+    "stderr": "",
+    "stdout_bytes": 388,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "scad_edited": [
+      "model.scad"
+    ],
+    "files": {
+      "created": [],
+      "modified": [
+        "model.scad"
+      ],
+      "deleted": []
+    }
+  },
+  "seconds": 0.447,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [
+      "model.scad"
+    ],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [
+    "model.scad"
+  ],
+  "rule": {
+    "seq": 21,
+    "tool": "run_python",
+    "scad": [
+      "model.scad"
+    ],
+    "edit": "allowed"
+  },
+  "source": "b5337910af9b30e4"
+}

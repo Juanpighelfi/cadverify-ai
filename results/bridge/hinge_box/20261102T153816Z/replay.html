@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Box with a print-in-place hinge</title><style>
+:root {
+  --bg: #f7f7f5; --panel: #ffffff; --text: #1d1d1b; --muted: #6b6b66; --line: #e2e2dc;
+  --ok: #1f8a4c; --ok-bg: #e3f4ea; --red: #c23b2a; --red-bg: #fbe7e4;
+  --pend: #b8b8b0; --info: #2f5fb3; --info-bg: #e6edf9; --code: #f0f0ec;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #161615; --panel: #1f1f1d; --text: #ecece8; --muted: #9a9a93; --line: #34342f;
+    --ok: #4cc27c; --ok-bg: #18301f; --red: #ef6b5a; --red-bg: #3a1d19;
+    --pend: #55554f; --info: #7da2e8; --info-bg: #1b2539; --code: #272724;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+main { max-width: 1100px; margin: 0 auto; padding: 24px 16px 64px; }
+h1 { font-size: 26px; margin: 0 0 6px; }
+h2 { font-size: 18px; margin: 32px 0 12px; }
+.meta { color: var(--muted); display: flex; flex-wrap: wrap; gap: 6px 16px; }
+.badge {
+  display: inline-block; padding: 1px 9px; border-radius: 999px; font-size: 13px;
+  font-weight: 600;
+}
+.badge.ok { color: var(--ok); background: var(--ok-bg); }
+.badge.red { color: var(--red); background: var(--red-bg); }
+.badge.info { color: var(--info); background: var(--info-bg); }
+.badge.pend { color: var(--muted); background: var(--code); }
+.panel {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+  padding: 14px 16px;
+}
+pre {
+  margin: 0; white-space: pre-wrap; word-break: break-word;
+  font: 13px/1.45 ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+.md { overflow-wrap: anywhere; }
+.md > :first-child { margin-top: 0; }
+.md > :last-child { margin-bottom: 0; }
+.md p { margin: 0 0 8px; }
+.md p.h { font-weight: 700; margin-top: 12px; }
+.md ul, .md ol { margin: 0 0 8px; padding-left: 22px; }
+.md ul { list-style: disc; }
+.md li > ul { list-style: circle; }
+.md li > ul, .md li > ol { margin: 2px 0 0; }
+.md code, .detail code { font: 13px ui-monospace, "SFMono-Regular", Menlo, monospace;
+  background: var(--code); border-radius: 4px; padding: 0 4px; }
+.cite { font: 600 12px ui-monospace, "SFMono-Regular", Menlo, monospace; color: var(--info);
+  background: var(--info-bg); border-radius: 4px; padding: 0 5px; white-space: nowrap; }
+pre.code { background: var(--code); border-radius: 8px; padding: 12px; overflow-x: auto;
+  white-space: pre; }
+details > summary { cursor: pointer; font-weight: 600; }
+details[open] > summary { margin-bottom: 10px; }
+.grid { overflow-x: auto; }
+.grid table { border-collapse: separate; border-spacing: 2px; }
+.grid th { font-weight: 500; color: var(--muted); font-size: 13px; text-align: left;
+  white-space: nowrap; padding-right: 10px; }
+.grid td { padding: 0; }
+.grid a { display: block; width: var(--cell); height: 22px; border-radius: 3px; }
+.grid a.ok { background: var(--ok); }
+.grid a.red { background: var(--red); }
+.grid a.pend { background: var(--pend); }
+.grid a.none { box-shadow: inset 0 0 0 1.5px var(--pend); }
+.grid .num { font-size: 11px; color: var(--muted); text-align: center; }
+ol.timeline { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
+.it-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; }
+.it-head b { font-size: 16px; }
+.it-head span { color: var(--muted); font-size: 13px; }
+.said { margin-top: 10px; border-left: 3px solid var(--info); padding-left: 12px; }
+.answer { border-left-color: var(--ok); }
+ul.calls { margin: 10px 0 0; padding: 0; list-style: none; display: grid; gap: 4px; }
+ul.calls > li { font-size: 13px; overflow-wrap: anywhere; }
+ul.calls > li > code { font-weight: 600; }
+.images { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 12px; margin-top: 12px; }
+.images figure { margin: 0; }
+.images img { display: block; width: 100%; border: 1px solid var(--line); border-radius: 6px;
+  background: #fff; }
+.images figcaption { font-size: 12px; color: var(--muted); margin-top: 2px; }
+ul.detail, ul.found { list-style: none; margin: 10px 0 0; padding: 2px 0 2px 12px;
+  border-left: 3px solid var(--red); font-size: 13px; display: grid; gap: 3px;
+  overflow-wrap: anywhere; }
+ul.found { margin: 4px 0 4px 2px; }
+ul.found.note { border-left-color: var(--info); }
+ul.detail b, ul.found b { color: var(--red); margin-right: 4px; }
+ul.found.note b { color: var(--info); }
+.more { color: var(--muted); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.legend { color: var(--muted); font-size: 13px; margin: 10px 0 0; }
+.legend i { display: inline-block; width: 10px; height: 12px; border-radius: 2px;
+  vertical-align: -1px; margin: 0 4px 0 10px; }
+.legend i:first-child { margin-left: 0; }
+.legend .ok { background: var(--ok); } .legend .red { background: var(--red); }
+.legend .pend { background: var(--pend); }
+.legend .none { box-shadow: inset 0 0 0 1.5px var(--pend); }
+a { color: var(--info); }
+.lead { color: var(--muted); max-width: 780px; margin: 0; }
+.runs { overflow-x: auto; padding: 6px 8px; }
+.runs table { border-collapse: collapse; width: 100%; min-width: 960px; table-layout: fixed;
+  font-size: 14px; }
+.runs col.request { width: 22%; } .runs col.model { width: 19%; }
+.runs col.status { width: 17%; } .runs col.n { width: 6.5%; } .runs col.when { width: 16%; }
+.runs th { font-weight: 500; color: var(--muted); font-size: 13px; text-align: left; }
+.runs th, .runs td { padding: 6px 8px; }
+.runs th { vertical-align: bottom; }
+.runs td { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.runs tr + tr td { border-top: 1px solid var(--line); }
+.runs .n { text-align: right; font-variant-numeric: tabular-nums; }
+</style></head><body><main><h1>Box with a print-in-place hinge</h1><div class="meta"><span class="badge red">time limit reached</span><span>muse-spark-1.3-contributor</span><span>audited by muse-wonder-1.0</span><span>11 requests</span><span>9 tool calls</span><span>USD 0.05</span><span>61 min</span></div><h2>Request</h2><div class="panel md"><p>A small box with a lid, joined by a hinge that prints in place: one print, and it comes off the bed already assembled, with the lid swinging free.</p><ul><li>Outside, closed: about 80 x 60 x 40 mm, the lid about 10 mm of that height.</li><li>The hinge runs along the back edge: knuckles that alternate between the box and the lid, around a pin printed in place. Clearances that work in PLA on a Bambu Lab A1 with a 0.4 mm nozzle, so the hinge breaks free by hand and does not fuse.</li><li>No supports, inside the hinge included.</li><li>The lid opens at least 100 degrees and closes flush with the box.</li><li>A small catch at the front that keeps the lid shut would be welcome.</li></ul><p>Show me the closed box as the assembly, and the lid&#x27;s swing as its motion.</p></div><h2>Gates at every iteration</h2><div class="grid panel"><table style="--cell: 32px"><tr><th></th><td class="num"></td><td class="num"></td><td class="num"></td><td class="num"></td><td class="num">5</td><td class="num"></td><td class="num"></td><td class="num"></td><td class="num"></td><td class="num">10</td><td class="num"></td></tr><tr><th>G1 compiles clean</th><td><a class="none" href="#it-1" title="iteration 1: nothing verified, the response was cut short"></a></td><td><a class="none" href="#it-2" title="iteration 2: nothing verified, the response was cut short"></a></td><td><a class="ok" href="#it-3" title="iteration 3: G1 ok"></a></td><td><a class="ok" href="#it-4" title="iteration 4: G1 ok"></a></td><td><a class="ok" href="#it-5" title="iteration 5: G1 ok"></a></td><td><a class="ok" href="#it-6" title="iteration 6: G1 ok"></a></td><td><a class="ok" href="#it-7" title="iteration 7: G1 ok"></a></td><td><a class="ok" href="#it-8" title="iteration 8: G1 ok"></a></td><td><a class="ok" href="#it-9" title="iteration 9: G1 ok"></a></td><td><a class="ok" href="#it-10" title="iteration 10: G1 ok"></a></td><td><a class="ok" href="#it-11" title="iteration 11: G1 ok"></a></td></tr><tr><th>G2 closed meshes</th><td><a class="none" href="#it-1" title="iteration 1: nothing verified, the response was cut short"></a></td><td><a class="none" href="#it-2" title="iteration 2: nothing verified, the response was cut short"></a></td><td><a class="red" href="#it-3" title="iteration 3: G2 red"></a></td><td><a class="red" href="#it-4" title="iteration 4: G2 red"></a></td><td><a class="red" href="#it-5" title="iteration 5: G2 red"></a></td><td><a class="red" href="#it-6" title="iteration 6: G2 red"></a></td><td><a class="red" href="#it-7" title="iteration 7: G2 red"></a></td><td><a class="red" href="#it-8" title="iteration 8: G2 red"></a></td><td><a class="red" href="#it-9" title="iteration 9: G2 red"></a></td><td><a class="ok" href="#it-10" title="iteration 10: G2 ok"></a></td><td><a class="ok" href="#it-11" title="iteration 11: G2 ok"></a></td></tr><tr><th>G3 assembly</th><td><a class="none" href="#it-1" title="iteration 1: nothing verified, the response was cut short"></a></td><td><a class="none" href="#it-2" title="iteration 2: nothing verified, the response was cut short"></a></td><td><a class="ok" href="#it-3" title="iteration 3: G3 ok"></a></td><td><a class="ok" href="#it-4" title="iteration 4: G3 ok"></a></td><td><a class="red" href="#it-5" title="iteration 5: G3 red"></a></td><td><a class="red" href="#it-6" title="iteration 6: G3 red"></a></td><td><a class="red" href="#it-7" title="iteration 7: G3 red"></a></td><td><a class="red" href="#it-8" title="iteration 8: G3 red"></a></td><td><a class="red" href="#it-9" title="iteration 9: G3 red"></a></td><td><a class="red" href="#it-10" title="iteration 10: G3 red"></a></td><td><a class="red" href="#it-11" title="iteration 11: G3 red"></a></td></tr><tr><th>G4 motion</th><td><a class="none" href="#it-1" title="iteration 1: nothing verified, the response was cut short"></a></td><td><a class="none" href="#it-2" title="iteration 2: nothing verified, the response was cut short"></a></td><td><a class="red" href="#it-3" title="iteration 3: G4 red"></a></td><td><a class="red" href="#it-4" title="iteration 4: G4 red"></a></td><td><a class="red" href="#it-5" title="iteration 5: G4 red"></a></td><td><a class="red" href="#it-6" title="iteration 6: G4 red"></a></td><td><a class="red" href="#it-7" title="iteration 7: G4 red"></a></td><td><a class="red" href="#it-8" title="iteration 8: G4 red"></a></td><td><a class="red" href="#it-9" title="iteration 9: G4 red"></a></td><td><a class="red" href="#it-10" title="iteration 10: G4 red"></a></td><td><a class="red" href="#it-11" title="iteration 11: G4 red"></a></td></tr><tr><th>G5 printable</th><td><a class="none" href="#it-1" title="iteration 1: nothing verified, the response was cut short"></a></td><td><a class="none" href="#it-2" title="iteration 2: nothing verified, the response was cut short"></a></td><td><a class="ok" href="#it-3" title="iteration 3: G5 ok"></a></td><td><a class="red" href="#it-4" title="iteration 4: G5 red"></a></td><td><a class="red" href="#it-5" title="iteration 5: G5 red"></a></td><td><a class="red" href="#it-6" title="iteration 6: G5 red"></a></td><td><a class="red" href="#it-7" title="iteration 7: G5 red"></a></td><td><a class="red" href="#it-8" title="iteration 8: G5 red"></a></td><td><a class="red" href="#it-9" title="iteration 9: G5 red"></a></td><td><a class="red" href="#it-10" title="iteration 10: G5 red"></a></td><td><a class="red" href="#it-11" title="iteration 11: G5 red"></a></td></tr><tr><th>G7 spec held, all seen</th><td><a class="none" href="#it-1" title="iteration 1: nothing verified, the response was cut short"></a></td><td><a class="none" href="#it-2" title="iteration 2: nothing verified, the response was cut short"></a></td><td><a class="red" href="#it-3" title="iteration 3: G7 red"></a></td><td><a class="red" href="#it-4" title="iteration 4: G7 red"></a></td><td><a class="red" href="#it-5" title="iteration 5: G7 red"></a></td><td><a class="red" href="#it-6" title="iteration 6: G7 red"></a></td><td><a class="red" href="#it-7" title="iteration 7: G7 red"></a></td><td><a class="red" href="#it-8" title="iteration 8: G7 red"></a></td><td><a class="red" href="#it-9" title="iteration 9: G7 red"></a></td><td><a class="red" href="#it-10" title="iteration 10: G7 red"></a></td><td><a class="red" href="#it-11" title="iteration 11: G7 red"></a></td></tr><tr><th>G8 honest close</th><td><a class="none" href="#it-1" title="iteration 1: nothing verified, the response was cut short"></a></td><td><a class="none" href="#it-2" title="iteration 2: nothing verified, the response was cut short"></a></td><td><a class="pend" href="#it-3" title="iteration 3: G8 pend"></a></td><td><a class="pend" href="#it-4" title="iteration 4: G8 pend"></a></td><td><a class="pend" href="#it-5" title="iteration 5: G8 pend"></a></td><td><a class="pend" href="#it-6" title="iteration 6: G8 pend"></a></td><td><a class="pend" href="#it-7" title="iteration 7: G8 pend"></a></td><td><a class="pend" href="#it-8" title="iteration 8: G8 pend"></a></td><td><a class="pend" href="#it-9" title="iteration 9: G8 pend"></a></td><td><a class="pend" href="#it-10" title="iteration 10: G8 pend"></a></td><td><a class="pend" href="#it-11" title="iteration 11: G8 pend"></a></td></tr></table><p class="legend"><i class="ok"></i>passed<i class="red"></i>failed<i class="pend"></i>pending: G8 is judged when the model closes.<i class="none"></i>nothing verified: response cut short or failed. One column per iteration; each cell links to it.</p></div><h2>Session</h2><ol class="timeline"><li class="panel" id="it-1"><div class="it-head"><b>Iteration 1</b><span>USD 0.013 · 594 s · 64,000 output tokens</span><span class="badge red">response cut short (max_output_tokens)</span></div></li><li class="panel" id="it-2"><div class="it-head"><b>Iteration 2</b><span>USD 0.013 · 2048 s · 64,000 output tokens</span><span class="badge red">response cut short (max_output_tokens)</span></div><div class="said md"><p>Starting the in-place hinge box in small steps — first the base and hinge layout.</p></div></li><li class="panel" id="it-3"><div class="it-head"><b>Iteration 3</b><span>USD 0.013 · 477 s · 61,295 output tokens</span></div><div class="said md"><p>Starting the in‑place hinge box — writing the base module first.</p></div><ul class="calls"><li><code>scad_write</code> model.scad: 69 lines</li></ul></li><li class="panel" id="it-4"><div class="it-head"><b>Iteration 4</b><span>USD 0.005 · 264 s · 25,555 output tokens</span></div><ul class="calls"><li><code>scad_patch</code> model.scad line 47: 89 lines</li></ul></li><li class="panel" id="it-5"><div class="it-head"><b>Iteration 5</b><span>USD 0.001 · 12 s · 687 output tokens</span></div><div class="said md"><p>Base shell is in — now adding the lid and pin.</p></div><ul class="calls"><li><code>scad_patch</code> model.scad line 78: 116 lines</li></ul></li><li class="panel" id="it-6"><div class="it-head"><b>Iteration 6</b><span>USD 0.000 · 11 s · 278 output tokens</span></div><ul class="calls"><li><code>scad_patch</code> model.scad line 106: 129 lines</li></ul></li><li class="panel" id="it-7"><div class="it-head"><b>Iteration 7</b><span>USD 0.000 · 12 s · 211 output tokens</span></div><div class="said md"><p>Continuing the build in small steps — checking geometry so far before wiring print pose and specs.</p></div><ul class="calls"><li><code>scad_compile</code> ok=True, 3 echo, 0 warnings, 0 failed asserts, 0 errors</li></ul></li><li class="panel" id="it-8"><div class="it-head"><b>Iteration 8</b><span>USD 0.001 · 33 s · 4,304 output tokens</span></div><div class="said md"><p>Fixing the hinge pin to run the full length — then specs.</p></div><ul class="calls"><li><code>scad_patch</code> model.scad line 106: 128 lines</li></ul></li><li class="panel" id="it-9"><div class="it-head"><b>Iteration 9</b><span>USD 0.002 · 81 s · 8,227 output tokens</span></div><ul class="calls"><li><code>scad_patch</code> model.scad line 16: 128 lines</li></ul></li><li class="panel" id="it-10"><div class="it-head"><b>Iteration 10</b><span>USD 0.001 · 24 s · 2,339 output tokens</span></div><div class="said md"><p>Correcting the hinge diamond orientation — the knuckles were mapping to the wrong axis.</p></div><ul class="calls"><li><code>scad_patch</code> model.scad line 47: 128 lines</li></ul></li><li class="panel" id="it-11"><div class="it-head"><b>Iteration 11</b><span>USD 0.001 · 63 s · 6,539 output tokens</span></div><ul class="calls"><li><code>scad_patch</code> model.scad line 70: 128 lines</li></ul></li></ol><h2>Final verification</h2><div class="chips"><span class="badge ok">G1 compiles clean</span><span class="badge ok">G2 closed meshes</span><span class="badge red">G3 assembly</span><span class="badge red">G4 motion</span><span class="badge red">G5 printable</span><span class="badge red">G7 spec held, all seen</span><span class="badge pend">G8 honest close</span></div><h2>Source</h2><details class="panel"><summary>model.scad</summary><pre class="code">/* Box with print-in-place hinge - step 1: params + base */
+part = &quot;assembly&quot;; // [base, lid, pin, assembly]
+
+cadverify_only = &quot;&quot;;
+module instance(name, part, unit = 1) {
+    echo(cadverify_instance = [name, part, unit]);
+    if (cadverify_only == &quot;&quot; || cadverify_only == name) children();
+}
+
+// ---- parameters (mm) ----
+W = 80; D = 60; H = 40;          // body outer, closed
+baseH = 30;                      // base height
+gapZLid = 0.3;                   // lid-base vertical gap
+lidBot = baseH + gapZLid;        // 30.3
+lidTop = H;                      // 40
+axY = 2; axZ = baseH + gapZLid/2; // hinge axis (2, 30.15)
+wallT = 2; floorT = 2.5; lidTopT = 2.5;
+pinH = 1.8; boreH = 2.2; outH = 4.0; cbH = 3.2; capH = 2.8;
+clrR = 0.4; clrA = 0.4;
+divT = 2; divTop = 37.2;
+
+// knuckle X intervals
+bx10=-40; bx11=-24; lx10=-23.6; lx11=-7.6;
+bx20=-7.2; bx21=7.2; lx20=7.6; lx21=23.6; bx30=24; bx31=40;
+
+// generic prism along X from polygon in (Z,Y) mapped: poly points [z,y]
+module prism_x(poly, x0, len) {
+    translate([x0, 0, 0]) rotate([0,90,0])
+        linear_extrude(height=len) polygon(poly);
+}
+function diamond(h) = [[-h,0],[0,-h],[h,0],[0,h]];
+
+module knuckle_out(x0, len) {
+    // diamond cross-section points [z,y] centered at (axZ, axY)
+    p = diamond(outH);
+    translate([0, axY, axZ]) prism_x(p, x0, len);
+}
+module bore_small(x0, len) {
+    p = diamond(boreH);
+    translate([0, axY, axZ]) prism_x(p, x0, len);
+}
+module bore_cb(x0, len) {
+    p = diamond(cbH);
+    translate([0, axY, axZ]) prism_x(p, x0, len);
+}
+
+function D(h,y0,z0) = [[-z0+h,y0],[-z0,y0-h],[-z0-h,y0],[-z0,y0+h]];
+module dia(h,y0,z0,x0,x1) {
+    translate([x0,0,0]) rotate([0,90,0])
+        linear_extrude(height=x1-x0, convexity=4) polygon(D(h,y0,z0));
+}
+module base_geo() {
+    difference() {
+        union() {
+            translate([-40,0,0]) cube([80,60,2.5]);            // floor
+            translate([-40,0,0]) cube([80,2,30]);              // back wall
+            translate([-40,58,0]) cube([80,2,30]);             // front wall
+            translate([-40,2,0]) cube([2,56,30]);              // left wall
+            translate([38,2,0]) cube([2,56,30]);               // right wall
+            for (cy=[12.6,24.2,35.8,47.4])
+                translate([-38,cy-1,2.5]) cube([76,2,27.5]);   // dividers
+            dia(outH,0,axZ,bx10,bx11);                         // knuckles
+            dia(outH,0,axZ,bx20,bx21);
+            dia(outH,0,axZ,bx30,bx31);
+        }
+        // bore channels + cap pockets
+        dia(boreH,0,axZ,bx10,bx11); dia(cbH,0,axZ,-27.6,-24.4);
+        dia(boreH,0,axZ,bx20,bx21);
+        dia(boreH,0,axZ,bx30,bx31); dia(cbH,0,axZ,24.4,27.6);
+        // back-wall notches under lid knuckles (clear outer +0.4)
+        dia(outH+clrR,0,axZ,lx10,lx11);
+        dia(outH+clrR,0,axZ,lx20,lx21);
+        // catch groove in front wall outer face (open top + outer)
+        translate([-6,58.6,27.5]) cube([12,1.41,2.51]);
+    }
+}
+
+module lid_geo() {
+    difference() {
+        union() {
+            // top plate: x -40..40, y 0..60, z 37.5..40
+            translate([-40,0,37.5]) cube([80,60,2.5]);
+            // lid skirt walls 2mm, y 0..60, z 30.3..37.5
+            translate([-40,0,30.3]) cube([80,2,7.2]);    // back band
+            translate([-40,58,30.3]) cube([80,2,7.2]);   // front band
+            translate([-40,2,30.3]) cube([2,56,7.2]);    // left band
+            translate([38,2,30.3]) cube([2,56,7.2]);     // right band
+            // lid skirt inner closure panels (also skirt divider walls)
+            for (cy=[12.6,24.2,35.8,47.4])
+                translate([-38,cy-1,30.3]) cube([76,2,4.2]);  // up to 34.5
+            // lid knuckles + catch tongue
+            dia(outH,0,axZ,lx10,lx11);
+            dia(outH,0,axZ,lx20,lx21);
+            translate([-6,58.3,27.5]) cube([12,1.7,3.4]);  // tongue tab below front band
+        }
+        // bore channels
+        dia(boreH,0,axZ,lx10,lx11);
+        dia(boreH,0,axZ,lx20,lx21);
+        // clearance pockets opposite base knuckles
+        dia(boreH+clrR,0,axZ,-27.6,-23.6);
+        dia(boreH+clrR,0,axZ,-7.6,-7.2);
+        dia(boreH+clrR,0,axZ,7.2,7.6);
+        dia(boreH+clrR,0,axZ,23.6,27.6);
+    }
+}
+module pin_geo() {
+    difference() {
+        union() {
+            // shaft full hinge length x -40..40
+            dia(pinH,0,axZ,-40,40);
+            // retaining collars trapped in base counterbores
+            dia(capH,0,axZ,-27.2,-24.4);      // left head in pocket -27.6..-24.4
+            dia(capH,0,axZ,24.8,27.6);        // right head in pocket 24.4..27.6
+        }
+        // left head slot (screwdriver grip) open at bottom
+        translate([-26.6,-1.1,axZ-14]) cube([2.2,2.2,14]);
+    }
+}
+// --- part orientation helpers + spec + assembly ---
+
+if (part==&quot;base&quot;) { base_geo(); }
+else if (part==&quot;lid&quot;) { lid_geo(); }
+else if (part==&quot;pin&quot;) { pin_geo(); }
+else if (part==&quot;assembly&quot;) {
+    instance(&quot;base&quot;,&quot;base&quot;) base_geo();
+    instance(&quot;lid&quot;,&quot;lid&quot;) lid_geo();
+    instance(&quot;pin&quot;,&quot;pin&quot;) pin_geo();
+}
+</pre></details></main></body></html>

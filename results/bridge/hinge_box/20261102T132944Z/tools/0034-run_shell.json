@@ -1,0 +1,37 @@
+{
+  "seq": 34,
+  "iteration": 26,
+  "name": "run_shell",
+  "arguments": {
+    "cmd": "sed -n '38,70p;176,260p' /opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/printability.py",
+    "timeout_s": 30.0
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.005,
+    "stdout": "# lies flat or not depending on its $fn, and droops into the clearance under it either way.\nBRIDGE_MIN_WIDTH_MM = 0.8\nBRIDGE_GRID_MM = 0.25  # finer for small ceilings: at most BRIDGE_POINTS sample points\nBRIDGE_POINTS = 100_000\n# A body that does not rest on the bed starts printing at its lowest layers (START_BAND_MM, two\n# layers). It may start over material up to START_GAP_MM under them, drooping into a print in\n# place clearance (1 mm at most); farther, or over nothing, it starts in the air.\nSTART_BAND_MM = 0.4\nSTART_GAP_MM = 1.0\nSTART_STEP_MM = 0.1\n\n\ndef printability_report(\n    path: str | Path,\n    allowed: list[dict[str, Any]] | None = None,\n    printer: str = \"bambu_a1\",\n    max_overhang_deg: float = MAX_OVERHANG_DEG,\n) -> dict[str, Any]:\n    \"\"\"The printability of the STL at `path` (mesh_printability).\"\"\"\n    return mesh_printability(load_exact(path), allowed, printer, max_overhang_deg)\n\n\ndef mesh_printability(\n    mesh: trimesh.Trimesh,\n    allowed: list[dict[str, Any]] | None = None,\n    printer: str = \"bambu_a1\",\n    max_overhang_deg: float = MAX_OVERHANG_DEG,\n) -> dict[str, Any]:\n    \"\"\"Overhang zones steeper than `max_overhang_deg` from vertical, and whether the part fits.\n\n    - The overhang angle of a downward face is measured from vertical: a wall is 0°, a flat\n      ceiling 90°. Faces resting on the bed (at the lowest z, facing straight down) are the base.\n    - Overhang faces connected through edges form a zone. A zone is `declared` when it lies\ndef bridge(mesh: trimesh.Trimesh, faces: np.ndarray) -> dict[str, Any] | None:\n    \"\"\"The worst flat piece among `faces` as a bridge (mesh_printability), None without one.\"\"\"\n    selected = np.zeros(len(mesh.faces), bool)\n    selected[faces] = True\n    worst = None\n    for piece in _zones(mesh, selected):\n        triangles = mesh.vertices[mesh.faces[piece]]\n        ceiling = shapely.union_all(shapely.polygons(triangles[:, :, :2])).buffer(0)\n        if ceiling.is_empty or ceiling.area <= 0:\n            continue\n        radius = shapely.maximum_inscribed_circle(ceiling, BRIDGE_MIN_WIDTH_MM / 20).length\n        if 2 * radius < BRIDGE_MIN_WIDTH_MM:\n            continue\n        z = float(triangles[:, :, 2].min()) - BRIDGE_BELOW_MM\n        below = _section(mesh, z)\n        row: dict[str, Any] = {\n            \"z\": round(z + BRIDGE_BELOW_MM, 2),\n            \"area_mm2\": round(float(ceiling.area), 1),\n            \"bounds_xy\": np.round(np.reshape(ceiling.bounds, (2, 2)), 2).tolist(),\n        }\n        if below.is_empty or below.distance(ceiling) > BRIDGE_ANCHOR_MM:\n            row.update(floating=True, farthest_mm=None, bridge_mm=None)\n        else:\n            far = float(shapely.distance(_samples(ceiling), below).max())\n            row.update(floating=False, farthest_mm=round(far, 2), bridge_mm=round(2 * far, 1))\n        if worst is None or _worse(row, worst):\n            worst = row\n    return worst\n\n\ndef in_the_air(mesh: trimesh.Trimesh) -> list[dict[str, Any]]:\n    \"\"\"The bodies that start printing in the air (mesh_printability).\"\"\"\n    bodies = mesh.split(only_watertight=False)\n    if len(bodies) < 2:\n        return []  # one body: its lowest point is the bed\n    bed = float(mesh.bounds[0][2])\n    out = []\n    for i, body in enumerate(bodies):\n        low = float(body.bounds[0][2])\n        if low <= bed + BED_TOLERANCE_MM:\n            continue\n        levels = (low + 0.05, low + START_BAND_MM / 2, low + START_BAND_MM)\n        start = shapely.union_all([_section(body, z) for z in levels])\n        if start.is_empty:\n            lowest = body.vertices[body.vertices[:, 2] <= low + START_BAND_MM]\n            start = shapely.multipoints(lowest[:, :2]).buffer(START_STEP_MM)\n        others = trimesh.util.concatenate([b for j, b in enumerate(bodies) if j != i])\n        depths = np.arange(START_STEP_MM, START_GAP_MM + 1e-9, START_STEP_MM)\n        if not any(_section(others, low - d).intersection(start).area > 1e-6 for d in depths):\n            out.append(\n                {\n                    \"z\": round(low, 2),\n                    \"bounds\": np.round(body.bounds, 2).tolist(),\n                    \"volume_mm3\": round(float(abs(body.volume)), 1),\n                }\n            )\n    return out\n\n\ndef _section(mesh: trimesh.Trimesh, z: float):\n    \"\"\"The mesh's section at height z, as one shapely geometry.\"\"\"\n    lines = trimesh.intersections.mesh_plane(mesh, [0, 0, 1], [0, 0, z])\n    segments = np.asarray(lines).reshape(-1, 2, 3)[:, :, :2]\n    return shapely.union_all(polygons_from_segments(segments)[0])\n\n\ndef _samples(ceiling) -> np.ndarray:\n    \"\"\"Points of the ceiling: a grid inside it and the vertices of its outline.\"\"\"\n    lo_x, lo_y, hi_x, hi_y = ceiling.bounds\n    step = max(BRIDGE_GRID_MM, float(np.sqrt((hi_x - lo_x) * (hi_y - lo_y) / BRIDGE_POINTS)))\n    x, y = np.meshgrid(np.arange(lo_x, hi_x + step, step), np.arange(lo_y, hi_y + step, step))\n    x, y = x.ravel(), y.ravel()\n    inside = shapely.contains_xy(ceiling, x, y)\n    outline = shapely.get_coordinates(shapely.boundary(ceiling))\n    grid = np.column_stack([x[inside], y[inside]])\n    return shapely.points(np.vstack([grid, outline]))\n\n\ndef _worse(a: dict[str, Any], b: dict[str, Any]) -> bool:\n    if a[\"floating\"] != b[\"floating\"]:\n        return a[\"floating\"]\n    return (a[\"bridge_mm\"] or 0.0) > (b[\"bridge_mm\"] or 0.0)\n\n\ndef _zones(mesh: trimesh.Trimesh, selected: np.ndarray) -> list[np.ndarray]:\n",
+    "stderr": "",
+    "stdout_bytes": 5405,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 0.361,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "68e1591a9f449fe3"
+}

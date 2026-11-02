@@ -1,0 +1,36 @@
+{
+  "seq": 14,
+  "iteration": 15,
+  "name": "run_shell",
+  "arguments": {
+    "cmd": "python3 - <<'EOF'\nimport subprocess as sp\nhead=open('/work/model.scad').read().split('\\n')[:71]\nhead='\\n'.join(head)+'\\n'\ntests={'if-part': 'if(part==\"box\"){\\ncube(1);\\n}\\n',\n 'if-p2': 'p2=\"box\";\\nif(p2==\"box\"){\\ncube(1);\\n}\\n',\n 'if-PART': 'PART=\"box\";\\nif(PART==\"box\"){\\ncube(1);\\n}\\n',\n 'echo-only': 'echo(cadverify_spec=[[1,2]]);\\ncube(1);\\n'}\nfor k,t in tests.items():\n    open('/tmp/tt.scad','w').write(head+t)\n    r=sp.run(['openscad','/tmp/tt.scad','-o','/tmp/tt.stl'],capture_output=True,text=True,timeout=30)\n    print(k,'||',(r.stdout+r.stderr).split('\\n')[0][:120])\nEOF\necho \"=== is 'part' reserved? ===\"\ncat > /tmp/kw.scad <<'EOF'\npart=\"box\";\ncube(1);\nEOF\nopenscad /tmp/kw.scad -o /tmp/kw.stl 2>&1 | head -3"
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.333,
+    "stdout": "if-part || Current top level object is empty.\nif-p2 || Geometries in cache: 2\nif-PART || Geometries in cache: 2\necho-only || ECHO: cadverify_spec = [[1, 2]]\n=== is 'part' reserved? ===\nGeometries in cache: 1\nGeometry cache size in bytes: 856\nCGAL Polyhedrons in cache: 0\n",
+    "stderr": "",
+    "stdout_bytes": 271,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 0.765,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "70e3ef839f6e8ad6"
+}

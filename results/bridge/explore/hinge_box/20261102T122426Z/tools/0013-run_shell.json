@@ -1,0 +1,36 @@
+{
+  "seq": 13,
+  "iteration": 14,
+  "name": "run_shell",
+  "arguments": {
+    "cmd": "python3 - <<'EOF'\nlines=open('/work/model.scad').read().split('\\n')\n# test progressively adding lines 72..86 onto head-71\nhead='\\n'.join(lines[:71])+'\\n'\nimport subprocess\nfor n in range(72,87):\n    tst=head+'\\n'.join(lines[71:n])+'\\n'\n    open('/tmp/prog.scad','w').write(tst)\n    import subprocess as sp\n    r=sp.run(['openscad','/tmp/prog.scad','-o','/tmp/prog.stl'],capture_output=True,text=True,timeout=30)\n    err=(r.stdout+r.stderr).split('\\n')[0][:160]\n    print(n, repr(lines[n-1][:80]), '||', err)\nEOF"
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.891,
+    "stdout": "72 'if(part==\"box\"){' || ERROR: Parser error: syntax error in file ../tmp/prog.scad, line 74\n73 ' echo(cadverify_spec=[[\"bounds\",[[-40,-34,0],[40,30,34]]],[\"bodies\",1],[\"through' || ERROR: Parser error: syntax error in file ../tmp/prog.scad, line 73\n74 ' base_geo();' || ERROR: Parser error: syntax error in file ../tmp/prog.scad, line 73\n75 '} else if(part==\"lid\"){' || ERROR: Parser error: syntax error in file ../tmp/prog.scad, line 73\n76 ' echo(cadverify_spec=[[\"bounds\",[[-40,-34,0],[40,32.7,15]]],[\"bodies\",1],[\"throu' || ERROR: Parser error: syntax error in file ../tmp/prog.scad, line 73\n77 ' lid_part_geo();' || ERROR: Parser error: syntax error in file ../tmp/prog.scad, line 73\n78 '} else if(part==\"pin\"){' || ERROR: Parser error: syntax error in file ../tmp/prog.scad, line 73\n79 ' echo(cadverify_spec=[[\"bounds\",[[-2,-2,0],[2,2,57]]],[\"bodies\",1],[\"through_hol' || ERROR: Parser error: syntax error in file ../tmp/prog.scad, line 73\n80 ' pin_geo();' || ERROR: Parser error: syntax error in file ../tmp/prog.scad, line 73\n81 '} else if(part==\"assembly\"){' || ERROR: Parser error: syntax error in file ../tmp/prog.scad, line 73\n82 ' echo(cadverify_spec=[[\"bounds\",[[-40,-34,0],[40,32.7,40]]],[\"support_faces\",[[\"' || ERROR: Parser error: syntax error in file ../tmp/prog.scad, line 73\n83 ' instance(\"base\",\"box\") base_geo();' || ERROR: Parser error: syntax error in file ../tmp/prog.scad, line 73\n84 ' instance(\"lid\",\"lid\") translate([0,0,40]) rotate([0,180,0]) lid_part_geo();' || ERROR: Parser error: syntax error in file ../tmp/prog.scad, line 73\n85 ' instance(\"pin\",\"pin\") translate([-28.5,-30,30]) rotate([0,90,0]) pin_geo();' || ERROR: Parser error: syntax error in file ../tmp/prog.scad, line 73\n86 '}' || ERROR: Parser error: syntax error in file ../tmp/prog.scad, line 73\n",
+    "stderr": "",
+    "stdout_bytes": 1792,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 1.257,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "70e3ef839f6e8ad6"
+}

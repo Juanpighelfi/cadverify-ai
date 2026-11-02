@@ -1,0 +1,37 @@
+{
+  "seq": 19,
+  "iteration": 10,
+  "name": "run_shell",
+  "arguments": {
+    "cmd": "nl -ba /work/model.scad | sed -n '120,175p'",
+    "timeout_s": 30.0
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.011,
+    "stdout": "   120\t        [\"copies\", 1],\n   121\t        [\"details\", [\n   122\t            [\"wall_thickness\", \"thickness\", [W/2+1, 0, Hb/2], [-1, 0, 0], wall],\n   123\t            [\"floor_thickness\", \"thickness\", [0, 0, -1], [0, 0, 1], floor_t],\n   124\t            [\"catch_notch\", \"void\", [[-notch_half, D/2-wall-0.1, notch_bottom], [notch_half, D/2+1, Hb+1]], 0.9],\n   125\t            [\"knuckle_bore\", \"hole\", [-31, axisY, axisZ], [1, 0, 0], [[0, 2*bore_r], [10, 2*bore_r]]]\n   126\t        ]]\n   127\t    ]);\n   128\t} else if (part == \"lid\") {\n   129\t    echo(cadverify_spec = [\n   130\t        [\"bounds\", [[lid_xmin, lid_ymin, lid_zmin], [lid_xmax, lid_ymax, lid_zmax]]],\n   131\t        [\"bodies\", 1],\n   132\t        [\"support_faces\", [[\"base\", \"-z\", W*D-800]]],\n   133\t        [\"overhangs_allowed\", [[\"hinge\", [[ox0, oy0, oz0], [ox1, oy1, oz1]]]]],\n   134\t        [\"copies\", 1],\n   135\t        [\"details\", [\n   136\t            [\"lid_thickness\", \"thickness\", [0, 2*axisY, Hl+1], [0, 0, -1], Hl],\n   137\t            [\"catch_tab\", \"material\", [[-(notch_half-tab_clear), 2*axisY-(D/2-1.4)-1.0, Hl], [(notch_half-tab_clear), 2*axisY-(D/2-1.4), Hl+3]], 0.9],\n   138\t            [\"knuckle_bore\", \"hole\", [-16.75, axisY, axisZ], [1, 0, 0], [[0, 2*bore_r], [8, 2*bore_r]]]\n   139\t        ]]\n   140\t    ]);\n   141\t} else if (part == \"pin\") {\n   142\t    echo(cadverify_spec = [\n   143\t        [\"bounds\", [[pin_xmin, pin_ymin, pin_zmin], [pin_xmax, pin_ymax, pin_zmax]]],\n   144\t        [\"bodies\", 1],\n   145\t        [\"support_faces\", [[\"base\", \"-z\", 10]]],\n   146\t        [\"copies\", 1],\n   147\t        [\"details\", [\n   148\t            [\"shaft_thickness\", \"thickness\", [3, 0, 31], [-1, 0, 0], 2*pin_r],\n   149\t            [\"head\", \"material\", [[-head_r, -head_r, pin_len+cone_h], [head_r, head_r, pin_len+cone_h+head_t]], 0.7]\n   150\t        ]]\n   151\t    ]);\n   152\t} else if (part == \"assembly\") {\n   153\t    echo(cadverify_spec = [\n   154\t        [\"bounds\", [[asm_xmin, asm_ymin, asm_zmin], [asm_xmax, asm_ymax, asm_zmax]]],\n   155\t        [\"support_faces\", [[\"base\", \"-z\", W*D-800]]],\n   156\t        [\"motions\", [\n   157\t            [\"lid_swing\", [\"lid_body\"], \"rotate\", [0, axisY, axisZ], [1, 0, 0], [0, 180]]\n   158\t        ]],\n   159\t        [\"assembly_order\", [\n   160\t            [[\"box_body\"], [0, 0, 0]],\n   161\t            [[\"lid_body\"], [0, 0, -1]],\n   162\t            [[\"pin_body\"], [-1, 0, 0]]\n   163\t        ]],\n   164\t        [\"print_in_place\", 0.3],\n   165\t        [\"print_pose\", [[\"lid_swing\", 180]]],\n   166\t        [\"overhangs_allowed\", [\n   167\t            [\"hinge_clearance\", [[ox0, oy0, oz0], [ox1, oy1, oz1]]],\n   168\t            [\"lid_bridges\", [[-17, -37, 4], [17, -30, 6]]]\n   169\t        ]]]\n   170\t    ]);\n   171\t}\n   172\t\n   173\tif (part == \"box\") {\n   174\t    box_part();\n   175\t} else if (part == \"lid\") {\n",
+    "stderr": "",
+    "stdout_bytes": 2814,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 0.36,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "8750e3c85d97202f"
+}

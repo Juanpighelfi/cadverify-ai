@@ -1,0 +1,36 @@
+{
+  "seq": 4,
+  "iteration": 5,
+  "name": "run_shell",
+  "arguments": {
+    "cmd": "awk 'NR<=64{printf \"%d:%s\\n\",NR,$0}' model.scad; echo ===; openscad --help 2>&1 | head -5"
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.057,
+    "stdout": "1:part=\"assembly\";\n2:W=80; D=60; Hb=30; Hl=10; T=2.4; Fl=2.4;\n3:HR=4; PIN_D=4; BORE_D=4.8; HLEN=60; GAP=0.5; ENDCAP=1; PINCL=0.5;\n4:LIPW=20; LIPG=0.3;\n5:$fn=48;\n6:module instance(name, p, unit=1){ echo(cadverify_instance=[name,p,unit]); if(cadverify_only==\"\"||cadverify_only==name) children(); }\n7:cadverify_only=\"\";\n8:// segments: B1 L1 B2 L2 B3\n9:function seglist()= [[-30,-18],[-17.5,-6.5],[-6,6],[6.5,17.5],[18,30]];\n10:module barrelX(x1,x2,yc,zc,r){ translate([(x1+x2)/2,yc,zc]) rotate([0,90,0]) cylinder(h=x2-x1,r=r,center=true); }\n11:module boreX(x1,x2,yc,zc,r){ translate([(x1+x2)/2,yc,zc]) rotate([0,90,0]) cylinder(h=x2-x1+0.3,r=r,center=true); }\n12:module base(){\n13: difference(){\n14:  union(){\n15:   difference(){ cube([W,D,Hb],center=false); translate([0,0,0]){} }\n16:   // outer shell via difference below; knuckles added\n17:  }\n18:  // placeholder\n19: }\n20:}\n21:// real base geometry\n22:module base_geo(){\n23: difference(){\n24:  union(){\n25:   // shell\n26:   difference(){\n27:    translate([-W/2,-D/2,0]) cube([W,D,Hb]);\n28:    translate([-W/2+T,-D/2+T,Fl]) cube([W-2*T,D-2*T,Hb-Fl+1]);\n29:   }\n30:   // base knuckles B1 B2 B3\n31:   barrelX(-30,-18,-D/2,Hb,HR); barrelX(-6,6,-D/2,Hb,HR); barrelX(18,30,-D/2,Hb,HR);\n32:   // catch bump on front top inner\n33:   translate([-5,D/2-T-1,Hb-3]) cube([10,1,3]);\n34:  }\n35:  // lid notches in back wall\n36:  translate([-18,-D/2-5,Hb-HR-0.4]) cube([12,5+T+0.5,HR+0.5]);\n37:  translate([6,-D/2-5,Hb-HR-0.4]) cube([12,5+T+0.5,HR+0.5]);\n38:  // bores: B1 blind outer cap, B2 thru, B3 blind\n39:  translate([0,0,0]){\n40:   // B1 bore from inner end, leaves 1mm cap at x=-30\n41:   translate([-23.5,-D/2,Hb]) rotate([0,90,0]) cylinder(h=11,r=BORE_D/2,center=true);\n42:   barrelX(-6-0.2,6+0.2,-D/2,Hb,BORE_D/2);\n43:   translate([23.5,-D/2,Hb]) rotate([0,90,0]) cylinder(h=11,r=BORE_D/2,center=true);\n44:  }\n45:  // front catch slot? none\n46: }\n47:}\n48:module lid_part_geo(){\n49: // printed top-down: top plate z0..2.4, skirt up to 10, hinge axis at z=10,y=-D/2\n50: difference(){\n51:  union(){\n52:   difference(){\n53:    translate([-W/2,-D/2,0]) cube([W,D,Hl]);\n54:    translate([-W/2+T,-D/2+T,0-1]) cube([W-2*T,D-2*T,Hl-2.4+1]);\n55:    // top plate is at bottom: cavity from top down to 2.4\n56:   }\n57:   // lid knuckles L1 L2\n58:   barrelX(-17.5,-6.5,-D/2,10,HR); barrelX(6.5,17.5,-D/2,10,HR);\n59:   // catch lip: top bridge + lower leg\n60:   translate([-LIPW/2,D/2-0.01-2.4,8]) cube([LIPW,2.4+2.4,2]);\n61:   translate([-LIPW/2,D/2+LIPG,8-7+2]) cube([LIPW,2.4,7]);\n62:  }\n63:  // base notches in back wall (upper near opening)\n64:  translate([-12.5,-D/2-5,5.6]) cube([13,5+T+0.5,4.5]);\n===\nUsage: openscad [options] file.scad\nAllowed options:\n  --export-format arg               overrides format of exported scad file when\n                                    using option '-o', arg can be any of its \n                                    supported file extensions.  For ASCII stl \n",
+    "stderr": "",
+    "stdout_bytes": 2930,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 0.431,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "70e3ef839f6e8ad6"
+}

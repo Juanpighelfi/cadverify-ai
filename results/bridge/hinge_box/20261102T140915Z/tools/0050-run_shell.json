@@ -1,0 +1,37 @@
+{
+  "seq": 50,
+  "iteration": 32,
+  "name": "run_shell",
+  "arguments": {
+    "cmd": "python3 << 'EOF'\nimport trimesh, numpy as np\nm = trimesh.load('/tmp/lid.stl')\nn = m.face_normals; c = m.triangles_center\n# overhang = angle from vertical > 45  => normal.z < ... for downward faces n_z<0\n# faces pointing down-ish: polar angle of -normal from +Z... simpler: overhang faces are those with n_z < -cos(45deg)? no:\n# standard: overhang angle measured from vertical; vertical wall = 0? Let's define: face is overhang if its normal has negative z AND angle between normal and +Z exceeds 135? Actually steepness: printability uses >45 from vertical meaning surface tilts more than 45 from ... For downward faces n_z<0: angle from vertical of the surface = 90 - angle(normal, horizontal)? Use: overhang if n_z < -sin(45°)=-0.707? that flags down-facing steeper than 45 from horizontal i.e. ceilings + steep undersides.\nov = n[:,2] < -0.7071\nprint(\"overhang faces:\", ov.sum(), \"area:\", m.area_faces[ov].sum())\ncc = c[ov]\nprint(\"z range:\", cc[:,2].min(), cc[:,2].max())\nfor z in sorted(np.unique(np.round(cc[:,2],1)))[:40]:\n    sel = np.abs(cc[:,2]-z)<0.06\n    print(f\" z={z}: n={sel.sum()} area={m.area_faces[ov][sel].sum():.1f}\")\nEOF",
+    "timeout_s": 60.0
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.851,
+    "stdout": "overhang faces: 434 area: 4568.549363294498\nz range: 30.399999999999995 35.138791413568555\n z=30.4: n=274 area=1585.7\n z=30.5: n=12 area=36.7\n z=30.6: n=8 area=24.5\n z=30.7: n=8 area=24.5\n z=30.9: n=8 area=24.5\n z=31.1: n=4 area=12.2\n z=31.2: n=4 area=12.2\n z=32.2: n=6 area=27.2\n z=32.4: n=80 area=2739.2\n z=33.7: n=6 area=20.6\n z=34.7: n=4 area=10.7\n z=34.8: n=4 area=10.7\n z=34.9: n=4 area=10.7\n z=35.0: n=8 area=21.4\n z=35.1: n=16 area=42.8\n",
+    "stderr": "",
+    "stdout_bytes": 445,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 1.196,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "2cee01e66f4b3f8e"
+}

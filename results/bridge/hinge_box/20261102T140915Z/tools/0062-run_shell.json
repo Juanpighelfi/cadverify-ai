@@ -1,0 +1,37 @@
+{
+  "seq": 62,
+  "iteration": 41,
+  "name": "run_shell",
+  "arguments": {
+    "cmd": "sed -n 437,560p /opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/assembly.py",
+    "timeout_s": 30.0
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.004,
+    "stdout": "def _print_in_place(\n    instances: list[dict],\n    spec: dict[str, Any],\n    pairs: list[dict],\n    permitted: dict,\n    out_dir: Path,\n    problems: list[str],\n) -> dict[str, Any]:\n    \"\"\"G5 of an assembly printed whole, as it stands or in its print pose (module docstring).\"\"\"\n    need = spec[\"print_in_place\"][\"min_gap_mm\"]\n    printed = [i for i in instances if i[\"part\"] != EXTERNAL and i[\"unit\"] == 1]\n    names = {i[\"name\"] for i in printed}\n    pose = spec.get(\"print_pose\") or []\n    if pose:\n        printed = _in_print_pose(printed, pose, spec[\"motions\"])\n        found: list[str] = []\n        posed_dir = out_dir / \"print_pose\"\n        posed_dir.mkdir(parents=True, exist_ok=True)\n        pairs = _pairs(printed, permitted, posed_dir, found)\n        problems += [f\"in the print pose, {p}\" for p in found]\n    gaps = []\n    for pair in pairs:\n        if not {pair[\"a\"], pair[\"b\"]} <= names or pair.get(\"interference\"):\n            continue  # an overlap G3 reports is not repeated here\n        row = {\"a\": pair[\"a\"], \"b\": pair[\"b\"], \"gap_mm\": pair[\"gap_mm\"], \"ok\": True}\n        if pair.get(\"permitted\") is not None:\n            row[\"ok\"] = False\n            problems.append(\n                f\"{pair['a']} and {pair['b']} are a press fit ({pair['permitted']}): printed \"\n                \"in place, they print as one piece\"\n            )\n        elif pair[\"gap_mm\"] < need - 1e-6:\n            row[\"ok\"] = False\n            problems.append(\n                f\"{pair['a']} and {pair['b']} are {pair['gap_mm']} mm apart: printed in place \"\n                f\"they fuse (print_in_place asks for {need} mm or more)\"\n            )\n        gaps.append(row)\n    whole = trimesh.util.concatenate([i[\"_mesh\"] for i in printed]) if printed else None\n    report = mesh_printability(whole, spec[\"overhangs_allowed\"]) if whole else None\n    stl = None\n    if whole:\n        stl = out_dir / \"print-in-place.stl\"\n        _write_mesh(whole, stl)\n    return {\n        \"min_gap_mm\": need,\n        \"pose\": pose,\n        \"instances\": sorted(names),\n        \"gaps\": gaps,\n        \"printability\": report,\n        \"stl\": str(stl) if stl else None,\n    }\n\n\ndef _in_print_pose(printed: list[dict], pose: list[dict], motions: list[dict]) -> list[dict]:\n    \"\"\"The printed instances moved by each motion of the print pose, in order.\"\"\"\n    by_name = {m[\"name\"]: m for m in motions}\n    matrix = {i[\"name\"]: np.eye(4) for i in printed}\n    for step in pose:\n        motion = by_name[step[\"motion\"]]\n        for name in motion[\"instances\"]:\n            if name in matrix:\n                matrix[name] = _pose(motion, step[\"value\"]) @ matrix[name]\n    return [\n        {\n            **i,\n            \"_mesh\": _transformed(i[\"_mesh\"], matrix[i[\"name\"]]),\n            \"_solid\": i[\"_solid\"].transform(matrix[i[\"name\"]][:3, :]),\n        }\n        for i in printed\n    ]\n\n\n# ---- G4 -----------------------------------------------------------------------------------\n\n\ndef rotation(point, axis, degrees: float) -> np.ndarray:\n    \"\"\"4 × 4 rotation by `degrees` about the axis through `point` (right hand rule).\"\"\"\n    return trimesh.transformations.rotation_matrix(math.radians(degrees), axis, point)\n\n\ndef translation(direction, mm: float) -> np.ndarray:\n    matrix = np.eye(4)\n    matrix[:3, 3] = np.asarray(direction, float) * mm\n    return matrix\n\n\ndef _sweep(\n    moving: list[dict],\n    others: list[dict],\n    poses: list[tuple[float, np.ndarray]],\n) -> list[dict[str, Any]]:\n    \"\"\"The collisions of the moving instances, posed by each 4 × 4 matrix, with the others.\"\"\"\n    boxes = [(o, np.reshape(o[\"_solid\"].bounding_box(), (2, 3))) for o in others]\n    hits = []\n    for pose, matrix in poses:\n        for inst in moving:\n            solid = inst[\"_solid\"].transform(matrix[:3])\n            box = np.reshape(solid.bounding_box(), (2, 3))\n            for other, other_box in boxes:\n                if _box_gap(box, other_box) > 0:\n                    continue\n                hit = overlap(solid, other[\"_solid\"])\n                if hit:\n                    hits.append(\n                        {\n                            \"pose\": round(pose, 3),\n                            \"moving\": inst[\"name\"],\n                            \"with\": other[\"name\"],\n                            **hit,\n                            \"_matrix\": matrix,\n                        }\n                    )\n    return hits\n\n\ndef _motion(motion: dict, names: dict, permitted: set, out_dir: Path, problems: list[str]) -> dict:\n    row: dict[str, Any] = {\"name\": motion[\"name\"], \"kind\": motion[\"kind\"], \"range\": motion[\"range\"]}\n    missing = [n for n in motion[\"instances\"] if n not in names]\n    if missing:\n        problems.append(f\"motion {motion['name']}: there are no instances {missing}\")\n        return {**row, \"ok\": False}\n    moving = [names[n] for n in motion[\"instances\"]]\n    moving_names = set(motion[\"instances\"])\n",
+    "stderr": "",
+    "stdout_bytes": 4886,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 0.347,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "863c258858fff283"
+}

@@ -1,0 +1,36 @@
+{
+  "seq": 24,
+  "iteration": 12,
+  "name": "run_python",
+  "arguments": {
+    "code": "import trimesh, numpy as np, glob\nfrom scipy.spatial import cKDTree\nms={}\nfor f in glob.glob('checks/assembly/model.assembly.*.stl'):\n    m=trimesh.load(f); ms[round(m.volume)]=m\nbox=[m for v,m in ms.items() if v>30000][0]; lid=[m for v,m in ms.items() if 15000<v<25000][0]\nlf=lid.copy(); v=lf.vertices.copy(); v[:,1]=112-v[:,1]; v[:,2]=40-v[:,2]; lf.vertices=v\n# sample points on surfaces\npa,_=trimesh.sample.sample_surface(box,200000); pb,_=trimesh.sample.sample_surface(lf,200000)\nt=cKDTree(pb); d,i=t.query(pa)\nk=np.argsort(d)[:12]\nfor j in k: print('gap',round(float(d[j]),3),'boxpt',np.round(pa[j],2),'lidpt',np.round(pb[i[j]],2))\n"
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 14.589,
+    "stdout": "gap 0.3 boxpt [46.3  52.58 21.47] lidpt [46.6  52.58 21.47]\ngap 0.301 boxpt [33.7  52.78 17.73] lidpt [33.4  52.78 17.75]\ngap 0.301 boxpt [46.3  52.7  22.05] lidpt [46.6  52.71 22.07]\ngap 0.302 boxpt [58.9  52.51 19.63] lidpt [58.6  52.53 19.66]\ngap 0.302 boxpt [21.1  52.8  21.28] lidpt [21.4  52.83 21.3 ]\ngap 0.302 boxpt [58.9  52.58 19.47] lidpt [58.6  52.55 19.49]\ngap 0.302 boxpt [46.3  52.79 18.23] lidpt [46.6 52.8 18.2]\ngap 0.302 boxpt [46.3  52.62 19.75] lidpt [46.6  52.59 19.77]\ngap 0.303 boxpt [21.1  52.4  19.73] lidpt [21.4  52.42 19.7 ]\ngap 0.303 boxpt [21.1 52.5 21.4] lidpt [21.4  52.46 21.4 ]\ngap 0.303 boxpt [21.1  52.88 22.23] lidpt [21.4  52.9  22.19]\ngap 0.303 boxpt [46.3  52.38 20.64] lidpt [46.6  52.36 20.61]\n",
+    "stderr": "",
+    "stdout_bytes": 736,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 15.055,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "0180709719982085"
+}

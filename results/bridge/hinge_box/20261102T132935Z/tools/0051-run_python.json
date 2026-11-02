@@ -1,0 +1,37 @@
+{
+  "seq": 51,
+  "iteration": 30,
+  "name": "run_python",
+  "arguments": {
+    "code": "import trimesh, numpy as np\nbox=trimesh.load('/work/checks/assembly/model.assembly.6ad4d964.stl')\nlidc=trimesh.load('/work/checks/assembly/model.assembly.2adfc722.stl')\naxisY=-33; axisZ=20.2\nv=lidc.vertices.copy()\nv[:,1]=2*axisY-v[:,1]\nv[:,2]=2*axisZ-v[:,2]\nlido=lidc.copy(); lido.vertices=v\nprint('box',box.bounds,'lido',lido.bounds)\n# closest point box->lido and reverse\ndef min_info(A,B):\n    closest, dist, tri = trimesh.proximity.closest_point(B, A.vertices)\n    i=int(dist.argmin())\n    return dist.min(), A.vertices[i], closest[i]\nd1,p1,q1=min_info(box,lido)\nprint('boxvert->lido',d1,p1,q1)\nd2,p2,q2=min_info(lido,box)\nprint('lidovert->box',d2,p2,q2)\n# all verts with dist<0.05\nclosest, dist, tri = trimesh.proximity.closest_point(lido, box.vertices)\nimport numpy as np\nidx=np.where(dist<0.05)[0]\nprint('box verts close count',len(idx))\nif len(idx)>0:\n    print(box.vertices[idx][:10])\nclosest2, dist2, tri2 = trimesh.proximity.closest_point(box, lido.vertices)\nidx2=np.where(dist2<0.05)[0]\nprint('lido verts close count',len(idx2))\nif len(idx2)>0:\n    print(lido.vertices[idx2][:10])\n",
+    "timeout_s": 120.0
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.973,
+    "stdout": "box [[-40. -37.   0.]\n [ 40.  30.  30.]] lido [[-40.  -96.    0. ]\n [ 40.  -29.   24.2]]\nboxvert->lido 0.39914356929544 [-16.5        -30.          16.99114913] [-16.5        -30.26317364  17.29124116]\nlidovert->box 0.0 [ -5.5        -29.82658664  22.63504572] [ -5.5        -29.82658664  22.63504572]\nbox verts close count 0\nlido verts close count 44\n[[ -5.5        -29.82658664  22.63504572]\n [-16.5        -29.82658664  22.63504572]\n [ -5.5        -29.53589838  22.2       ]\n [-16.5        -29.53589838  22.2       ]\n [ -5.5        -29.30448187  21.73073373]\n [-16.5        -29.30448187  21.73073373]\n [ -5.5        -29.13629669  21.23527618]\n [-16.5        -29.13629669  21.23527618]\n [-16.5        -29.82658664  17.76495428]\n [-16.5        -29.53589838  18.2       ]]\n",
+    "stderr": "",
+    "stdout_bytes": 773,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 1.325,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "38ec6fbd0062ebda"
+}

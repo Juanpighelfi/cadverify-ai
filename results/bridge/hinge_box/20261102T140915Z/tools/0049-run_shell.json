@@ -1,0 +1,37 @@
+{
+  "seq": 49,
+  "iteration": 31,
+  "name": "run_shell",
+  "arguments": {
+    "cmd": "cd /work && openscad -o /tmp/lid.stl model.scad -D 'part=\"lid\"' 2>&1 | tail -3; ls -la /tmp/lid.stl\npython3 << 'EOF'\nimport trimesh, numpy as np\nm = trimesh.load('/tmp/lid.stl')\nprint(\"bounds\", m.bounds)\n# per-face analysis: find faces with normal.z < -cos(45) i.e. overhang >45deg from vertical\n# overhang measured from vertical: faces pointing down-ish\nn = m.face_normals; c = m.triangles_center\ndown = -n[:,2]  # 1 = pointing straight down\n# overhang faces: angle from +Z > 135? Let's just bucket \"down-facing\" (n_z < -0.707 means within 45 of straight down -> flat ceiling)\nimport collections\nflat = (n[:,2] < -np.cos(np.radians(1)))  # within 1 deg of horizontal downward\nprint(\"flat ceiling faces:\", flat.sum(), \"area:\", m.area_faces[flat].sum())\ncc = c[flat]\nprint(\"z values:\", np.unique(np.round(cc[:,2],2)))\nprint(\"x range:\", cc[:,0].min(), cc[:,0].max(), \"y range:\", cc[:,1].min(), cc[:,1].max())\n# group by z\nfor z in np.unique(np.round(cc[:,2],2)):\n    sel = np.abs(cc[:,2]-z)<0.01\n    pts = cc[sel]\n    print(f\" z={z}: n={sel.sum()} area={m.area_faces[flat][sel].sum():.1f} x:[{pts[:,0].min():.1f},{pts[:,0].max():.1f}] y:[{pts[:,1].min():.1f},{pts[:,1].max():.1f}]\")\nEOF",
+    "timeout_s": 120.0
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.89,
+    "stdout": "   Genus:      2\n   Vertices:      720\n   Facets:       1444\n-rw-r--r-- 1 25878 25878 284063 Nov  2 14:46 /tmp/lid.stl\nbounds [[-40.  -33.4  30.4]\n [ 40.   27.   40. ]]\nflat ceiling faces: 354 area: 4336.0\nz values: [30.4 32.2 32.4 33.7]\nx range: -39.199999999999996 39.199999999999996 y range: -27.666666666666668 26.2\n z=30.4: n=262 area=1549.0 x:[-39.2,39.2] y:[-27.7,26.2]\n z=32.2: n=6 area=27.2 x:[-3.9,1.8] y:[24.1,26.2]\n z=32.4: n=80 area=2739.2 x:[-34.9,34.9] y:[-21.7,21.7]\n z=33.7: n=6 area=20.6 x:[-33.6,33.6] y:[-26.7,-26.5]\n",
+    "stderr": "",
+    "stdout_bytes": 537,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 1.24,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "2cee01e66f4b3f8e"
+}

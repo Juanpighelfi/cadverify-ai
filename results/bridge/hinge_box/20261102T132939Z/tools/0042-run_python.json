@@ -1,0 +1,36 @@
+{
+  "seq": 42,
+  "iteration": 18,
+  "name": "run_python",
+  "arguments": {
+    "code": "import trimesh, numpy as np\nm=trimesh.load('exports/model.box.e1af9484.stl')\n# dense point sampling inside the hinge_arm detail box\nlo=np.array([12.5,55.5,22.8]); hi=np.array([17.5,56.5,23.9])\nxs=np.linspace(lo[0],hi[0],41); ys=np.linspace(lo[1],hi[1],9); zs=np.linspace(lo[2],hi[2],10)\npts=np.stack(np.meshgrid(xs,ys,zs,indexing='ij'),-1).reshape(-1,3)\ninside=m.contains(pts)\nprint('point-sampled material fraction:', round(float(inside.mean()),4), 'of', len(pts))\n# distance from axis (56,20): is every box point within r_out=4 of the knuckle?\nd=np.sqrt((pts[:,1]-56)**2+(pts[:,2]-20)**2)\nprint('max radial dist in box:', round(float(d.max()),3), '(bore 2.7, outer 4.0)')\n"
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 2.91,
+    "stdout": "point-sampled material fraction: 1.0 of 3690\nmax radial dist in box: 3.932 (bore 2.7, outer 4.0)\n",
+    "stderr": "",
+    "stdout_bytes": 97,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 3.285,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "864c4f682604afd2"
+}

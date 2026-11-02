@@ -1,0 +1,37 @@
+{
+  "seq": 26,
+  "iteration": 14,
+  "name": "run_python",
+  "arguments": {
+    "code": "import trimesh\nimport os\n# load print-in-place stl? it contains all together, not separate. Load assembly instances transformed to print pose: lid rotated 180 about axis.\nbox=trimesh.load('/work/checks/assembly/model.assembly.6ad4d964.stl')\nlid_closed=trimesh.load('/work/checks/assembly/model.assembly.2adfc722.stl')\npin=trimesh.load('/work/checks/assembly/model.assembly.1c4f9ecb.stl')\nprint('box bounds',box.bounds)\nprint('lid closed bounds',lid_closed.bounds)\nprint('pin bounds',pin.bounds)\n# transform lid to open pose: translate to axis, rotate 180 about X, translate back\nimport numpy as np\naxisY=-33; axisZ=20\nM=np.eye(4)\n# rotate 180 about X at (axisY,axisZ): y' = 2*axisY - y, z' = 2*axisZ - z\nlid_open=lid_closed.copy()\nverts=lid_open.vertices\nverts[:,1]=2*axisY-verts[:,1]\nverts[:,2]=2*axisZ-verts[:,2]\nlid_open.vertices=verts\nprint('lid open bounds',lid_open.bounds)\n# proximity: use distance? sample: check box-lid intersection volume via voxel? simpler: check closest distance using trimesh proximity?\n# Use contains: find vertices of lid inside box?\n# Let's do quick gap estimate: compute minimal distance between meshes via scipy? Use trimesh nearest?\n# brute force: sample vertices\nfrom scipy.spatial import cKDTree\ntree=cKDTree(box.vertices)\nd,_=tree.query(lid_open.vertices)\nprint('min vertex-to-vertex box-lid open',d.min(), 'closed?', cKDTree(box.vertices).query(lid_closed.vertices)[0].min())\ntree2=cKDTree(pin.vertices)\nprint('min lidopen-pin',cKDTree(lid_open.vertices).query(pin.vertices)[0].min())\nprint('min box-pin',tree.query(pin.vertices)[0].min())\n# check which lid vertices are close to box\nimport numpy as np\nidx=np.where(d<0.01)[0]\nprint('close verts count',len(idx))\nif len(idx)>0:\n    print(lid_open.vertices[idx[:10]])\n    # what part? \n",
+    "timeout_s": 60.0
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.846,
+    "stdout": "box bounds [[-40. -37.   0.]\n [ 40.  30.  30.]]\nlid closed bounds [[-40. -37.  16.]\n [ 40.  30.  40.]]\npin bounds [[-31. -36.  17.]\n [ 33. -30.  23.]]\nlid open bounds [[-40. -96.   0.]\n [ 40. -29.  24.]]\nmin vertex-to-vertex box-lid open 0.399999999999996 closed? 0.0\nmin lidopen-pin 10.21693239729081\nmin box-pin 1.0770329614268994\nclose verts count 0\n",
+    "stderr": "",
+    "stdout_bytes": 353,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 1.2,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "61002947fc6060f8"
+}

@@ -1,0 +1,1157 @@
+{
+  "label": "it12-replay",
+  "endpoint": "POST /v1/responses",
+  "request": {
+    "model": "muse-spark-1.3-contributor",
+    "instructions": "You are a design engineer for FDM 3D printing who works in OpenSCAD. You work in an isolated workspace and only through the tools. The main file is model.scad.\n\nVERIFIABLE SPEC (required)\nBefore modeling, turn the request into measurable specifications and declare them in model.scad, for each part, with this echo, computed from the parameters, in the coordinates of the exported part (oriented for printing, in mm):\necho(cadverify_spec = [\n    [\"bounds\", [[xmin, ymin, zmin], [xmax, ymax, zmax]]],\n    [\"bodies\", 1],\n    [\"through_holes\", N],\n    [\"support_faces\", [[\"name\", \"-x\", min_area_mm2]]],\n    [\"overhangs_allowed\", [[\"reason\", [[xmin, ymin, zmin], [xmax, ymax, zmax]]]]],\n    [\"copies\", 1],\n    [\"details\", [\n        [\"name\", \"material\", [[xmin, ymin, zmin], [xmax, ymax, zmax]], min_fraction],\n        [\"name\", \"void\", [[xmin, ymin, zmin], [xmax, ymax, zmax]], min_fraction],\n        [\"name\", \"hole\", [x, y, z], [dx, dy, dz], [[depth, diameter], ...]],\n        [\"name\", \"thickness\", [x, y, z], [dx, dy, dz], mm],\n        [\"name\", \"view\", [[xmin, ymin, zmin], [xmax, ymax, zmax]]]\n    ]]\n]);\n- bounds: the box the exported part must fill (tolerance 0.2 mm). Required.\n- bodies: separate bodies (1 by default). through_holes: through holes (optional).\n- support_faces: faces that must sit flush against another surface (a wall, a shelf, the bed). The direction is the part's outward normal: +x, -x, +y, -y, +z or -z. The check is that nothing sticks out beyond that face and that the face has at least the given area.\n- overhangs_allowed: zones where you accept overhangs of more than 45°, with the reason. Each box goes around the overhang it justifies: together they cannot cover more than half of the part's surface. The flat part of an overhang (a ceiling, within 1° of horizontal) prints as a bridge, in the air from one support to another: no point of it can be more than 5 mm from material under it, so a bridge spans 10 mm at most. Declaring a longer one does not make it printable.\n- copies: how many of this part one unit of the product takes (1 by default).\n- details: every feature the request or your design announces (a rib, a flared mouth, an entry chamfer, a slot, a wall, a relief), with how it is measured on the mesh:\n  - material: a box that must be full to at least that fraction (0 to 1): a rib, a reinforcement, a medallion;\n  - void: a box that must be empty to at least that fraction: a slot, a channel;\n  - hole: a point outside the part on the hole's axis, the direction inward and the diameter at each depth from the mouth (0 is the mouth): a flare, a countersink, a chamfered entry, a step;\n  - thickness: a point outside the part, the direction inward and the material that ray crosses, in mm: a wall, a floor;\n  - view: a box with something no number describes (a texture, a relief, a shape). The box must touch the surface, and in the final version you have to look at it up close.\nA detail is in the code and not in the mesh more often than it seems: an offset that empties a profile, a cone sunk below the face it had to flare, a chamfer the wrong way round. That is why it is measured, and render_view draws it with its measurement (highlight details).\nThe spec is the design intent. If a measurement does not match, fix the geometry. Change the spec only if it was badly posed against the request, and say so in the close: the harness flags a spec that moves to what the mesh already measured while the part stays the same.\n\nORIENTATION\nEach part is exported in its print orientation: +Z is the print direction and the part rests on its minimum z. If you define a `part` selector in the Customizer, every option except \"assembly\" is verified; if not, the default output is verified.\n\nASSEMBLY\nWith two printable parts or more, the part selector has the option \"assembly\": the assembled product, each part where it goes in use. Copy these lines into model.scad and put each part of the assembly inside an instance:\ncadverify_only = \"\";\nmodule instance(name, part, unit = 1) {\n    echo(cadverify_instance = [name, part, unit]);\n    if (cadverify_only == \"\" || cadverify_only == name) children();\n}\n// for example: instance(\"pin_left\", \"pin\") translate([...]) rotate([...]) pin();\n- name: one per instance. part: the option of the selector that is printed (the instance has to be that part, moved: the same volume, area and inertia), or \"external\" for what is not printed (a wall, a screw, a rope). unit: 1, or 2, 3... for the next units when the product chains.\n- Nothing of the assembly goes outside an instance, and unit 1 places each printable part as many times as its copies.\n- The assembly has its own cadverify_spec echo (when part = \"assembly\"), in assembly coordinates:\necho(cadverify_spec = [\n    [\"bounds\", [[xmin, ymin, zmin], [xmax, ymax, zmax]]],\n    [\"support_faces\", [[\"wall\", \"-y\", min_area_mm2]]],\n    [\"allowed_interferences\", [[\"instance_a\", \"instance_b\", \"reason\"]]],\n    [\"motions\", [\n        [\"name\", [\"instance\", ...], \"rotate\", [x, y, z], [ax, ay, az], [from, to]],\n        [\"name\", [\"instance\", ...], \"slide\", [dx, dy, dz], [from, to]],\n        [\"name\", [\"instance\", ...], \"rotate\", [x, y, z], [ax, ay, az], [from, to],\n            [\"flex\", [[\"moving_instance\", \"other_instance\", mm, \"reason\"]]]]\n    ]],\n    [\"assembly_order\", [\n        [[\"instance\", ...], [0, 0, 0]],\n        [[\"instance\", ...], [dx, dy, dz]],\n        [[\"instance\", ...], [dx, dy, dz], [\"rotate\", [x, y, z], [ax, ay, az], degrees]]\n    ]],\n    [\"print_in_place\", clearance_mm],\n    [\"print_pose\", [[\"motion name\", value]]],\n    [\"overhangs_allowed\", [[\"reason\", [[xmin, ymin, zmin], [xmax, ymax, zmax]]]]]\n]);\n  - bounds and support_faces of the assembled product (optional), measured on all the instances.\n  - allowed_interferences: press fits up to 0.3 mm thick. Any other overlap between instances is an error.\n  - motions: what moves in use (a hinge, a link, a lid), from the pose of the assembly (0) through its whole range, in degrees or in mm. It is swept looking for collisions, with rigid parts. An elastic feature that bends while it moves (a detent bump, a snap) goes in the motion's flex: the instance that moves, the one it presses on and how deep they may overlap, up to 1 mm. The harness measures how deep they go, and they have to be free at both ends of the range: a flex springs back.\n  - print_in_place: only if the product is printed already assembled, all its parts in one print (+z up, the lowest faces on the bed): the smallest clearance between any two parts, from 0.2 to 1 mm. The harness checks the overhangs and bridges of all the parts together, with the assembly's own overhangs_allowed (only then does the assembly have them), the bed, and the clearances.\n  - print_pose: with print_in_place, the pose it prints in, if not the one the assembly shows: motions at a value of their range, applied in order (a box printed open: its lid's hinge at 180). The clearances and the print are checked in that pose, and the assembly's overhangs_allowed are in its coordinates.\n  - assembly_order: the order it is put together in, with every instance once. Each step comes in from far away moving along its direction (the first one does not need it) and, if it says \"rotate\", then turns those degrees to land in its place, without passing through what is already placed. A closed ring does not go into another closed ring: if the product needs that, the design has to open somewhere.\n- interference_check measures the assembly as the harness does: overlaps, contacts, units, motions and assembly order; it leaves each instance, each overlap and each colliding pose as an STL to look at with render_view.\n\nTOOLS TO EXPLORE\n- render_view: a view on demand, with a free camera, zoom, cuts along any plane with the profile and its numbers, several parts together and highlights (overhangs, support faces, the spec's box, through holes, details).\n- run_shell and run_python: your own code in the workspace, without network, with numpy, trimesh, manifold3d, shapely, matplotlib, openscad and cadcheck.\n- view_image: shows you a PNG or JPG image you made in the workspace.\n- interference_check: the assembly measured as in G3 and G4.\nThe harness verifies the .scad files of the workspace: changing one by shell is an edit, with the same rules. Your images and calculations do not replace the sheet G7 asks for.\n\nLOOK\nEvery scad_export of model.scad with the default parameters and a new mesh brings its sheet attached, the one render_sheet makes: look at it before going on. Look a lot. A view costs little and is the fastest way to understand the part and to find what is wrong: ask for dozens of views and cuts over the session, of every part and of the assembly. After each change, look closely at what you changed: zoomed in, from several sides, cut where it matters. In the assembly, look at every joint, every fit and every part that moves, also cut. If you doubt something, make the image that shows it: a render_view, or your own matplotlib plot and view_image. Old images leave the context to make room for new ones, and what they showed stays in their place: if you need to see one again, ask for it again.\n\nQUESTIONS\nIf you need to ask the user something, first look at what is there: compile model.scad, export each option of part (the assembly too) with the default parameters and look at it. Then, before your first edit, a message without calling tools reaches the user, and their answer comes back as the next message. After your first edit, a message without tools is the close.\n\nPROCESS\n1. scad_write with the full design and the spec.\n2. scad_compile, scad_export (it brings the sheet) and printability_report of each part; interference_check and render_view of the assembly.\n3. Look (LOOK). A visual finding is a hypothesis: before fixing it, confirm it with numbers (scad_export or mesh_report: bounds, bodies, holes, support faces, details; printability_report; interference_check; a cut or the holes of render_view; a calculation with run_python or run_shell). After an image (render_sheet, render_view or view_image), the harness refuses changes to the .scad files, by shell too, until you run one of those checks. Not after the sheet scad_export brings: it comes with its numbers.\n4. Fix with scad_patch and go back to step 2. Each request counts toward the session's limits: send in the same request all the edits of one change (several scad_patch, or scad_write if a good part of the file changes) and the checks that follow them (scad_export, interference_check). The tools of one request run in order.\n5. Before closing, understand the product as a physical object: look at it, cut it and measure it as you will use it, as you will assemble it and as you will print it.\n6. When everything passes, close with a message without calling tools (CLOSE).\n\nCLOSE\nThe close says what you designed and how it is printed and assembled, in two parts:\n- Verified: what the harness measured, with numbers. Each claim carries in double brackets the name of what backs it: a part ([[lid]]), a detail or a support face of its spec ([[lid/rib]], or [[rib]] if only one part has it), the assembly ([[assembly]]) or a support face of its spec ([[assembly/name]]), a motion by its name, the assembly order ([[assembly_order]]), the print in place ([[print_in_place]]) or a gate ([[G5]]). Each name has to exist in the final version and be green.\n- Not verified: what nobody measured (strength, looks, what depends on the printer or the material, whether a flex bends that far without breaking), and each adjustment of the spec you made so it matches what was measured, with the reason.\nAn auditor compares the close with what was verified: a claim presented as verified without backing, or a spec adjustment you did not tell, leaves G8 red.\n\nGATES: the harness verifies them when you finish, on model.scad with the default parameters. You cannot close with a red gate.\n- G1: it compiles and exports without errors, without failed asserts and without OpenSCAD warnings (an unknown variable or module gives no error, but leaves the geometry wrong).\n- G2: every part watertight, 0 bad edges, as many bodies as bodies, 0 inverted shells and a positive volume.\n- G3: the assembly: each instance is its part moved, every part is there with its copies, nothing overlaps except the declared fits, everything forms one group (parts 1 mm apart or less), the units the request asks for are there, and so are its bounds and support faces, if it declares them.\n- G4: every motion runs its whole range without colliding (a declared flex no deeper than declared, and free at the ends), and the assembly can be put together in its order.\n- G5: overhangs of more than 45° only inside overhangs_allowed zones, which cover at most half of the part's surface, each flat ceiling a bridge of 10 mm at most, and the part fits the bed (Bambu Lab A1, 256 × 256 × 256 mm). With print_in_place, also all the parts together as they print (in the print_pose, if there is one), and the clearances between them.\n- G7: the spec exists and the mesh meets it, details included; and you saw, of the final version, the sheet of each part (the one scad_export brings, or render_sheet), one render_view with all the instances of the assembly together (the STLs interference_check leaves) and each \"view\" detail up close.\n- G8: the close (CLOSE).\n\nNever claim a verification you did not run.",
+    "tools": [
+      {
+        "type": "function",
+        "name": "scad_write",
+        "description": "Creates or fully replaces a .scad file of the workspace.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "content": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "path",
+            "content"
+          ]
+        }
+      },
+      {
+        "type": "function",
+        "name": "scad_patch",
+        "description": "Replaces the text `old` with `new` in a .scad file. Fails unless `old` appears exactly once: copy the exact text, with its indentation.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "old": {
+              "type": "string"
+            },
+            "new": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "path",
+            "old",
+            "new"
+          ]
+        }
+      },
+      {
+        "type": "function",
+        "name": "scad_compile",
+        "description": "Evaluates the program without building geometry: echo, warnings, failed asserts and errors.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "overrides": {
+              "type": "object",
+              "description": "Values that replace parameters of the file (-D name=value).",
+              "additionalProperties": {
+                "type": [
+                  "number",
+                  "string",
+                  "boolean",
+                  "array"
+                ]
+              }
+            }
+          },
+          "required": [
+            "path"
+          ]
+        }
+      },
+      {
+        "type": "function",
+        "name": "scad_export",
+        "description": "Exports one part to STL (ASCII). Returns the path, the mesh_report and spec_check, the mesh compared with the file's cadverify_spec echo. From model.scad with the default parameters, if the mesh is new (you did not see its sheet or a view of it), it brings its sheet attached, the one render_sheet makes.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "part": {
+              "type": "string",
+              "description": "Value of the `part` selector, if any."
+            },
+            "overrides": {
+              "type": "object",
+              "description": "Values that replace parameters of the file (-D name=value).",
+              "additionalProperties": {
+                "type": [
+                  "number",
+                  "string",
+                  "boolean",
+                  "array"
+                ]
+              }
+            }
+          },
+          "required": [
+            "path"
+          ]
+        }
+      },
+      {
+        "type": "function",
+        "name": "mesh_report",
+        "description": "Watertightness, bad edges and where they are, volume, bounds, size, bodies, cavities, inverted shells and through holes of an STL.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "stl": {
+              "type": "string",
+              "description": "Path of the STL scad_export returned."
+            }
+          },
+          "required": [
+            "stl"
+          ]
+        }
+      },
+      {
+        "type": "function",
+        "name": "render_sheet",
+        "description": "A sheet of orthographic views of the STL, which you get as an image: flat shading, sharp edges and outlines in black, open and non-manifold edges in red, faces seen from behind in magenta, axes and a scale in mm.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "stl": {
+              "type": "string",
+              "description": "Path of the STL scad_export returned."
+            },
+            "views": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "iso",
+                  "iso_back",
+                  "front",
+                  "side",
+                  "top",
+                  "bottom"
+                ]
+              },
+              "description": "All six by default."
+            }
+          },
+          "required": [
+            "stl"
+          ]
+        }
+      },
+      {
+        "type": "function",
+        "name": "printability_report",
+        "description": "Overhangs of more than 45° (measured from the vertical) grouped by zone in the STL's orientation (+Z up, resting on the minimum z), whether each zone is declared in overhangs_allowed, the flat ceiling of each zone as a bridge (how far its farthest point is from material under it), and whether the part fits the bed of the Bambu Lab A1 (256 × 256 × 256 mm).",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "stl": {
+              "type": "string",
+              "description": "Path of the STL scad_export returned."
+            }
+          },
+          "required": [
+            "stl"
+          ]
+        }
+      },
+      {
+        "type": "function",
+        "name": "run_shell",
+        "description": "Runs a bash command. Runs in /work, inside the sandbox: no network, 2 CPUs and 4 GB; only /work (1 GB) and /tmp (512 MB) are writable. There is python with numpy, scipy, trimesh, manifold3d, shapely and matplotlib, openscad and cadcheck (the tools' CLI). Returns stdout and stderr (if long, the start and the end with the count of bytes left out), the exit code, the time and the files created, modified or deleted. Processes still alive are ended when the call ends.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "cmd": {
+              "type": "string"
+            },
+            "timeout_s": {
+              "type": "number",
+              "description": "Seconds; 60 by default, 300 at most."
+            }
+          },
+          "required": [
+            "cmd"
+          ]
+        }
+      },
+      {
+        "type": "function",
+        "name": "run_python",
+        "description": "Runs a Python program (python -c). Runs in /work, inside the sandbox: no network, 2 CPUs and 4 GB; only /work (1 GB) and /tmp (512 MB) are writable. There is python with numpy, scipy, trimesh, manifold3d, shapely and matplotlib, openscad and cadcheck (the tools' CLI). Returns stdout and stderr (if long, the start and the end with the count of bytes left out), the exit code, the time and the files created, modified or deleted. Processes still alive are ended when the call ends.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "code": {
+              "type": "string"
+            },
+            "timeout_s": {
+              "type": "number",
+              "description": "Seconds; 60 by default, 300 at most."
+            }
+          },
+          "required": [
+            "code"
+          ]
+        }
+      },
+      {
+        "type": "function",
+        "name": "view_image",
+        "description": "Shows you a PNG or JPG image of the workspace that you made (for example, a matplotlib plot), scaled down to 1568 px per side and 1.8 MP at most.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "path"
+          ]
+        }
+      },
+      {
+        "type": "function",
+        "name": "render_view",
+        "description": "A view on demand of one or more STLs, which you get as an image with its numbers. Free camera, orthographic or perspective; zoom to a box or to a point; a cut along any plane: the cut part with the cut face in salmon and, beside it, the 2D profile of the cut on a mm grid, with area, regions, holes and box; several parts together, apart with explode; highlights: overhangs, support faces and the spec's bounds box, through holes with their diameter at each end, and the spec's details (highlight details) with what each one measures, and for each declared detail whether it is in frame and up close (details_in_view). Coordinates in mm of the STL.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "stl": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "STLs from scad_export; several are shown together."
+            },
+            "camera": {
+              "type": "object",
+              "description": "One of: {\"view\": name}, {\"direction\": [x, y, z]} (from the part toward the camera) or {\"azimuth\": degrees, \"elevation\": degrees}. iso by default; with a cut, facing the cut face.",
+              "properties": {
+                "view": {
+                  "type": "string",
+                  "enum": [
+                    "iso",
+                    "iso_back",
+                    "front",
+                    "side",
+                    "top",
+                    "bottom"
+                  ]
+                },
+                "direction": {
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  },
+                  "minItems": 3,
+                  "maxItems": 3
+                },
+                "azimuth": {
+                  "type": "number"
+                },
+                "elevation": {
+                  "type": "number"
+                }
+              }
+            },
+            "projection": {
+              "type": "string",
+              "enum": [
+                "orthographic",
+                "perspective"
+              ]
+            },
+            "zoom": {
+              "type": "object",
+              "description": "{\"center\": [x, y, z], \"size_mm\": side} or {\"box\": [[xmin, ymin, zmin], [xmax, ymax, zmax]]}.",
+              "properties": {
+                "center": {
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  },
+                  "minItems": 3,
+                  "maxItems": 3
+                },
+                "size_mm": {
+                  "type": "number"
+                },
+                "box": {
+                  "type": "array",
+                  "items": {
+                    "type": "array",
+                    "items": {
+                      "type": "number"
+                    },
+                    "minItems": 3,
+                    "maxItems": 3
+                  },
+                  "minItems": 2,
+                  "maxItems": 2
+                }
+              }
+            },
+            "cut": {
+              "type": "object",
+              "description": "Cut plane; the side the normal points to is taken away.",
+              "properties": {
+                "point": {
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  },
+                  "minItems": 3,
+                  "maxItems": 3
+                },
+                "normal": {
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  },
+                  "minItems": 3,
+                  "maxItems": 3
+                }
+              },
+              "required": [
+                "point",
+                "normal"
+              ]
+            },
+            "explode": {
+              "type": "number",
+              "description": "mm to move several parts apart."
+            },
+            "highlight": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "overhangs",
+                  "support_faces",
+                  "spec_bounds",
+                  "holes",
+                  "details"
+                ]
+              }
+            },
+            "title": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "stl"
+          ]
+        }
+      },
+      {
+        "type": "function",
+        "name": "interference_check",
+        "description": "Measures the assembly (part = \"assembly\") as G3 and G4 measure it: exports each instance in assembly coordinates and compares it with its part (volume, area, inertia); copies and units; overlaps between instances (volume, mean thickness and where) and the gap between the ones that touch; whether everything forms one group; bounds and support faces of the assembly; each motion swept through its whole range, with how deep each declared flex goes, and the assembly order; with print_in_place, the clearances and the print of all the parts together, in the print_pose if there is one (G5). Leaves in checks/assembly/ the STL of each instance, each overlap, each pose that collides, the deepest overlap of each flex and the parts as they print in place, to look at with render_view.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "path"
+          ]
+        }
+      }
+    ],
+    "reasoning": {
+      "effort": "high"
+    },
+    "max_output_tokens": 64000,
+    "stream": true,
+    "prompt_cache_key": "cadverify-agent-muse-spark-1.3-contributor",
+    "prompt_cache_retention": "24h",
+    "input": [
+      {
+        "role": "user",
+        "content": "# Box with a print-in-place hinge\n\nA small box with a lid, joined by a hinge that prints in place: one print, and it comes off the\nbed already assembled, with the lid swinging free.\n\n- Outside, closed: about 80 x 60 x 40 mm, the lid about 10 mm of that height.\n- The hinge runs along the back edge: knuckles that alternate between the box and the lid, around\n  a pin printed in place. Clearances that work in PLA on a Bambu Lab A1 with a 0.4 mm nozzle,\n  so the hinge breaks free by hand and does not fuse.\n- No supports, inside the hinge included.\n- The lid opens at least 100 degrees and closes flush with the box.\n- A small catch at the front that keeps the lid shut would be welcome.\n\nShow me the closed box as the assembly, and the lid's swing as its motion."
+      },
+      {
+        "role": "assistant",
+        "content": "Designing your print-in-place box — printable hinge, flush lid and front catch in one print."
+      },
+      {
+        "type": "function_call",
+        "call_id": "call_01a19c3cff0b71a1b0cbf324fd96536c",
+        "name": "scad_write",
+        "arguments": "{\"content\":\"/* Box with print-in-place hinge - FDM PLA, 0.4mm nozzle, Bambu A1\\n   Outside closed body 80x60x40 (hinge protrudes ~6 behind), lid 10 of height.\\n   Hinge along back edge, 5 knuckles + pin printed in place.\\n   Print pose is lid open 90deg (motion), assembly shows closed.\\n*/\\n\\npart = \\\"assembly\\\"; // [box, lid, pin, assembly]\\n\\ncadverify_only = \\\"\\\";\\nmodule instance(name, part, unit = 1) {\\n    echo(cadverify_instance = [name, part, unit]);\\n    if (cadverify_only == \\\"\\\" || cadverify_only == name) children();\\n}\\n\\n// ---- parameters ----\\nwall_t = 2.4;\\nboxW = 80; boxD = 60; boxH = 30;\\nlidH = 10;\\nR_out = 3.0;\\nR_bore = 1.9;\\nR_pin = 1.5;\\nax_y = -33;\\nax_z = 30; // assembly axis\\n// knuckle X intervals (assembly X), 5 knuckles, gaps 0.5\\nb1x0=-40; b1x1=-24.4;\\nl1x0=-23.9; l1x1=-8.3;\\nb2x0=-7.8; b2x1=7.8;\\nl2x0=8.3; l2x1=23.9;\\nb3x0=24.4; b3x1=40;\\nkn_len = 15.6;\\n\\n// ---- printable parts (print orientation, min z = 0) ----\\nmodule box() {\\n    difference() {\\n        union() {\\n            // outer body\\n            translate([-40,-30,0]) cube([80,60,30]);\\n            // box knuckle barrels\\n            translate([b1x0, ax_y, ax_z]) rotate([0,90,0]) cylinder(r=R_out, h=kn_len, $fn=64);\\n            translate([b2x0, ax_y, ax_z]) rotate([0,90,0]) cylinder(r=R_out, h=kn_len, $fn=64);\\n            translate([b3x0, ax_y, ax_z]) rotate([0,90,0]) cylinder(r=R_out, h=kn_len, $fn=64);\\n            // box webs y -35..-29.5, z 28..30\\n            translate([b1x0,-35,28]) cube([kn_len,5.5,2]);\\n            translate([b2x0,-35,28]) cube([kn_len,5.5,2]);\\n            translate([b3x0,-35,28]) cube([kn_len,5.5,2]);\\n            // catch tongue (embedded 0.5)\\n            translate([-4,27.6,29.5]) cube([8,2.4,3.5]);\\n        }\\n        // interior cavity\\n        translate([-37.6,-27.6,2.4]) cube([75.2,55.2,28.6]);\\n        // bores (through, extend 0.5 each side)\\n        translate([b1x0-0.5, ax_y, ax_z]) rotate([0,90,0]) cylinder(r=R_bore, h=kn_len+1, $fn=48);\\n        translate([b2x0-0.5, ax_y, ax_z]) rotate([0,90,0]) cylinder(r=R_bore, h=kn_len+1, $fn=48);\\n        translate([b3x0-0.5, ax_y, ax_z]) rotate([0,90,0]) cylinder(r=R_bore, h=kn_len+1, $fn=48);\\n    }\\n}\\n\\n// lid in print orientation: opening up, top plate 0..6 on bed, walls 6..10, hinge axis y=-33 z=10\\nmodule lid() {\\n    difference() {\\n        union() {\\n            translate([-40,-30,0]) cube([80,60,10]);\\n            translate([l1x0, -33, 10]) rotate([0,90,0]) cylinder(r=R_out, h=kn_len, $fn=64);\\n            translate([l2x0, -33, 10]) rotate([0,90,0]) cylinder(r=R_out, h=kn_len, $fn=64);\\n            translate([l1x0,-35,8]) cube([kn_len,5.5,2]);\\n            translate([l2x0,-35,8]) cube([kn_len,5.5,2]);\\n        }\\n        // pocket 6..10 open top\\n        translate([-37.6,-27.6,6]) cube([75.2,55.2,5]);\\n        // catch slot x -4.3..4.3, y full, z 6.5..11 open top\\n        translate([-4.3,27.6,6.5]) cube([8.6,2.4,4.5]);\\n        // bores\\n        translate([l1x0-0.5, -33, 10]) rotate([0,90,0]) cylinder(r=R_bore, h=kn_len+1, $fn=48);\\n        translate([l2x0-0.5, -33, 10]) rotate([0,90,0]) cylinder(r=R_bore, h=kn_len+1, $fn=48);\\n    }\\n}\\n\\n// pin vertical, z 0..80\\nmodule pin() {\\n    cylinder(r=R_pin, h=80, $fn=48);\\n}\\n\\n// ---- output ----\\nif (part == \\\"box\\\") {\\n    echo(cadverify_spec = [\\n        [\\\"bounds\\\", [[-40, -36, 0], [40, 30, 33]]],\\n        [\\\"bodies\\\", 1],\\n        [\\\"through_holes\\\", 3],\\n        [\\\"support_faces\\\", [[\\\"bottom\\\", \\\"-z\\\", 4000]]],\\n        [\\\"overhangs_allowed\\\", [[\\\"hinge barrels bores and webs print without supports - small diameters short bridges\\\", [[-40, -36, 27], [40, -29, 32]]]]],\\n        [\\\"copies\\\", 1],\\n        [\\\"details\\\", [\\n            [\\\"box_wall\\\", \\\"thickness\\\", [41, 0, 15], [-1, 0, 0], 2.4],\\n            [\\\"box_bottom\\\", \\\"thickness\\\", [0, 0, -1], [0, 0, 1], 2.4],\\n            [\\\"tongue\\\", \\\"material\\\", [[-4, 27.6, 30], [4, 30, 33]], 0.9],\\n            [\\\"box_cavity\\\", \\\"void\\\", [[-37.6, -27.6, 2.4], [37.6, 27.6, 30]], 0.95],\\n            [\\\"box_bore\\\", \\\"hole\\\", [-42, -33, 30], [1, 0, 0], [[0, 3.8], [15.6, 3.8]]]\\n        ]]\\n    ]);\\n    box();\\n} else if (part == \\\"lid\\\") {\\n    echo(cadverify_spec = [\\n        [\\\"bounds\\\", [[-40, -36, 0], [40, 30, 13]]],\\n        [\\\"bodies\\\", 1],\\n        [\\\"through_holes\\\", 2],\\n        [\\\"support_faces\\\", [[\\\"top\\\", \\\"-z\\\", 4000]]],\\n        [\\\"overhangs_allowed\\\", [[\\\"hinge barrels bores and webs print without supports - small diameters short bridges\\\", [[-40, -36, 7], [40, -29, 12]]]]],\\n        [\\\"copies\\\", 1],\\n        [\\\"details\\\", [\\n            [\\\"lid_top\\\", \\\"thickness\\\", [0, 0, -1], [0, 0, 1], 6],\\n            [\\\"lid_wall\\\", \\\"thickness\\\", [10, 31, 8], [0, -1, 0], 2.4],\\n            [\\\"slot\\\", \\\"void\\\", [[-4.3, 27.6, 6.5], [4.3, 30, 10]], 0.9],\\n            [\\\"lid_pocket\\\", \\\"void\\\", [[-37.6, -27.6, 6], [37.6, 27.6, 10]], 0.95],\\n            [\\\"lid_bore\\\", \\\"hole\\\", [-25, -33, 10], [1, 0, 0], [[0, 3.8], [15.6, 3.8]]]\\n        ]]\\n    ]);\\n    lid();\\n} else if (part == \\\"pin\\\") {\\n    echo(cadverify_spec = [\\n        [\\\"bounds\\\", [[-1.5, -1.5, 0], [1.5, 1.5, 80]]],\\n        [\\\"bodies\\\", 1],\\n        [\\\"through_holes\\\", 0],\\n        [\\\"support_faces\\\", [[\\\"base\\\", \\\"-z\\\", 5]]],\\n        [\\\"overhangs_allowed\\\", []],\\n        [\\\"copies\\\", 1],\\n        [\\\"details\\\", [\\n            [\\\"pin_body\\\", \\\"material\\\", [[-1, -1, 1], [1, 1, 79]], 0.95],\\n            [\\\"pin_thickness\\\", \\\"thickness\\\", [2, 0, 40], [-1, 0, 0], 3.0]\\n        ]]\\n    ]);\\n    pin();\\n} else if (part == \\\"assembly\\\") {\\n    echo(cadverify_spec = [\\n        [\\\"bounds\\\", [[-40, -36, 0], [40, 30, 40]]],\\n        [\\\"support_faces\\\", [[\\\"bottom\\\", \\\"-z\\\", 4000]]],\\n        [\\\"allowed_interferences\\\", []],\\n        [\\\"motions\\\", [\\n            [\\\"lid_swing\\\", [\\\"lid_inst\\\"], \\\"rotate\\\", [0, -33, 30], [1, 0, 0], [0, 110]]\\n        ]],\\n        [\\\"assembly_order\\\", [\\n            [[\\\"box_inst\\\"], [0, 0, 0]],\\n            [[\\\"lid_inst\\\"], [0, 0, -1]],\\n            [[\\\"pin_inst\\\"], [-1, 0, 0]]\\n        ]],\\n        [\\\"print_in_place\\\", 0.4],\\n        [\\\"print_pose\\\", [[\\\"lid_swing\\\", 90]]],\\n        [\\\"overhangs_allowed\\\", [\\n            [\\\"hinge barrels webs and pin gaps print without supports - short self-supporting curves\\\", [[-40, -36, 27], [40, -30, 34]]],\\n            [\\\"lid rear wall as short 4mm cantilever when printing open\\\", [[-40, -37, 32.5], [40, -33, 36]]],\\n            [\\\"lid front wall as short 4mm cantilever when printing open\\\", [[-40, -37, 90], [40, -33, 94]]]\\n        ]]\\n    ]);\\n    instance(\\\"box_inst\\\", \\\"box\\\", 1) box();\\n    instance(\\\"lid_inst\\\", \\\"lid\\\", 1) translate([0,0,40]) rotate([0,180,0]) lid();\\n    instance(\\\"pin_inst\\\", \\\"pin\\\", 1) translate([-40,-33,30]) rotate([0,90,0]) pin();\\n}\\n\",\"path\":\"model.scad\"}"
+      },
+      {
+        "type": "function_call_output",
+        "call_id": "call_01a19c3cff0b71a1b0cbf324fd96536c",
+        "output": "{\"ok\": true, \"path\": \"model.scad\", \"replaced\": false, \"bytes\": 6441, \"lines\": 156, \"sha256\": \"f85d0fad3ab3199e48e52d226c315287a1ac60ba4fdc24c8b200622d86bdb281\"}"
+      },
+      {
+        "role": "user",
+        "content": "About 8 requests of the session are left: 1 of 100 done, USD 0.01 of 2.00 and 6 of 60 min. Put closing first: finish what you are fixing, export each part with the default parameters and look at it, verify the assembly if there is one, and close. A big change now may stay unverified."
+      },
+      {
+        "role": "assistant",
+        "content": "Finishing the box — exporting the parts to verify the in-place hinge."
+      },
+      {
+        "type": "function_call",
+        "call_id": "call_01a19c3d520a763fa4252bed0d9fc416",
+        "name": "scad_export",
+        "arguments": "{\"part\":\"box\",\"path\":\"model.scad\"}"
+      },
+      {
+        "type": "function_call",
+        "call_id": "call_01a19c3d5320704ab3a4cfa3080380a7",
+        "name": "scad_export",
+        "arguments": "{\"part\":\"lid\",\"path\":\"model.scad\"}"
+      },
+      {
+        "type": "function_call",
+        "call_id": "call_01a19c3d544073c4aaf99e8454725bae",
+        "name": "scad_export",
+        "arguments": "{\"part\":\"pin\",\"path\":\"model.scad\"}"
+      },
+      {
+        "type": "function_call",
+        "call_id": "call_01a19c3d555b71f6a455dc83a11778c8",
+        "name": "scad_export",
+        "arguments": "{\"part\":\"assembly\",\"path\":\"model.scad\"}"
+      },
+      {
+        "type": "function_call_output",
+        "call_id": "call_01a19c3d520a763fa4252bed0d9fc416",
+        "output": [
+          {
+            "type": "input_text",
+            "text": "{\"ok\": true, \"path\": \"exports/model.box.e1af9484.stl\", \"sha256\": \"32d2a09807fc3d79c07488cbb64149e08333da50e48c9e6f522e65b6dee84615\", \"part\": \"box\", \"empty\": false, \"warnings\": [], \"asserts_failed\": [], \"errors\": [], \"seconds\": 0.082, \"returncode\": 0, \"timed_out\": false, \"mesh\": {\"triangles\": 1434, \"watertight\": true, \"winding_consistent\": true, \"bad_edges\": 0, \"bad_edge_locations\": [], \"volume_mm3\": 30303.476, \"bounds\": [[-40.0, -36.0, 0.0], [40.0, 30.0, 33.0]], \"size\": [80.0, 66.0, 33.0], \"bodies\": 1, \"cavities\": 0, \"inverted_shells\": 0, \"through_holes\": 3}, \"spec\": {\"bounds\": [[-40.0, -36.0, 0.0], [40.0, 30.0, 33.0]], \"bodies\": 1, \"through_holes\": 3, \"support_faces\": [{\"name\": \"bottom\", \"direction\": \"-z\", \"min_area_mm2\": 4000}], \"overhangs_allowed\": [{\"name\": \"hinge barrels bores and webs print without supports - small diameters short bridges\", \"bounds\": [[-40.0, -36.0, 27.0], [40.0, -29.0, 32.0]]}], \"copies\": 1, \"details\": [{\"name\": \"box_wall\", \"kind\": \"thickness\", \"point\": [41.0, 0.0, 15.0], \"direction\": [-1.0, 0.0, 0.0], \"mm\": 2.4}, {\"name\": \"box_bottom\", \"kind\": \"thickness\", \"point\": [0.0, 0.0, -1.0], \"direction\": [0.0, 0.0, 1.0], \"mm\": 2.4}, {\"name\": \"tongue\", \"kind\": \"material\", \"box\": [[-4.0, 27.6, 30.0], [4.0, 30.0, 33.0]], \"fraction\": 0.9}, {\"name\": \"box_cavity\", \"kind\": \"void\", \"box\": [[-37.6, -27.6, 2.4], [37.6, 27.6, 30.0]], \"fraction\": 0.95}, {\"name\": \"box_bore\", \"kind\": \"hole\", \"point\": [-42.0, -33.0, 30.0], \"direction\": [1.0, 0.0, 0.0], \"diameters\": [[0.0, 3.8], [15.6, 3.8]]}]}, \"spec_error\": null, \"spec_check\": {\"ok\": false, \"bounds\": {\"ok\": true, \"expected\": [[-40.0, -36.0, 0.0], [40.0, 30.0, 33.0]], \"actual\": [[-40.0, -36.0, 0.0], [40.0, 30.0, 33.0]], \"tolerance_mm\": 0.2, \"deviations\": []}, \"bodies\": {\"ok\": true, \"expected\": 1, \"actual\": 1}, \"through_holes\": {\"ok\": true, \"expected\": 3, \"actual\": 3}, \"support_faces\": [{\"name\": \"bottom\", \"direction\": \"-z\", \"ok\": true, \"min_area_mm2\": 4000, \"area_on_extreme_plane_mm2\": 4800.0, \"extreme_plane\": \"z = 0.000\", \"largest_flat_face\": {\"plane\": \"z = 0.000\", \"area_mm2\": 4800.0}}], \"details\": [{\"name\": \"box_wall\", \"kind\": \"thickness\", \"ok\": true, \"expected_mm\": 2.4, \"measured_mm\": 2.4, \"enters_at\": [40.0, 0.0, 15.0], \"tolerance_mm\": 0.1}, {\"name\": \"box_bottom\", \"kind\": \"thickness\", \"ok\": true, \"expected_mm\": 2.4, \"measured_mm\": 2.4, \"enters_at\": [0.0, 0.0, 0.0], \"tolerance_mm\": 0.1}, {\"name\": \"tongue\", \"kind\": \"material\", \"box\": [[-4.0, 27.6, 30.0], [4.0, 30.0, 33.0]], \"material_fraction\": 1.0, \"min_fraction\": 0.9, \"ok\": true}, {\"name\": \"box_cavity\", \"kind\": \"void\", \"box\": [[-37.6, -27.6, 2.4], [37.6, 27.6, 30.0]], \"material_fraction\": 0.0, \"min_empty_fraction\": 0.95, \"ok\": true}, {\"name\": \"box_bore\", \"kind\": \"hole\", \"ok\": false, \"mouth\": [-40.0, -33.0, 30.0], \"mouth_from_point_mm\": 2.0, \"diameters\": [{\"depth_mm\": 0.0, \"expected_mm\": 3.8, \"measured_mm\": 3.795, \"ok\": true}, {\"depth_mm\": 15.6, \"expected_mm\": 3.8, \"measured_mm\": null, \"ok\": false}], \"profile\": [[0.0, 3.795], [0.25, 3.795], [0.5, 3.795], [0.75, 3.795], [1.0, 3.795], [1.5, 3.795], [2.0, 3.795], [3.0, 3.795], [4.0, 3.795], [5.0, 3.795], [7.5, 3.795], [10.0, 3.795], [15.0, 3.795], [15.6, null]], \"note\": \"Ø of the circle with the same area, at each depth from the mouth (the first closed section around the axis, coming from the point); 0 = 0.05 mm\"}]}, \"sheet\": {\"png\": \"renders/sheet-002.png\", \"views\": [\"iso\", \"iso_back\", \"front\", \"side\", \"top\", \"bottom\"], \"note\": \"The sheet of this mesh is attached as an image: look at it before going on. It comes with the export's numbers, so it leaves nothing to confirm. An export of the same mesh does not repeat it: ask for it with render_sheet.\"}}"
+          },
+          {
+            "type": "input_image",
+            "image_url": "<inline image/png base64, 188428 chars, sha256:3af3c127533a4eb4>"
+          }
+        ]
+      },
+      {
+        "type": "function_call_output",
+        "call_id": "call_01a19c3d5320704ab3a4cfa3080380a7",
+        "output": [
+          {
+            "type": "input_text",
+            "text": "{\"ok\": true, \"path\": \"exports/model.lid.6029fe16.stl\", \"sha256\": \"b979c020aec87c3449796bc6c0ea921ff4dd11439cfa53566035eb89c9b94581\", \"part\": \"lid\", \"empty\": false, \"warnings\": [], \"asserts_failed\": [], \"errors\": [], \"seconds\": 0.069, \"returncode\": 0, \"timed_out\": false, \"mesh\": {\"triangles\": 964, \"watertight\": true, \"winding_consistent\": true, \"bad_edges\": 0, \"bad_edge_locations\": [], \"volume_mm3\": 31866.653, \"bounds\": [[-40.0, -36.0, 0.0], [40.0, 30.0, 13.0]], \"size\": [80.0, 66.0, 13.0], \"bodies\": 1, \"cavities\": 0, \"inverted_shells\": 0, \"through_holes\": 2}, \"spec\": {\"bounds\": [[-40.0, -36.0, 0.0], [40.0, 30.0, 13.0]], \"bodies\": 1, \"through_holes\": 2, \"support_faces\": [{\"name\": \"top\", \"direction\": \"-z\", \"min_area_mm2\": 4000}], \"overhangs_allowed\": [{\"name\": \"hinge barrels bores and webs print without supports - small diameters short bridges\", \"bounds\": [[-40.0, -36.0, 7.0], [40.0, -29.0, 12.0]]}], \"copies\": 1, \"details\": [{\"name\": \"lid_top\", \"kind\": \"thickness\", \"point\": [0.0, 0.0, -1.0], \"direction\": [0.0, 0.0, 1.0], \"mm\": 6.0}, {\"name\": \"lid_wall\", \"kind\": \"thickness\", \"point\": [10.0, 31.0, 8.0], \"direction\": [0.0, -1.0, 0.0], \"mm\": 2.4}, {\"name\": \"slot\", \"kind\": \"void\", \"box\": [[-4.3, 27.6, 6.5], [4.3, 30.0, 10.0]], \"fraction\": 0.9}, {\"name\": \"lid_pocket\", \"kind\": \"void\", \"box\": [[-37.6, -27.6, 6.0], [37.6, 27.6, 10.0]], \"fraction\": 0.95}, {\"name\": \"lid_bore\", \"kind\": \"hole\", \"point\": [-25.0, -33.0, 10.0], \"direction\": [1.0, 0.0, 0.0], \"diameters\": [[0.0, 3.8], [15.6, 3.8]]}]}, \"spec_error\": null, \"spec_check\": {\"ok\": false, \"bounds\": {\"ok\": true, \"expected\": [[-40.0, -36.0, 0.0], [40.0, 30.0, 13.0]], \"actual\": [[-40.0, -36.0, 0.0], [40.0, 30.0, 13.0]], \"tolerance_mm\": 0.2, \"deviations\": []}, \"bodies\": {\"ok\": true, \"expected\": 1, \"actual\": 1}, \"through_holes\": {\"ok\": true, \"expected\": 2, \"actual\": 2}, \"support_faces\": [{\"name\": \"top\", \"direction\": \"-z\", \"ok\": true, \"min_area_mm2\": 4000, \"area_on_extreme_plane_mm2\": 4800.0, \"extreme_plane\": \"z = 0.000\", \"largest_flat_face\": {\"plane\": \"z = 0.000\", \"area_mm2\": 4800.0}}], \"details\": [{\"name\": \"lid_top\", \"kind\": \"thickness\", \"ok\": true, \"expected_mm\": 6.0, \"measured_mm\": 6.0, \"enters_at\": [0.0, 0.0, 0.0], \"tolerance_mm\": 0.18}, {\"name\": \"lid_wall\", \"kind\": \"thickness\", \"ok\": true, \"expected_mm\": 2.4, \"measured_mm\": 2.4, \"enters_at\": [10.0, 30.0, 8.0], \"tolerance_mm\": 0.1}, {\"name\": \"slot\", \"kind\": \"void\", \"box\": [[-4.3, 27.6, 6.5], [4.3, 30.0, 10.0]], \"material_fraction\": 0.0, \"min_empty_fraction\": 0.9, \"ok\": true}, {\"name\": \"lid_pocket\", \"kind\": \"void\", \"box\": [[-37.6, -27.6, 6.0], [37.6, 27.6, 10.0]], \"material_fraction\": 0.0, \"min_empty_fraction\": 0.95, \"ok\": true}, {\"name\": \"lid_bore\", \"kind\": \"hole\", \"ok\": false, \"mouth\": [-23.9, -33.0, 10.0], \"mouth_from_point_mm\": 1.1, \"diameters\": [{\"depth_mm\": 0.0, \"expected_mm\": 3.8, \"measured_mm\": 3.795, \"ok\": true}, {\"depth_mm\": 15.6, \"expected_mm\": 3.8, \"measured_mm\": null, \"ok\": false}], \"profile\": [[0.0, 3.795], [0.25, 3.795], [0.5, 3.795], [0.75, 3.795], [1.0, 3.795], [1.5, 3.795], [2.0, 3.795], [3.0, 3.795], [4.0, 3.795], [5.0, 3.795], [7.5, 3.795], [10.0, 3.795], [15.0, 3.795], [15.6, null]], \"note\": \"Ø of the circle with the same area, at each depth from the mouth (the first closed section around the axis, coming from the point); 0 = 0.05 mm\"}]}, \"sheet\": {\"png\": \"renders/sheet-003.png\", \"views\": [\"iso\", \"iso_back\", \"front\", \"side\", \"top\", \"bottom\"], \"note\": \"The sheet of this mesh is attached as an image: look at it before going on. It comes with the export's numbers, so it leaves nothing to confirm. An export of the same mesh does not repeat it: ask for it with render_sheet.\"}}"
+          },
+          {
+            "type": "input_image",
+            "image_url": "<inline image/png base64, 135968 chars, sha256:a841fe390741cea3>"
+          }
+        ]
+      },
+      {
+        "type": "function_call_output",
+        "call_id": "call_01a19c3d544073c4aaf99e8454725bae",
+        "output": [
+          {
+            "type": "input_text",
+            "text": "{\"ok\": true, \"path\": \"exports/model.pin.a1529210.stl\", \"sha256\": \"de099a63f1549385848cdc6d05d6e0fc1f7c8364afe751d4a988f21acb5d923f\", \"part\": \"pin\", \"empty\": false, \"warnings\": [], \"asserts_failed\": [], \"errors\": [], \"seconds\": 0.06, \"returncode\": 0, \"timed_out\": false, \"mesh\": {\"triangles\": 188, \"watertight\": true, \"winding_consistent\": true, \"bad_edges\": 0, \"bad_edge_locations\": [], \"volume_mm3\": 563.873, \"bounds\": [[-1.5, -1.5, 0.0], [1.5, 1.5, 80.0]], \"size\": [3.0, 3.0, 80.0], \"bodies\": 1, \"cavities\": 0, \"inverted_shells\": 0, \"through_holes\": 0}, \"spec\": {\"bounds\": [[-1.5, -1.5, 0.0], [1.5, 1.5, 80.0]], \"bodies\": 1, \"through_holes\": 0, \"support_faces\": [{\"name\": \"base\", \"direction\": \"-z\", \"min_area_mm2\": 5}], \"overhangs_allowed\": [], \"copies\": 1, \"details\": [{\"name\": \"pin_body\", \"kind\": \"material\", \"box\": [[-1.0, -1.0, 1.0], [1.0, 1.0, 79.0]], \"fraction\": 0.95}, {\"name\": \"pin_thickness\", \"kind\": \"thickness\", \"point\": [2.0, 0.0, 40.0], \"direction\": [-1.0, 0.0, 0.0], \"mm\": 3.0}]}, \"spec_error\": null, \"spec_check\": {\"ok\": true, \"bounds\": {\"ok\": true, \"expected\": [[-1.5, -1.5, 0.0], [1.5, 1.5, 80.0]], \"actual\": [[-1.5, -1.5, 0.0], [1.5, 1.5, 80.0]], \"tolerance_mm\": 0.2, \"deviations\": []}, \"bodies\": {\"ok\": true, \"expected\": 1, \"actual\": 1}, \"through_holes\": {\"ok\": true, \"expected\": 0, \"actual\": 0}, \"support_faces\": [{\"name\": \"base\", \"direction\": \"-z\", \"ok\": true, \"min_area_mm2\": 5, \"area_on_extreme_plane_mm2\": 7.0, \"extreme_plane\": \"z = 0.000\", \"largest_flat_face\": {\"plane\": \"z = 0.000\", \"area_mm2\": 7.0}}], \"details\": [{\"name\": \"pin_body\", \"kind\": \"material\", \"box\": [[-1.0, -1.0, 1.0], [1.0, 1.0, 79.0]], \"material_fraction\": 1.0, \"min_fraction\": 0.95, \"ok\": true}, {\"name\": \"pin_thickness\", \"kind\": \"thickness\", \"ok\": true, \"expected_mm\": 3.0, \"measured_mm\": 3.0, \"enters_at\": [1.5, 0.0, 40.0], \"tolerance_mm\": 0.1}]}, \"sheet\": {\"png\": \"renders/sheet-004.png\", \"views\": [\"iso\", \"iso_back\", \"front\", \"side\", \"top\", \"bottom\"], \"note\": \"The sheet of this mesh is attached as an image: look at it before going on. It comes with the export's numbers, so it leaves nothing to confirm. An export of the same mesh does not repeat it: ask for it with render_sheet.\"}}"
+          },
+          {
+            "type": "input_image",
+            "image_url": "<inline image/png base64, 64380 chars, sha256:8137468ef2deaf15>"
+          }
+        ]
+      },
+      {
+        "type": "function_call_output",
+        "call_id": "call_01a19c3d555b71f6a455dc83a11778c8",
+        "output": [
+          {
+            "type": "input_text",
+            "text": "{\"ok\": true, \"path\": \"exports/model.assembly.8a16e71a.stl\", \"sha256\": \"8497541b62c804387b74565da9ecae963028bd65bbd44b014b3a8e09762ccf2b\", \"part\": \"assembly\", \"empty\": false, \"warnings\": [], \"asserts_failed\": [], \"errors\": [], \"seconds\": 0.101, \"returncode\": 0, \"timed_out\": false, \"mesh\": {\"triangles\": 2574, \"watertight\": true, \"winding_consistent\": true, \"bad_edges\": 0, \"bad_edge_locations\": [], \"volume_mm3\": 62734.003, \"bounds\": [[-40.0, -36.0, 0.0], [40.0, 30.0, 40.0]], \"size\": [80.0, 66.0, 40.0], \"bodies\": 2, \"cavities\": 0, \"inverted_shells\": 0, \"through_holes\": 5}, \"spec\": {\"bounds\": [[-40.0, -36.0, 0.0], [40.0, 30.0, 40.0]], \"bodies\": null, \"through_holes\": null, \"support_faces\": [{\"name\": \"bottom\", \"direction\": \"-z\", \"min_area_mm2\": 4000}], \"overhangs_allowed\": [{\"name\": \"hinge barrels webs and pin gaps print without supports - short self-supporting curves\", \"bounds\": [[-40.0, -36.0, 27.0], [40.0, -30.0, 34.0]]}, {\"name\": \"lid rear wall as short 4mm cantilever when printing open\", \"bounds\": [[-40.0, -37.0, 32.5], [40.0, -33.0, 36.0]]}, {\"name\": \"lid front wall as short 4mm cantilever when printing open\", \"bounds\": [[-40.0, -37.0, 90.0], [40.0, -33.0, 94.0]]}], \"allowed_interferences\": [], \"motions\": [{\"name\": \"lid_swing\", \"instances\": [\"lid_inst\"], \"kind\": \"rotate\", \"point\": [0.0, -33.0, 30.0], \"axis\": [1.0, 0.0, 0.0], \"range\": [0.0, 110.0], \"flex\": []}], \"assembly_order\": [{\"instances\": [\"box_inst\"], \"direction\": [0.0, 0.0, 0.0]}, {\"instances\": [\"lid_inst\"], \"direction\": [0.0, 0.0, -1.0]}, {\"instances\": [\"pin_inst\"], \"direction\": [-1.0, 0.0, 0.0]}], \"print_in_place\": {\"min_gap_mm\": 0.4}, \"print_pose\": [{\"motion\": \"lid_swing\", \"value\": 90.0}]}, \"spec_error\": null, \"spec_check\": {\"ok\": true, \"bounds\": {\"ok\": true, \"expected\": [[-40.0, -36.0, 0.0], [40.0, 30.0, 40.0]], \"actual\": [[-40.0, -36.0, 0.0], [40.0, 30.0, 40.0]], \"tolerance_mm\": 0.2, \"deviations\": []}, \"support_faces\": [{\"name\": \"bottom\", \"direction\": \"-z\", \"ok\": true, \"min_area_mm2\": 4000, \"area_on_extreme_plane_mm2\": 4800.0, \"extreme_plane\": \"z = 0.000\", \"largest_flat_face\": {\"plane\": \"z = 0.000\", \"area_mm2\": 4800.0}}], \"details\": []}, \"instances\": [{\"name\": \"box_inst\", \"part\": \"box\", \"unit\": 1}, {\"name\": \"lid_inst\", \"part\": \"lid\", \"unit\": 1}, {\"name\": \"pin_inst\", \"part\": \"pin\", \"unit\": 1}], \"sheet\": {\"png\": \"renders/sheet-005.png\", \"views\": [\"iso\", \"iso_back\", \"front\", \"side\", \"top\", \"bottom\"], \"note\": \"The sheet of this mesh is attached as an image: look at it before going on. It comes with the export's numbers, so it leaves nothing to confirm. An export of the same mesh does not repeat it: ask for it with render_sheet.\"}}"
+          },
+          {
+            "type": "input_image",
+            "image_url": "<inline image/png base64, 131196 chars, sha256:61c4fff46b34d99a>"
+          }
+        ]
+      },
+      {
+        "role": "assistant",
+        "content": "Your closed-box sheets check out — now fixing the last spec mismatches for final verification."
+      },
+      {
+        "type": "function_call",
+        "call_id": "call_01a19c3df4f9739d84521d5d88a47e00",
+        "name": "scad_patch",
+        "arguments": "{\"new\":\"            [\\\"box_bore\\\", \\\"hole\\\", [-42, -33, 30], [1, 0, 0], [[0, 3.8], [15, 3.8]]]\",\"old\":\"            [\\\"box_bore\\\", \\\"hole\\\", [-42, -33, 30], [1, 0, 0], [[0, 3.8], [15.6, 3.8]]]\",\"path\":\"model.scad\"}"
+      },
+      {
+        "type": "function_call_output",
+        "call_id": "call_01a19c3df4f9739d84521d5d88a47e00",
+        "output": "{\"ok\": true, \"path\": \"model.scad\", \"line\": 97, \"lines_removed\": 1, \"lines_added\": 1, \"bytes\": 6439, \"lines\": 156, \"sha256\": \"3ef6f6f3e7f14825b5389d91b77efb86b6f0c40db42192c52e861897cbebe835\"}"
+      },
+      {
+        "role": "assistant",
+        "content": "Box bore corrected — now applying the same fix to the lid and running final verification."
+      },
+      {
+        "type": "function_call",
+        "call_id": "call_01a19c3e43dd73b0bf96fbf9b6e4ceb8",
+        "name": "scad_patch",
+        "arguments": "{\"new\":\"            [\\\"lid_bore\\\", \\\"hole\\\", [-25, -33, 10], [1, 0, 0], [[0, 3.8], [15, 3.8]]]\",\"old\":\"            [\\\"lid_bore\\\", \\\"hole\\\", [-25, -33, 10], [1, 0, 0], [[0, 3.8], [15.6, 3.8]]]\",\"path\":\"model.scad\"}"
+      },
+      {
+        "type": "function_call_output",
+        "call_id": "call_01a19c3e43dd73b0bf96fbf9b6e4ceb8",
+        "output": "{\"ok\": true, \"path\": \"model.scad\", \"line\": 114, \"lines_removed\": 1, \"lines_added\": 1, \"bytes\": 6437, \"lines\": 156, \"sha256\": \"8ddcd7ba8768426376b2ddd9c7b471d52a915ff76fc1c851bf93e9ec4993287f\", \"spec_notes\": [\"box: the spec moved toward what the mesh already measured: detail box_bore from diameters [[0.0, 3.8], [15.6, 3.8]] to diameters [[0.0, 3.8], [15.0, 3.8]], the mesh measures [3.795, 3.795] (the mesh is the same). That way those checks pass without the part changing. If the spec was badly posed against the request, that is fine: say so in the close, with the reason (once per part is enough). If not, fix the geometry.\"]}"
+      },
+      {
+        "type": "function_call",
+        "call_id": "call_01a19c3e758576a5938388fcd9e5ca9e",
+        "name": "scad_export",
+        "arguments": "{\"part\":\"box\",\"path\":\"model.scad\"}"
+      },
+      {
+        "type": "function_call",
+        "call_id": "call_01a19c3e7692744c81416185bcdd4990",
+        "name": "scad_export",
+        "arguments": "{\"part\":\"lid\",\"path\":\"model.scad\"}"
+      },
+      {
+        "type": "function_call",
+        "call_id": "call_01a19c3e77ae7572b2f00100ee0383a8",
+        "name": "scad_export",
+        "arguments": "{\"part\":\"pin\",\"path\":\"model.scad\"}"
+      },
+      {
+        "type": "function_call",
+        "call_id": "call_01a19c3e78bd7750b45ae38f90e989e8",
+        "name": "scad_export",
+        "arguments": "{\"part\":\"assembly\",\"path\":\"model.scad\"}"
+      },
+      {
+        "type": "function_call_output",
+        "call_id": "call_01a19c3e758576a5938388fcd9e5ca9e",
+        "output": "{\"ok\": true, \"path\": \"exports/model.box.e1af9484.stl\", \"sha256\": \"32d2a09807fc3d79c07488cbb64149e08333da50e48c9e6f522e65b6dee84615\", \"part\": \"box\", \"empty\": false, \"warnings\": [], \"asserts_failed\": [], \"errors\": [], \"seconds\": 0.075, \"returncode\": 0, \"timed_out\": false, \"mesh\": {\"triangles\": 1434, \"watertight\": true, \"winding_consistent\": true, \"bad_edges\": 0, \"bad_edge_locations\": [], \"volume_mm3\": 30303.476, \"bounds\": [[-40.0, -36.0, 0.0], [40.0, 30.0, 33.0]], \"size\": [80.0, 66.0, 33.0], \"bodies\": 1, \"cavities\": 0, \"inverted_shells\": 0, \"through_holes\": 3}, \"spec\": {\"bounds\": [[-40.0, -36.0, 0.0], [40.0, 30.0, 33.0]], \"bodies\": 1, \"through_holes\": 3, \"support_faces\": [{\"name\": \"bottom\", \"direction\": \"-z\", \"min_area_mm2\": 4000}], \"overhangs_allowed\": [{\"name\": \"hinge barrels bores and webs print without supports - small diameters short bridges\", \"bounds\": [[-40.0, -36.0, 27.0], [40.0, -29.0, 32.0]]}], \"copies\": 1, \"details\": [{\"name\": \"box_wall\", \"kind\": \"thickness\", \"point\": [41.0, 0.0, 15.0], \"direction\": [-1.0, 0.0, 0.0], \"mm\": 2.4}, {\"name\": \"box_bottom\", \"kind\": \"thickness\", \"point\": [0.0, 0.0, -1.0], \"direction\": [0.0, 0.0, 1.0], \"mm\": 2.4}, {\"name\": \"tongue\", \"kind\": \"material\", \"box\": [[-4.0, 27.6, 30.0], [4.0, 30.0, 33.0]], \"fraction\": 0.9}, {\"name\": \"box_cavity\", \"kind\": \"void\", \"box\": [[-37.6, -27.6, 2.4], [37.6, 27.6, 30.0]], \"fraction\": 0.95}, {\"name\": \"box_bore\", \"kind\": \"hole\", \"point\": [-42.0, -33.0, 30.0], \"direction\": [1.0, 0.0, 0.0], \"diameters\": [[0.0, 3.8], [15.0, 3.8]]}]}, \"spec_error\": null, \"spec_check\": {\"ok\": true, \"bounds\": {\"ok\": true, \"expected\": [[-40.0, -36.0, 0.0], [40.0, 30.0, 33.0]], \"actual\": [[-40.0, -36.0, 0.0], [40.0, 30.0, 33.0]], \"tolerance_mm\": 0.2, \"deviations\": []}, \"bodies\": {\"ok\": true, \"expected\": 1, \"actual\": 1}, \"through_holes\": {\"ok\": true, \"expected\": 3, \"actual\": 3}, \"support_faces\": [{\"name\": \"bottom\", \"direction\": \"-z\", \"ok\": true, \"min_area_mm2\": 4000, \"area_on_extreme_plane_mm2\": 4800.0, \"extreme_plane\": \"z = 0.000\", \"largest_flat_face\": {\"plane\": \"z = 0.000\", \"area_mm2\": 4800.0}}], \"details\": [{\"name\": \"box_wall\", \"kind\": \"thickness\", \"ok\": true, \"expected_mm\": 2.4, \"measured_mm\": 2.4, \"enters_at\": [40.0, 0.0, 15.0], \"tolerance_mm\": 0.1}, {\"name\": \"box_bottom\", \"kind\": \"thickness\", \"ok\": true, \"expected_mm\": 2.4, \"measured_mm\": 2.4, \"enters_at\": [0.0, 0.0, 0.0], \"tolerance_mm\": 0.1}, {\"name\": \"tongue\", \"kind\": \"material\", \"box\": [[-4.0, 27.6, 30.0], [4.0, 30.0, 33.0]], \"material_fraction\": 1.0, \"min_fraction\": 0.9, \"ok\": true}, {\"name\": \"box_cavity\", \"kind\": \"void\", \"box\": [[-37.6, -27.6, 2.4], [37.6, 27.6, 30.0]], \"material_fraction\": 0.0, \"min_empty_fraction\": 0.95, \"ok\": true}, {\"name\": \"box_bore\", \"kind\": \"hole\", \"ok\": true, \"mouth\": [-40.0, -33.0, 30.0], \"mouth_from_point_mm\": 2.0, \"diameters\": [{\"depth_mm\": 0.0, \"expected_mm\": 3.8, \"measured_mm\": 3.795, \"ok\": true}, {\"depth_mm\": 15.0, \"expected_mm\": 3.8, \"measured_mm\": 3.795, \"ok\": true}], \"profile\": [[0.0, 3.795], [0.25, 3.795], [0.5, 3.795], [0.75, 3.795], [1.0, 3.795], [1.5, 3.795], [2.0, 3.795], [3.0, 3.795], [4.0, 3.795], [5.0, 3.795], [7.5, 3.795], [10.0, 3.795], [15.0, 3.795]], \"note\": \"Ø of the circle with the same area, at each depth from the mouth (the first closed section around the axis, coming from the point); 0 = 0.05 mm\"}]}, \"spec_notes\": [\"lid: the spec moved toward what the mesh already measured: detail lid_bore from diameters [[0.0, 3.8], [15.6, 3.8]] to diameters [[0.0, 3.8], [15.0, 3.8]], the mesh measures [3.795, 3.795] (the mesh is the same). That way those checks pass without the part changing. If the spec was badly posed against the request, that is fine: say so in the close, with the reason (once per part is enough). If not, fix the geometry.\"]}"
+      },
+      {
+        "type": "function_call_output",
+        "call_id": "call_01a19c3e7692744c81416185bcdd4990",
+        "output": "{\"ok\": true, \"path\": \"exports/model.lid.6029fe16.stl\", \"sha256\": \"b979c020aec87c3449796bc6c0ea921ff4dd11439cfa53566035eb89c9b94581\", \"part\": \"lid\", \"empty\": false, \"warnings\": [], \"asserts_failed\": [], \"errors\": [], \"seconds\": 0.063, \"returncode\": 0, \"timed_out\": false, \"mesh\": {\"triangles\": 964, \"watertight\": true, \"winding_consistent\": true, \"bad_edges\": 0, \"bad_edge_locations\": [], \"volume_mm3\": 31866.653, \"bounds\": [[-40.0, -36.0, 0.0], [40.0, 30.0, 13.0]], \"size\": [80.0, 66.0, 13.0], \"bodies\": 1, \"cavities\": 0, \"inverted_shells\": 0, \"through_holes\": 2}, \"spec\": {\"bounds\": [[-40.0, -36.0, 0.0], [40.0, 30.0, 13.0]], \"bodies\": 1, \"through_holes\": 2, \"support_faces\": [{\"name\": \"top\", \"direction\": \"-z\", \"min_area_mm2\": 4000}], \"overhangs_allowed\": [{\"name\": \"hinge barrels bores and webs print without supports - small diameters short bridges\", \"bounds\": [[-40.0, -36.0, 7.0], [40.0, -29.0, 12.0]]}], \"copies\": 1, \"details\": [{\"name\": \"lid_top\", \"kind\": \"thickness\", \"point\": [0.0, 0.0, -1.0], \"direction\": [0.0, 0.0, 1.0], \"mm\": 6.0}, {\"name\": \"lid_wall\", \"kind\": \"thickness\", \"point\": [10.0, 31.0, 8.0], \"direction\": [0.0, -1.0, 0.0], \"mm\": 2.4}, {\"name\": \"slot\", \"kind\": \"void\", \"box\": [[-4.3, 27.6, 6.5], [4.3, 30.0, 10.0]], \"fraction\": 0.9}, {\"name\": \"lid_pocket\", \"kind\": \"void\", \"box\": [[-37.6, -27.6, 6.0], [37.6, 27.6, 10.0]], \"fraction\": 0.95}, {\"name\": \"lid_bore\", \"kind\": \"hole\", \"point\": [-25.0, -33.0, 10.0], \"direction\": [1.0, 0.0, 0.0], \"diameters\": [[0.0, 3.8], [15.0, 3.8]]}]}, \"spec_error\": null, \"spec_check\": {\"ok\": true, \"bounds\": {\"ok\": true, \"expected\": [[-40.0, -36.0, 0.0], [40.0, 30.0, 13.0]], \"actual\": [[-40.0, -36.0, 0.0], [40.0, 30.0, 13.0]], \"tolerance_mm\": 0.2, \"deviations\": []}, \"bodies\": {\"ok\": true, \"expected\": 1, \"actual\": 1}, \"through_holes\": {\"ok\": true, \"expected\": 2, \"actual\": 2}, \"support_faces\": [{\"name\": \"top\", \"direction\": \"-z\", \"ok\": true, \"min_area_mm2\": 4000, \"area_on_extreme_plane_mm2\": 4800.0, \"extreme_plane\": \"z = 0.000\", \"largest_flat_face\": {\"plane\": \"z = 0.000\", \"area_mm2\": 4800.0}}], \"details\": [{\"name\": \"lid_top\", \"kind\": \"thickness\", \"ok\": true, \"expected_mm\": 6.0, \"measured_mm\": 6.0, \"enters_at\": [0.0, 0.0, 0.0], \"tolerance_mm\": 0.18}, {\"name\": \"lid_wall\", \"kind\": \"thickness\", \"ok\": true, \"expected_mm\": 2.4, \"measured_mm\": 2.4, \"enters_at\": [10.0, 30.0, 8.0], \"tolerance_mm\": 0.1}, {\"name\": \"slot\", \"kind\": \"void\", \"box\": [[-4.3, 27.6, 6.5], [4.3, 30.0, 10.0]], \"material_fraction\": 0.0, \"min_empty_fraction\": 0.9, \"ok\": true}, {\"name\": \"lid_pocket\", \"kind\": \"void\", \"box\": [[-37.6, -27.6, 6.0], [37.6, 27.6, 10.0]], \"material_fraction\": 0.0, \"min_empty_fraction\": 0.95, \"ok\": true}, {\"name\": \"lid_bore\", \"kind\": \"hole\", \"ok\": true, \"mouth\": [-23.9, -33.0, 10.0], \"mouth_from_point_mm\": 1.1, \"diameters\": [{\"depth_mm\": 0.0, \"expected_mm\": 3.8, \"measured_mm\": 3.795, \"ok\": true}, {\"depth_mm\": 15.0, \"expected_mm\": 3.8, \"measured_mm\": 3.795, \"ok\": true}], \"profile\": [[0.0, 3.795], [0.25, 3.795], [0.5, 3.795], [0.75, 3.795], [1.0, 3.795], [1.5, 3.795], [2.0, 3.795], [3.0, 3.795], [4.0, 3.795], [5.0, 3.795], [7.5, 3.795], [10.0, 3.795], [15.0, 3.795]], \"note\": \"Ø of the circle with the same area, at each depth from the mouth (the first closed section around the axis, coming from the point); 0 = 0.05 mm\"}]}}"
+      },
+      {
+        "type": "function_call_output",
+        "call_id": "call_01a19c3e77ae7572b2f00100ee0383a8",
+        "output": "{\"ok\": true, \"path\": \"exports/model.pin.a1529210.stl\", \"sha256\": \"de099a63f1549385848cdc6d05d6e0fc1f7c8364afe751d4a988f21acb5d923f\", \"part\": \"pin\", \"empty\": false, \"warnings\": [], \"asserts_failed\": [], \"errors\": [], \"seconds\": 0.052, \"returncode\": 0, \"timed_out\": false, \"mesh\": {\"triangles\": 188, \"watertight\": true, \"winding_consistent\": true, \"bad_edges\": 0, \"bad_edge_locations\": [], \"volume_mm3\": 563.873, \"bounds\": [[-1.5, -1.5, 0.0], [1.5, 1.5, 80.0]], \"size\": [3.0, 3.0, 80.0], \"bodies\": 1, \"cavities\": 0, \"inverted_shells\": 0, \"through_holes\": 0}, \"spec\": {\"bounds\": [[-1.5, -1.5, 0.0], [1.5, 1.5, 80.0]], \"bodies\": 1, \"through_holes\": 0, \"support_faces\": [{\"name\": \"base\", \"direction\": \"-z\", \"min_area_mm2\": 5}], \"overhangs_allowed\": [], \"copies\": 1, \"details\": [{\"name\": \"pin_body\", \"kind\": \"material\", \"box\": [[-1.0, -1.0, 1.0], [1.0, 1.0, 79.0]], \"fraction\": 0.95}, {\"name\": \"pin_thickness\", \"kind\": \"thickness\", \"point\": [2.0, 0.0, 40.0], \"direction\": [-1.0, 0.0, 0.0], \"mm\": 3.0}]}, \"spec_error\": null, \"spec_check\": {\"ok\": true, \"bounds\": {\"ok\": true, \"expected\": [[-1.5, -1.5, 0.0], [1.5, 1.5, 80.0]], \"actual\": [[-1.5, -1.5, 0.0], [1.5, 1.5, 80.0]], \"tolerance_mm\": 0.2, \"deviations\": []}, \"bodies\": {\"ok\": true, \"expected\": 1, \"actual\": 1}, \"through_holes\": {\"ok\": true, \"expected\": 0, \"actual\": 0}, \"support_faces\": [{\"name\": \"base\", \"direction\": \"-z\", \"ok\": true, \"min_area_mm2\": 5, \"area_on_extreme_plane_mm2\": 7.0, \"extreme_plane\": \"z = 0.000\", \"largest_flat_face\": {\"plane\": \"z = 0.000\", \"area_mm2\": 7.0}}], \"details\": [{\"name\": \"pin_body\", \"kind\": \"material\", \"box\": [[-1.0, -1.0, 1.0], [1.0, 1.0, 79.0]], \"material_fraction\": 1.0, \"min_fraction\": 0.95, \"ok\": true}, {\"name\": \"pin_thickness\", \"kind\": \"thickness\", \"ok\": true, \"expected_mm\": 3.0, \"measured_mm\": 3.0, \"enters_at\": [1.5, 0.0, 40.0], \"tolerance_mm\": 0.1}]}}"
+      },
+      {
+        "type": "function_call_output",
+        "call_id": "call_01a19c3e78bd7750b45ae38f90e989e8",
+        "output": "{\"ok\": true, \"path\": \"exports/model.assembly.8a16e71a.stl\", \"sha256\": \"8497541b62c804387b74565da9ecae963028bd65bbd44b014b3a8e09762ccf2b\", \"part\": \"assembly\", \"empty\": false, \"warnings\": [], \"asserts_failed\": [], \"errors\": [], \"seconds\": 0.088, \"returncode\": 0, \"timed_out\": false, \"mesh\": {\"triangles\": 2574, \"watertight\": true, \"winding_consistent\": true, \"bad_edges\": 0, \"bad_edge_locations\": [], \"volume_mm3\": 62734.003, \"bounds\": [[-40.0, -36.0, 0.0], [40.0, 30.0, 40.0]], \"size\": [80.0, 66.0, 40.0], \"bodies\": 2, \"cavities\": 0, \"inverted_shells\": 0, \"through_holes\": 5}, \"spec\": {\"bounds\": [[-40.0, -36.0, 0.0], [40.0, 30.0, 40.0]], \"bodies\": null, \"through_holes\": null, \"support_faces\": [{\"name\": \"bottom\", \"direction\": \"-z\", \"min_area_mm2\": 4000}], \"overhangs_allowed\": [{\"name\": \"hinge barrels webs and pin gaps print without supports - short self-supporting curves\", \"bounds\": [[-40.0, -36.0, 27.0], [40.0, -30.0, 34.0]]}, {\"name\": \"lid rear wall as short 4mm cantilever when printing open\", \"bounds\": [[-40.0, -37.0, 32.5], [40.0, -33.0, 36.0]]}, {\"name\": \"lid front wall as short 4mm cantilever when printing open\", \"bounds\": [[-40.0, -37.0, 90.0], [40.0, -33.0, 94.0]]}], \"allowed_interferences\": [], \"motions\": [{\"name\": \"lid_swing\", \"instances\": [\"lid_inst\"], \"kind\": \"rotate\", \"point\": [0.0, -33.0, 30.0], \"axis\": [1.0, 0.0, 0.0], \"range\": [0.0, 110.0], \"flex\": []}], \"assembly_order\": [{\"instances\": [\"box_inst\"], \"direction\": [0.0, 0.0, 0.0]}, {\"instances\": [\"lid_inst\"], \"direction\": [0.0, 0.0, -1.0]}, {\"instances\": [\"pin_inst\"], \"direction\": [-1.0, 0.0, 0.0]}], \"print_in_place\": {\"min_gap_mm\": 0.4}, \"print_pose\": [{\"motion\": \"lid_swing\", \"value\": 90.0}]}, \"spec_error\": null, \"spec_check\": {\"ok\": true, \"bounds\": {\"ok\": true, \"expected\": [[-40.0, -36.0, 0.0], [40.0, 30.0, 40.0]], \"actual\": [[-40.0, -36.0, 0.0], [40.0, 30.0, 40.0]], \"tolerance_mm\": 0.2, \"deviations\": []}, \"support_faces\": [{\"name\": \"bottom\", \"direction\": \"-z\", \"ok\": true, \"min_area_mm2\": 4000, \"area_on_extreme_plane_mm2\": 4800.0, \"extreme_plane\": \"z = 0.000\", \"largest_flat_face\": {\"plane\": \"z = 0.000\", \"area_mm2\": 4800.0}}], \"details\": []}, \"instances\": [{\"name\": \"box_inst\", \"part\": \"box\", \"unit\": 1}, {\"name\": \"lid_inst\", \"part\": \"lid\", \"unit\": 1}, {\"name\": \"pin_inst\", \"part\": \"pin\", \"unit\": 1}]}"
+      },
+      {
+        "type": "function_call",
+        "call_id": "call_01a19c40112d77928179686d2d4daa66",
+        "name": "printability_report",
+        "arguments": "{\"stl\":\"exports/model.box.e1af9484.stl\"}"
+      },
+      {
+        "type": "function_call",
+        "call_id": "call_01a19c40121972569e7a8c7e3e85feab",
+        "name": "printability_report",
+        "arguments": "{\"stl\":\"exports/model.lid.6029fe16.stl\"}"
+      },
+      {
+        "type": "function_call",
+        "call_id": "call_01a19c4013377164b07c94fd23b0079c",
+        "name": "printability_report",
+        "arguments": "{\"stl\":\"exports/model.pin.a1529210.stl\"}"
+      },
+      {
+        "type": "function_call",
+        "call_id": "call_01a19c40144f75af8950bd4ad33125a2",
+        "name": "interference_check",
+        "arguments": "{\"path\":\"model.scad\"}"
+      },
+      {
+        "type": "function_call_output",
+        "call_id": "call_01a19c40112d77928179686d2d4daa66",
+        "output": "{\"ok\": true, \"printer\": \"bambu_a1\", \"bed_mm\": [256.0, 256.0, 256.0], \"size\": [80.0, 66.0, 33.0], \"fits_bed\": true, \"bed_margin_mm\": [88.0, 95.0, 223.0], \"z_min\": 0.0, \"base_area_mm2\": 4800.0, \"max_overhang_deg\": 45.0, \"max_bridge_mm\": 10.0, \"overhang_area_mm2\": 396.0, \"zones_total\": 9, \"zones_undeclared\": 0, \"undeclared_area_mm2\": 0, \"zones\": [{\"area_mm2\": 73.48, \"max_angle_deg\": 87.2, \"bounds\": [[-40.0, -35.12, 27.0], [-24.4, -30.88, 27.88]], \"faces\": 32, \"declared\": true, \"declared_as\": \"hinge barrels bores and webs print without supports - small diameters short bridges\", \"id\": \"v1\", \"bridge\": null}, {\"area_mm2\": 73.48, \"max_angle_deg\": 87.2, \"bounds\": [[-7.8, -35.12, 27.0], [7.8, -30.88, 27.88]], \"faces\": 32, \"declared\": true, \"declared_as\": \"hinge barrels bores and webs print without supports - small diameters short bridges\", \"id\": \"v2\", \"bridge\": null}, {\"area_mm2\": 73.48, \"max_angle_deg\": 87.2, \"bounds\": [[24.4, -35.12, 27.0], [40.0, -30.88, 27.88]], \"faces\": 32, \"declared\": true, \"declared_as\": \"hinge barrels bores and webs print without supports - small diameters short bridges\", \"id\": \"v3\", \"bridge\": null}, {\"area_mm2\": 46.53, \"max_angle_deg\": 86.2, \"bounds\": [[-40.0, -34.34, 31.34], [-24.4, -31.66, 31.9]], \"faces\": 24, \"declared\": true, \"declared_as\": \"hinge barrels bores and webs print without supports - small diameters short bridges\", \"id\": \"v4\", \"bridge\": null}, {\"area_mm2\": 46.53, \"max_angle_deg\": 86.2, \"bounds\": [[-7.8, -34.34, 31.34], [7.8, -31.66, 31.9]], \"faces\": 24, \"declared\": true, \"declared_as\": \"hinge barrels bores and webs print without supports - small diameters short bridges\", \"id\": \"v5\", \"bridge\": null}, {\"area_mm2\": 46.53, \"max_angle_deg\": 86.2, \"bounds\": [[24.4, -34.34, 31.34], [40.0, -31.66, 31.9]], \"faces\": 24, \"declared\": true, \"declared_as\": \"hinge barrels bores and webs print without supports - small diameters short bridges\", \"id\": \"v6\", \"bridge\": null}, {\"area_mm2\": 11.99, \"max_angle_deg\": 90.0, \"bounds\": [[-40.0, -30.77, 28.0], [-24.4, -30.0, 28.0]], \"faces\": 2, \"declared\": true, \"declared_as\": \"hinge barrels bores and webs print without supports - small diameters short bridges\", \"id\": \"v7\", \"bridge\": null}, {\"area_mm2\": 11.99, \"max_angle_deg\": 90.0, \"bounds\": [[-7.8, -30.77, 28.0], [7.8, -30.0, 28.0]], \"faces\": 2, \"declared\": true, \"declared_as\": \"hinge barrels bores and webs print without supports - small diameters short bridges\", \"id\": \"v8\", \"bridge\": null}, {\"area_mm2\": 11.99, \"max_angle_deg\": 90.0, \"bounds\": [[24.4, -30.77, 28.0], [40.0, -30.0, 28.0]], \"faces\": 2, \"declared\": true, \"declared_as\": \"hinge barrels bores and webs print without supports - small diameters short bridges\", \"id\": \"v9\", \"bridge\": null}], \"allowed_coverage\": {\"share\": 0.0552, \"per_box\": [{\"name\": \"hinge barrels bores and webs print without supports - small diameters short bridges\", \"share\": 0.0552}]}}"
+      },
+      {
+        "type": "function_call_output",
+        "call_id": "call_01a19c40121972569e7a8c7e3e85feab",
+        "output": "{\"ok\": true, \"printer\": \"bambu_a1\", \"bed_mm\": [256.0, 256.0, 256.0], \"size\": [80.0, 66.0, 13.0], \"fits_bed\": true, \"bed_margin_mm\": [88.0, 95.0, 243.0], \"z_min\": 0.0, \"base_area_mm2\": 4800.0, \"max_overhang_deg\": 45.0, \"max_bridge_mm\": 10.0, \"overhang_area_mm2\": 264.0, \"zones_total\": 6, \"zones_undeclared\": 0, \"undeclared_area_mm2\": 0, \"zones\": [{\"area_mm2\": 73.48, \"max_angle_deg\": 87.2, \"bounds\": [[-23.9, -35.12, 7.0], [-8.3, -30.88, 7.88]], \"faces\": 32, \"declared\": true, \"declared_as\": \"hinge barrels bores and webs print without supports - small diameters short bridges\", \"id\": \"v1\", \"bridge\": null}, {\"area_mm2\": 73.48, \"max_angle_deg\": 87.2, \"bounds\": [[8.3, -35.12, 7.0], [23.9, -30.88, 7.88]], \"faces\": 32, \"declared\": true, \"declared_as\": \"hinge barrels bores and webs print without supports - small diameters short bridges\", \"id\": \"v2\", \"bridge\": null}, {\"area_mm2\": 46.53, \"max_angle_deg\": 86.2, \"bounds\": [[-23.9, -34.34, 11.34], [-8.3, -31.66, 11.9]], \"faces\": 24, \"declared\": true, \"declared_as\": \"hinge barrels bores and webs print without supports - small diameters short bridges\", \"id\": \"v3\", \"bridge\": null}, {\"area_mm2\": 46.53, \"max_angle_deg\": 86.2, \"bounds\": [[8.3, -34.34, 11.34], [23.9, -31.66, 11.9]], \"faces\": 24, \"declared\": true, \"declared_as\": \"hinge barrels bores and webs print without supports - small diameters short bridges\", \"id\": \"v4\", \"bridge\": null}, {\"area_mm2\": 11.99, \"max_angle_deg\": 90.0, \"bounds\": [[-23.9, -30.77, 8.0], [-8.3, -30.0, 8.0]], \"faces\": 2, \"declared\": true, \"declared_as\": \"hinge barrels bores and webs print without supports - small diameters short bridges\", \"id\": \"v5\", \"bridge\": null}, {\"area_mm2\": 11.99, \"max_angle_deg\": 90.0, \"bounds\": [[8.3, -30.77, 8.0], [23.9, -30.0, 8.0]], \"faces\": 2, \"declared\": true, \"declared_as\": \"hinge barrels bores and webs print without supports - small diameters short bridges\", \"id\": \"v6\", \"bridge\": null}], \"allowed_coverage\": {\"share\": 0.0721, \"per_box\": [{\"name\": \"hinge barrels bores and webs print without supports - small diameters short bridges\", \"share\": 0.0721}]}}"
+      },
+      {
+        "type": "function_call_output",
+        "call_id": "call_01a19c4013377164b07c94fd23b0079c",
+        "output": "{\"ok\": true, \"printer\": \"bambu_a1\", \"bed_mm\": [256.0, 256.0, 256.0], \"size\": [3.0, 3.0, 80.0], \"fits_bed\": true, \"bed_margin_mm\": [126.5, 126.5, 176.0], \"z_min\": 0.0, \"base_area_mm2\": 7.0, \"max_overhang_deg\": 45.0, \"max_bridge_mm\": 10.0, \"overhang_area_mm2\": 0.0, \"zones_total\": 0, \"zones_undeclared\": 0, \"undeclared_area_mm2\": 0, \"zones\": [], \"allowed_coverage\": {\"share\": 0.0, \"per_box\": []}}"
+      },
+      {
+        "type": "function_call_output",
+        "call_id": "call_01a19c40144f75af8950bd4ad33125a2",
+        "output": "{\"ok\": true, \"problems\": {\"G3\": [], \"G4\": [], \"G5\": [\"printed in place: box_inst and lid_inst are 0.0 mm apart: printed in place they fuse (print_in_place asks for 0.4 mm or more)\", \"printed in place: box_inst and pin_inst are 0.399 mm apart: printed in place they fuse (print_in_place asks for 0.4 mm or more)\", \"printed in place: lid_inst and pin_inst are 0.399 mm apart: printed in place they fuse (print_in_place asks for 0.4 mm or more)\", \"assembly as printed in place: undeclared 90.0° overhang (737.6 mm², bounds [[-40.0, -43.0, 33.0], [40.0, -33.0, 33.0]]); the flat ceiling at z 33.0 (737.6 mm², [[-40.0, -43.0], [40.0, -33.0]]) has a point 9.25 mm from any material under it: a bridge that reaches it spans 18.5 mm or more, and a bridge prints clean up to 10 mm: hold it from below, narrow it, or print it in another pose: declaring it is not enough\"]}, \"errors\": [], \"spec_error\": null, \"instances\": [{\"name\": \"box_inst\", \"part\": \"box\", \"unit\": 1, \"stl\": \"checks/assembly/model.assembly.d40d2008.stl\", \"sha256\": \"32d2a09807fc3d79c07488cbb64149e08333da50e48c9e6f522e65b6dee84615\", \"volume_mm3\": 30303.476, \"bounds\": [[-40.0, -36.0, 0.0], [40.0, 30.0, 33.0]], \"congruent\": true, \"congruence\": {\"volume_mm3\": [30303.48, 30303.48], \"area_mm2\": [26644.83, 26644.83], \"inertia_rel_diff\": 0.0}}, {\"name\": \"lid_inst\", \"part\": \"lid\", \"unit\": 1, \"stl\": \"checks/assembly/model.assembly.80ac5204.stl\", \"sha256\": \"ae7763e319b597406fc77f97c794b3165a60c0a8bcb76c47cdbf5608ed6a5102\", \"volume_mm3\": 31866.653, \"bounds\": [[-40.0, -36.0, 27.0], [40.0, 30.0, 40.0]], \"congruent\": true, \"congruence\": {\"volume_mm3\": [31866.65, 31866.65], \"area_mm2\": [14322.7, 14322.7], \"inertia_rel_diff\": 0.0}}, {\"name\": \"pin_inst\", \"part\": \"pin\", \"unit\": 1, \"stl\": \"checks/assembly/model.assembly.a21c8ff1.stl\", \"sha256\": \"4011c19ea9487343038a77fefe8c8a836b73559a7dcd080d9e0e62bdf8fd07bf\", \"volume_mm3\": 563.873, \"bounds\": [[-40.0, -34.5, 28.5], [40.0, -31.5, 31.5]], \"congruent\": true, \"congruence\": {\"volume_mm3\": [563.87, 563.87], \"area_mm2\": [767.54, 767.54], \"inertia_rel_diff\": 0.0}}], \"copies\": [{\"part\": \"box\", \"expected\": 1, \"placed\": 1, \"ok\": true}, {\"part\": \"lid\", \"expected\": 1, \"placed\": 1, \"ok\": true}, {\"part\": \"pin\", \"expected\": 1, \"placed\": 1, \"ok\": true}], \"pairs\": [{\"a\": \"box_inst\", \"b\": \"lid_inst\", \"gap_mm\": 0.0, \"contact\": true}, {\"a\": \"box_inst\", \"b\": \"pin_inst\", \"gap_mm\": 0.399, \"contact\": true}, {\"a\": \"lid_inst\", \"b\": \"pin_inst\", \"gap_mm\": 0.399, \"contact\": true}], \"components\": [[\"box_inst\", \"lid_inst\", \"pin_inst\"]], \"units\": {\"required\": 1, \"present\": [1], \"links\": []}, \"spec_check\": {\"measured_bounds\": [[-40.0, -36.0, 0.0], [40.0, 30.0, 40.0]], \"bounds\": {\"ok\": true, \"expected\": [[-40.0, -36.0, 0.0], [40.0, 30.0, 40.0]], \"actual\": [[-40.0, -36.0, 0.0], [40.0, 30.0, 40.0]], \"tolerance_mm\": 0.2, \"deviations\": []}, \"support_faces\": [{\"name\": \"bottom\", \"direction\": \"-z\", \"ok\": true, \"min_area_mm2\": 4000, \"area_on_extreme_plane_mm2\": 4800.0, \"extreme_plane\": \"z = 0.000\", \"largest_flat_face\": {\"plane\": \"z = 0.000\", \"area_mm2\": 4800.0}}]}, \"motions\": [{\"name\": \"lid_swing\", \"kind\": \"rotate\", \"range\": [0.0, 110.0], \"ok\": true, \"steps\": 361, \"step\": 0.3056}], \"assembly_steps\": [{\"step\": 1, \"instances\": [\"box_inst\"], \"ok\": true}, {\"step\": 2, \"instances\": [\"lid_inst\"], \"ok\": true}, {\"step\": 3, \"instances\": [\"pin_inst\"], \"ok\": true}], \"assembly_order_ok\": true, \"print_in_place\": {\"min_gap_mm\": 0.4, \"pose\": [{\"motion\": \"lid_swing\", \"value\": 90.0}], \"instances\": [\"box_inst\", \"lid_inst\", \"pin_inst\"], \"gaps\": [{\"a\": \"box_inst\", \"b\": \"lid_inst\", \"gap_mm\": 0.0, \"ok\": false}, {\"a\": \"box_inst\", \"b\": \"pin_inst\", \"gap_mm\": 0.399, \"ok\": false}, {\"a\": \"lid_inst\", \"b\": \"pin_inst\", \"gap_mm\": 0.399, \"ok\": false}], \"printability\": {\"ok\": true, \"printer\": \"bambu_a1\", \"bed_mm\": [256.0, 256.0, 256.0], \"size\": [80.0, 73.0, 93.0], \"fits_bed\": true, \"bed_margin_mm\": [88.0, 91.5, 163.0], \"z_min\": 0.0, \"base_area_mm2\": 4800.0, \"max_overhang_deg\": 45.0, \"max_bridge_mm\": 10.0, \"overhang_area_mm2\": 1832.68, \"zones_total\": 16, \"zones_undeclared\": 1, \"undeclared_area_mm2\": 737.6, \"zones\": [{\"area_mm2\": 737.6, \"max_angle_deg\": 90.0, \"bounds\": [[-40.0, -43.0, 33.0], [40.0, -33.0, 33.0]], \"faces\": 10, \"declared\": false, \"declared_as\": null, \"id\": \"v1\", \"bridge\": {\"z\": 33.0, \"area_mm2\": 737.6, \"bounds_xy\": [[-40.0, -43.0], [40.0, -33.0]], \"floating\": false, \"farthest_mm\": 9.25, \"bridge_mm\": 18.5}}, {\"area_mm2\": 270.7, \"max_angle_deg\": 90.0, \"bounds\": [[-37.6, -37.0, 90.6], [37.6, -33.0, 90.6]], \"faces\": 6, \"declared\": true, \"declared_as\": \"lid front wall as short 4mm cantilever when printing open\", \"id\": \"v2\", \"bridge\": {\"z\": 90.6, \"area_mm2\": 270.7, \"bounds_xy\": [[-37.6, -37.0], [37.6, -33.0]], \"floating\": false, \"farthest_mm\": 4.0, \"bridge_mm\": 8.0}}, {\"area_mm2\": 188.36, \"max_angle_deg\": 86.2, \"bounds\": [[-40.0, -34.06, 28.5], [40.0, -31.94, 28.94]], \"faces\": 24, \"declared\": true, \"declared_as\": \"hinge barrels webs and pin gaps print without supports - short self-supporting curves\", \"id\": \"v3\", \"bridge\": null}, {\"area_mm2\": 73.48, \"max_angle_deg\": 87.2, \"bounds\": [[-40.0, -35.12, 27.0], [-24.4, -30.88, 27.88]], \"faces\": 32, \"declared\": true, \"declared_as\": \"hinge barrels webs and pin gaps print without supports - short self-supporting curves\", \"id\": \"v4\", \"bridge\": null}, {\"area_mm2\": 73.48, \"max_angle_deg\": 87.2, \"bounds\": [[-7.8, -35.12, 27.0], [7.8, -30.88, 27.88]], \"faces\": 32, \"declared\": true, \"declared_as\": \"hinge barrels webs and pin gaps print without supports - short self-supporting curves\", \"id\": \"v5\", \"bridge\": null}, {\"area_mm2\": 73.48, \"max_angle_deg\": 87.2, \"bounds\": [[24.4, -35.12, 27.0], [40.0, -30.88, 27.88]], \"faces\": 32, \"declared\": true, \"declared_as\": \"hinge barrels webs and pin gaps print without supports - short self-supporting curves\", \"id\": \"v6\", \"bridge\": null}, {\"area_mm2\": 73.48, \"max_angle_deg\": 87.2, \"bounds\": [[8.3, -35.12, 27.0], [23.9, -30.88, 27.88]], \"faces\": 32, \"declared\": true, \"declared_as\": \"hinge barrels webs and pin gaps print without supports - short self-supporting curves\", \"id\": \"v7\", \"bridge\": null}, {\"area_mm2\": 73.48, \"max_angle_deg\": 87.2, \"bounds\": [[-23.9, -35.12, 27.0], [-8.3, -30.88, 27.88]], \"faces\": 32, \"declared\": true, \"declared_as\": \"hinge barrels webs and pin gaps print without supports - short self-supporting curves\", \"id\": \"v8\", \"bridge\": null}, {\"area_mm2\": 46.53, \"max_angle_deg\": 86.2, \"bounds\": [[-40.0, -34.34, 31.34], [-24.4, -31.66, 31.9]], \"faces\": 24, \"declared\": true, \"declared_as\": \"hinge barrels webs and pin gaps print without supports - short self-supporting curves\", \"id\": \"v9\", \"bridge\": null}, {\"area_mm2\": 46.53, \"max_angle_deg\": 86.2, \"bounds\": [[-7.8, -34.34, 31.34], [7.8, -31.66, 31.9]], \"faces\": 24, \"declared\": true, \"declared_as\": \"hinge barrels webs and pin gaps print without supports - short self-supporting curves\", \"id\": \"v10\", \"bridge\": null}, {\"area_mm2\": 46.53, \"max_angle_deg\": 86.2, \"bounds\": [[24.4, -34.34, 31.34], [40.0, -31.66, 31.9]], \"faces\": 24, \"declared\": true, \"declared_as\": \"hinge barrels webs and pin gaps print without supports - short self-supporting curves\", \"id\": \"v11\", \"bridge\": null}, {\"area_mm2\": 46.53, \"max_angle_deg\": 86.2, \"bounds\": [[8.3, -34.34, 31.34], [23.9, -31.66, 31.9]], \"faces\": 24, \"declared\": true, \"declared_as\": \"hinge barrels webs and pin gaps print without supports - short self-supporting curves\", \"id\": \"v12\", \"bridge\": null}, {\"area_mm2\": 46.53, \"max_angle_deg\": 86.2, \"bounds\": [[-23.9, -34.34, 31.34], [-8.3, -31.66, 31.9]], \"faces\": 24, \"declared\": true, \"declared_as\": \"hinge barrels webs and pin gaps print without supports - short self-supporting curves\", \"id\": \"v13\", \"bridge\": null}, {\"area_mm2\": 11.99, \"max_angle_deg\": 90.0, \"bounds\": [[-40.0, -30.77, 28.0], [-24.4, -30.0, 28.0]], \"faces\": 2, \"declared\": true, \"declared_as\": \"hinge barrels webs and pin gaps print without supports - short self-supporting curves\", \"id\": \"v14\", \"bridge\": null}, {\"area_mm2\": 11.99, \"max_angle_deg\": 90.0, \"bounds\": [[-7.8, -30.77, 28.0], [7.8, -30.0, 28.0]], \"faces\": 2, \"declared\": true, \"declared_as\": \"hinge barrels webs and pin gaps print without supports - short self-supporting curves\", \"id\": \"v15\", \"bridge\": null}, {\"area_mm2\": 11.99, \"max_angle_deg\": 90.0, \"bounds\": [[24.4, -30.77, 28.0], [40.0, -30.0, 28.0]], \"faces\": 2, \"declared\": true, \"declared_as\": \"hinge barrels webs and pin gaps print without supports - short self-supporting curves\", \"id\": \"v16\", \"bridge\": null}], \"allowed_coverage\": {\"share\": 0.1137, \"per_box\": [{\"name\": \"hinge barrels webs and pin gaps print without supports - short self-supporting curves\", \"share\": 0.0829}, {\"name\": \"lid rear wall as short 4mm cantilever when printing open\", \"share\": 0.0204}, {\"name\": \"lid front wall as short 4mm cantilever when printing open\", \"share\": 0.0195}]}}, \"stl\": \"checks/assembly/print-in-place.stl\"}, \"seconds\": 1.49, \"green\": false}"
+      },
+      {
+        "type": "function_call",
+        "call_id": "call_01a19c41aa9b776a9f90f8c3a015d2f1",
+        "name": "scad_patch",
+        "arguments": "{\"new\":\"R_bore = 2.0;\\nR_pin = 1.5;\\nax_y = -33.5;\",\"old\":\"R_bore = 1.9;\\nR_pin = 1.5;\\nax_y = -33;\",\"path\":\"model.scad\"}"
+      },
+      {
+        "type": "function_call_output",
+        "call_id": "call_01a19c41aa9b776a9f90f8c3a015d2f1",
+        "output": "{\"ok\": true, \"path\": \"model.scad\", \"line\": 20, \"lines_removed\": 3, \"lines_added\": 3, \"bytes\": 6439, \"lines\": 156, \"sha256\": \"1b2492dae21d933b9f674eb67ebeb370b3c94e685a64f707fda6008cfd5c6339\"}"
+      },
+      {
+        "type": "function_call",
+        "call_id": "call_01a19c431a0b736d89024dbf3267893d",
+        "name": "scad_patch",
+        "arguments": "{\"new\":\"R_bore = 2.0;\\nR_pin = 1.5;\\nax_y = -33;\",\"old\":\"R_bore = 2.0;\\nR_pin = 1.5;\\nax_y = -33.5;\",\"path\":\"model.scad\"}"
+      },
+      {
+        "type": "function_call_output",
+        "call_id": "call_01a19c431a0b736d89024dbf3267893d",
+        "output": "{\"ok\": true, \"path\": \"model.scad\", \"line\": 20, \"lines_removed\": 3, \"lines_added\": 3, \"bytes\": 6437, \"lines\": 156, \"sha256\": \"221eb7f7ccdc7d47007fea6984dccfcbc59d83dca91c5fde143e109c9f79ec40\"}"
+      },
+      {
+        "role": "assistant",
+        "content": "Print checks flagged tight clearances and an overhang in the print pose — measuring the cause."
+      },
+      {
+        "type": "function_call",
+        "call_id": "call_01a19c440d4b74c0b781c887c19dfd9e",
+        "name": "run_python",
+        "arguments": "{\"code\":\"import trimesh, numpy as np\\n# load print-in-place combined\\nm = trimesh.load('checks/assembly/print-in-place.stl')\\nprint('pip bounds', m.bounds, 'vol', m.volume)\\n# slice near z=33 to see profile: section at z=32.9\\nsec = m.section(plane_origin=[0,0,32.9], plane_normal=[0,0,1])\\nif sec is not None:\\n    p,_ = sec.to_planar()\\n    print('section entities', len(sec.entities), 'verts', len(sec.vertices))\\n    print('section bounds xyz', sec.bounds)\\nelse:\\n    print('no section')\\n# load instances closed\\nbox = trimesh.load('checks/assembly/model.assembly.d40d2008.stl')\\nlid = trimesh.load('checks/assembly/model.assembly.80ac5204.stl')\\nprint('box bounds', box.bounds)\\nprint('lid bounds', lid.bounds)\\n# apply lid rotation 90 about x at (0,-33,30)\\nth = np.deg2rad(90)\\nc,s = np.cos(th), np.sin(th)\\nR = np.array([[1,0,0],[0,c,-s],[0,s,c]])\\np0 = np.array([0.,-33.,30.])\\ndef rot(mesh):\\n    v = np.asarray(mesh.vertices) - p0\\n    v = v @ R.T\\n    v = v + p0\\n    m2 = mesh.copy(); m2.vertices = v\\n    return m2\\nlid90 = rot(lid)\\nprint('lid90 bounds', lid90.bounds)\\n# min distance approx via nearest vertex sampling\\nfrom scipy.spatial import cKDTree\\ndef min_gap(a,b):\\n    t = cKDTree(np.asarray(b.vertices))\\n    d,_ = t.query(np.asarray(a.vertices))\\n    return d.min()\\nprint('gap box-lid90 approx (vert)', min_gap(box,lid90))\\nprint('gap box-lid closed approx', min_gap(box,lid))\\n# sample more: face midpoints too\\n# find verts of lid90 near z=33\\nv = np.asarray(lid90.vertices)\\nsel = v[np.abs(v[:,2]-33)<0.6]\\nprint('lid90 verts near z33 count', len(sel))\\nif len(sel): print('x range', sel[:,0].min(), sel[:,0].max(), 'y range', sel[:,1].min(), sel[:,1].max())\\n# box verts near hinge\\nbv = np.asarray(box.vertices)\\nselb = bv[(np.abs(bv[:,2]-30)<4)&(bv[:,1]<-29)]\\nprint('box hinge verts y range', selb[:,1].min(), selb[:,1].max(), 'z range', selb[:,2].min(), selb[:,2].max())\\n\",\"timeout_s\":60.0}"
+      },
+      {
+        "type": "function_call_output",
+        "call_id": "call_01a19c440d4b74c0b781c887c19dfd9e",
+        "output": "{\"ok\": true, \"exit_code\": 0, \"timed_out\": false, \"seconds\": 0.939, \"stdout\": \"pip bounds [[-40. -43.   0.]\\n [ 40.  30.  93.]] vol 62734.002789392194\\nsection entities 6 verts 127\\nsection bounds xyz [[-40.  -35.   32.9]\\n [ 40.   30.   32.9]]\\nbox bounds [[-40. -36.   0.]\\n [ 40.  30.  33.]]\\nlid bounds [[-40. -36.  27.]\\n [ 40.  30.  40.]]\\nlid90 bounds [[-40. -43.  27.]\\n [ 40. -30.  93.]]\\ngap box-lid90 approx (vert) 0.0\\ngap box-lid closed approx 0.0\\nlid90 verts near z33 count 60\\nx range -40.0 40.0 y range -43.0 -31.333289300941193\\nbox hinge verts y range -36.0 -29.5 z range 27.0 33.0\\n\", \"stderr\": \"<string>:8: DeprecationWarning: DEPRECATED: replace `path.to_planar`->`path.to_2D), removal 1/1/2026\\n\", \"stdout_bytes\": 507, \"stderr_bytes\": 101, \"stdout_omitted_bytes\": 0, \"stderr_omitted_bytes\": 0, \"files\": {\"created\": [], \"modified\": [], \"deleted\": []}}"
+      },
+      {
+        "role": "assistant",
+        "content": "The point is clear: I need to fix the print-in-place clearances and support the lid properly, so I'm rewriting the design now."
+      },
+      {
+        "type": "function_call",
+        "call_id": "call_01a19c4bf32f701c88d4589513d390a2",
+        "name": "scad_write",
+        "arguments": "{\"content\":\"/* Box with a print-in-place hinge - FDM PLA, 0.4mm nozzle, Bambu A1.\\n   Closed body 80x60x40 (hinge knuckles protrude ~6 behind), lid 10 of height.\\n   Hinge along back edge: 5 knuckles + pin printed in place, 0.5 radial/axial\\n   clearances so it breaks free by hand. Lid prints standing open 90 deg;\\n   its rear edge is a 45 deg bevel (self-supporting slope in the print),\\n   the rim has a relief so it swings past the barrels, the pin is captive\\n   behind a blind outer knuckle. Front tongue-and-slot catch.\\n   Print pose is lid open 90 deg (motion); assembly shows the closed box.\\n*/\\n\\npart = \\\"assembly\\\"; // [box, lid, pin, assembly]\\n\\ncadverify_only = \\\"\\\";\\nmodule instance(name, part, unit = 1) {\\n    echo(cadverify_instance = [name, part, unit]);\\n    if (cadverify_only == \\\"\\\" || cadverify_only == name) children();\\n}\\n\\n// ---- parameters ----\\nwall_t = 2.4;\\nboxW = 80; boxD = 60; boxH = 30;\\nlidH = 10;\\nR_out = 3.0;\\nR_bore = 2.0;\\nR_pin = 1.5;\\nax_y = -33;\\nax_z = 30; // assembly hinge axis height\\n// knuckle X intervals (assembly X), 0.5 gaps; symmetric so lid x-flip still interleaves\\nb1x0=-40; b1x1=-24.4;\\nl1x0=-23.9; l1x1=-8.3;\\nb2x0=-7.8; b2x1=7.8;\\nl2x0=8.3; l2x1=23.9;\\nb3x0=24.4; b3x1=40;\\nkn_len = 15.6;\\n\\n// ---- printable parts (print orientation, min z = 0) ----\\nmodule box() {\\n    difference() {\\n        union() {\\n            // outer body\\n            translate([-40,-30,0]) cube([80,60,30]);\\n            // box knuckle barrels\\n            translate([b1x0, ax_y, ax_z]) rotate([0,90,0]) cylinder(r=R_out, h=kn_len, $fn=64);\\n            translate([b2x0, ax_y, ax_z]) rotate([0,90,0]) cylinder(r=R_out, h=kn_len, $fn=64);\\n            translate([b3x0, ax_y, ax_z]) rotate([0,90,0]) cylinder(r=R_out, h=kn_len, $fn=64);\\n            // box webs\\n            translate([b1x0,-35,28]) cube([kn_len,5.5,2]);\\n            translate([b2x0,-35,28]) cube([kn_len,5.5,2]);\\n            translate([b3x0,-35,28]) cube([kn_len,5.5,2]);\\n            // catch tongue (embedded 0.5 in front wall)\\n            translate([-4,27.6,29.5]) cube([8,2.4,3.5]);\\n        }\\n        // interior cavity\\n        translate([-37.6,-27.6,2.4]) cube([75.2,55.2,27.6]);\\n        // bores: b1 blind (0.5 cap at outer end -> captive pin), b2+b3 through\\n        translate([-39.5, ax_y, ax_z]) rotate([0,90,0]) cylinder(r=R_bore, h=15.6, $fn=48);\\n        translate([b2x0-0.5, ax_y, ax_z]) rotate([0,90,0]) cylinder(r=R_bore, h=kn_len+1, $fn=48);\\n        translate([b3x0-0.5, ax_y, ax_z]) rotate([0,90,0]) cylinder(r=R_bore, h=kn_len+1, $fn=48);\\n    }\\n}\\n\\n// lid in print orientation: opening up, top plate 0..6 on bed, walls 6..10,\\n// hinge axis y=-33 z=10\\nmodule lid() {\\n    difference() {\\n        union() {\\n            translate([-40,-30,0]) cube([80,60,10]);\\n            translate([l1x0, -33, 10]) rotate([0,90,0]) cylinder(r=R_out, h=kn_len, $fn=64);\\n            translate([l2x0, -33, 10]) rotate([0,90,0]) cylinder(r=R_out, h=kn_len, $fn=64);\\n            translate([l1x0,-35,8]) cube([kn_len,5.5,2]);\\n            translate([l2x0,-35,8]) cube([kn_len,5.5,2]);\\n        }\\n        // pocket 6..10, open top\\n        translate([-37.6,-27.6,6]) cube([75.2,55.2,5]);\\n        // catch slot x -4.3..4.3, open at rim\\n        translate([-4.3,27.6,6.5]) cube([8.6,2.4,4.5]);\\n        // bores, through\\n        translate([l1x0-0.5, -33, 10]) rotate([0,90,0]) cylinder(r=R_bore, h=kn_len+1, $fn=48);\\n        translate([l2x0-0.5, -33, 10]) rotate([0,90,0]) cylinder(r=R_bore, h=kn_len+1, $fn=48);\\n        // rear-top bevel 6x6 (45 deg): lid back edge prints as a slope, not a ceiling\\n        hull() {\\n            translate([-40,-30,0]) cube([80,0.1,6]);\\n            translate([-40,-30,0]) cube([80,6,0.1]);\\n        }\\n        // rear-bottom relief 1x2: rim clears the barrels while swinging\\n        hull() {\\n            translate([-40,-30,8]) cube([80,0.1,2]);\\n            translate([-40,-30,9.9]) cube([80,1,0.1]);\\n        }\\n    }\\n}\\n\\n// pin prints in place, lying in the hinge (vertical when printed alone)\\nmodule pin() {\\n    cylinder(r=R_pin, h=78, $fn=48);\\n}\\n\\n// ---- output ----\\nif (part == \\\"box\\\") {\\n    echo(cadverify_spec = [\\n        [\\\"bounds\\\", [[-40, -36, 0], [40, 30, 33]]],\\n        [\\\"bodies\\\", 1],\\n        [\\\"through_holes\\\", 2],\\n        [\\\"support_faces\\\", [[\\\"bottom\\\", \\\"-z\\\", 4000]]],\\n        [\\\"overhangs_allowed\\\", [[\\\"hinge barrels bores and webs print without supports - small diameters short bridges\\\", [[-40, -36, 27], [40, -29, 32]]]]],\\n        [\\\"copies\\\", 1],\\n        [\\\"details\\\", [\\n            [\\\"box_wall\\\", \\\"thickness\\\", [41, 0, 15], [-1, 0, 0], 2.4],\\n            [\\\"box_bottom\\\", \\\"thickness\\\", [0, 0, -1], [0, 0, 1], 2.4],\\n            [\\\"tongue\\\", \\\"material\\\", [[-4, 27.6, 30], [4, 30, 33]], 0.9],\\n            [\\\"box_cavity\\\", \\\"void\\\", [[-37.6, -27.6, 2.4], [37.6, 27.6, 30]], 0.95],\\n            [\\\"box_bore\\\", \\\"hole\\\", [-9, -33, 30], [1, 0, 0], [[0, 4.0], [15, 4.0]]]\\n        ]]\\n    ]);\\n    box();\\n} else if (part == \\\"lid\\\") {\\n    echo(cadverify_spec = [\\n        [\\\"bounds\\\", [[-40, -36, 0], [40, 30, 13]]],\\n        [\\\"bodies\\\", 1],\\n        [\\\"through_holes\\\", 2],\\n        [\\\"support_faces\\\", [[\\\"top\\\", \\\"-z\\\", 4000]]],\\n        [\\\"overhangs_allowed\\\", [[\\\"hinge barrels bores webs and rear bevel print without supports - small diameters and a 45deg slope\\\", [[-40, -36, 0], [40, -24, 13]]]]],\\n        [\\\"copies\\\", 1],\\n        [\\\"details\\\", [\\n            [\\\"lid_top\\\", \\\"thickness\\\", [0, 0, -1], [0, 0, 1], 6],\\n            [\\\"lid_wall\\\", \\\"thickness\\\", [10, 31, 8], [0, -1, 0], 2.4],\\n            [\\\"slot\\\", \\\"void\\\", [[-4.3, 27.6, 6.5], [4.3, 30, 10]], 0.9],\\n            [\\\"lid_pocket\\\", \\\"void\\\", [[-37.6, -27.6, 6], [37.6, 27.6, 10]], 0.95],\\n            [\\\"lid_bore\\\", \\\"hole\\\", [-25, -33, 10], [1, 0, 0], [[0, 4.0], [15, 4.0]]]\\n        ]]\\n    ]);\\n    lid();\\n} else if (part == \\\"pin\\\") {\\n    echo(cadverify_spec = [\\n        [\\\"bounds\\\", [[-1.5, -1.5, 0], [1.5, 1.5, 78]]],\\n        [\\\"bodies\\\", 1],\\n        [\\\"through_holes\\\", 0],\\n        [\\\"support_faces\\\", [[\\\"base\\\", \\\"-z\\\", 5]]],\\n        [\\\"overhangs_allowed\\\", []],\\n        [\\\"copies\\\", 1],\\n        [\\\"details\\\", [\\n            [\\\"pin_body\\\", \\\"material\\\", [[-1, -1, 1], [1, 1, 77]], 0.95],\\n            [\\\"pin_thickness\\\", \\\"thickness\\\", [2, 0, 40], [-1, 0, 0], 3.0]\\n        ]]\\n    ]);\\n    pin();\\n} else if (part == \\\"assembly\\\") {\\n    echo(cadverify_spec = [\\n        [\\\"bounds\\\", [[-40, -36, 0], [40, 30, 40]]],\\n        [\\\"support_faces\\\", [[\\\"bottom\\\", \\\"-z\\\", 4000]]],\\n        [\\\"allowed_interferences\\\", []],\\n        [\\\"motions\\\", [\\n            [\\\"lid_swing\\\", [\\\"lid_inst\\\"], \\\"rotate\\\", [0, -33, 30], [1, 0, 0], [0, 110]]\\n        ]],\\n        [\\\"assembly_order\\\", [\\n            [[\\\"box_inst\\\"], [0, 0, 0]],\\n            [[\\\"lid_inst\\\"], [0, 0, -1]],\\n            [[\\\"pin_inst\\\"], [-1, 0, 0]]\\n        ]],\\n        [\\\"print_in_place\\\", 0.4],\\n        [\\\"print_pose\\\", [[\\\"lid_swing\\\", 90]]],\\n        [\\\"overhangs_allowed\\\", [\\n            [\\\"hinge barrels webs pin and rim relief print without supports - small self-supporting curves\\\", [[-40, -36, 27], [40, -30, 35]]],\\n            [\\\"lid rear bevel prints as a 45deg slope when open\\\", [[-40, -43, 33], [40, -37, 39]]],\\n            [\\\"lid rear wall as short cantilever when printing open\\\", [[-40, -37, 32.5], [40, -33, 36]]],\\n            [\\\"lid front wall as short cantilever when printing open\\\", [[-40, -37, 90], [40, -33, 94]]]\\n        ]]\\n    ]);\\n    instance(\\\"box_inst\\\", \\\"box\\\", 1) box();\\n    instance(\\\"lid_inst\\\", \\\"lid\\\", 1) translate([0,0,40]) rotate([0,180,0]) lid();\\n    instance(\\\"pin_inst\\\", \\\"pin\\\", 1) translate([-39,-33,30]) rotate([0,90,0]) pin();\\n}\\n\",\"path\":\"model.scad\"}"
+      },
+      {
+        "type": "function_call_output",
+        "call_id": "call_01a19c4bf32f701c88d4589513d390a2",
+        "output": "{\"ok\": true, \"path\": \"model.scad\", \"replaced\": true, \"bytes\": 7393, \"lines\": 172, \"sha256\": \"a5e8849f3e4470fbbb22341413a565daf7d3410eb41774fd0e13ee3b81adbc77\"}"
+      },
+      {
+        "type": "function_call",
+        "call_id": "call_01a19c57d6e2738681f40f97c2a54062",
+        "name": "scad_write",
+        "arguments": "{\"content\":\"/* Box with a print-in-place hinge - FDM PLA, 0.4 mm nozzle, Bambu A1.\\n   Closed body 80x60x40 (hinge knuckles protrude ~6.5 behind, pin head 1 to\\n   the side), lid 10 of that height. Hinge along the back edge: 7 knuckles\\n   alternating box/lid around a pin printed in place (0.6 radial/axial gaps,\\n   0.5 end gaps, blind cap + flared head keep the pin captive). The lid's\\n   top-rear edge is a 45 deg bevel so the open lid prints support-free; a\\n   tongue-and-slot catch at the front keeps the lid shut.\\n   The product prints in one job in the print pose (lid open 90 deg, the\\n   lid_swing motion); the assembly shows the closed box.\\n*/\\n\\npart = \\\"assembly\\\"; // [box, lid, pin, assembly]\\n\\ncadverify_only = \\\"\\\";\\nmodule instance(name, part, unit = 1) {\\n    echo(cadverify_instance = [name, part, unit]);\\n    if (cadverify_only == \\\"\\\" || cadverify_only == name) children();\\n}\\n\\n// ---- parameters ----\\nwall_t = 2.4;\\nR_out = 3.0;\\nR_bore = 2.1;\\nR_pin = 1.5;\\nax_y = -33.5;\\nax_z = 30; // assembly hinge axis\\n// knuckle X intervals (0.6 axial gaps), symmetric about x=0\\nB1x0=-40;    B1x1=-27.275;\\nL1x0=-26.675; L1x1=-18.175;\\nB2x0=-17.575; B2x1=-4.85;\\nL2x0=-4.25;   L2x1=4.25;\\nB3x0=4.85;    B3x1=17.575;\\nL3x0=18.175;  L3x1=26.675;\\nB4x0=27.275;  B4x1=40;\\n\\n// ---- printable parts (print orientation, min z = 0) ----\\nmodule box() {\\n    difference() {\\n        union() {\\n            // outer body\\n            translate([-40,-30,0]) cube([80,60,30]);\\n            // box knuckle barrels (r3 about axis)\\n            translate([B1x0, ax_y, ax_z]) rotate([0,90,0]) cylinder(r=R_out, h=B1x1-B1x0, $fn=64);\\n            translate([B2x0, ax_y, ax_z]) rotate([0,90,0]) cylinder(r=R_out, h=B2x1-B2x0, $fn=64);\\n            translate([B3x0, ax_y, ax_z]) rotate([0,90,0]) cylinder(r=R_out, h=B3x1-B3x0, $fn=64);\\n            translate([B4x0, ax_y, ax_z]) rotate([0,90,0]) cylinder(r=R_out, h=B4x1-B4x0, $fn=64);\\n            // box webs (barrel rear to body, embedded 0.5)\\n            translate([B1x0,-36.5,28]) cube([B1x1-B1x0,7,2]);\\n            translate([B2x0,-36.5,28]) cube([B2x1-B2x0,7,2]);\\n            translate([B3x0,-36.5,28]) cube([B3x1-B3x0,7,2]);\\n            translate([B4x0,-36.5,28]) cube([B4x1-B4x0,7,2]);\\n            // catch tongue (0.3 back/side clearances to slot, front flush)\\n            translate([-4,27.9,29.5]) cube([8,2.1,3.5]);\\n        }\\n        // interior cavity\\n        translate([-37.6,-27.6,2.4]) cube([75.2,55.2,27.6]);\\n        // bores: B1 blind (0.5 cap outside -> captive pin), B2/B3/B4 through\\n        translate([-39.5, ax_y, ax_z]) rotate([0,90,0]) cylinder(r=R_bore, h=12.725, $fn=48);\\n        translate([-18.075, ax_y, ax_z]) rotate([0,90,0]) cylinder(r=R_bore, h=13.725, $fn=48);\\n        translate([4.35, ax_y, ax_z]) rotate([0,90,0]) cylinder(r=R_bore, h=13.725, $fn=48);\\n        translate([26.775, ax_y, ax_z]) rotate([0,90,0]) cylinder(r=R_bore, h=13.725, $fn=48);\\n    }\\n}\\n\\n// lid in print orientation: opening up, top plate 0..6 on bed, walls 6..10,\\n// hinge axis y=-33.5 z=10\\nmodule lid() {\\n    difference() {\\n        union() {\\n            translate([-40,-30,0]) cube([80,60,10]);\\n            translate([L1x0, -33.5, 10]) rotate([0,90,0]) cylinder(r=R_out, h=L1x1-L1x0, $fn=64);\\n            translate([L2x0, -33.5, 10]) rotate([0,90,0]) cylinder(r=R_out, h=L2x1-L2x0, $fn=64);\\n            translate([L3x0, -33.5, 10]) rotate([0,90,0]) cylinder(r=R_out, h=L3x1-L3x0, $fn=64);\\n            translate([L1x0,-35,8]) cube([L1x1-L1x0,5.5,2]);\\n            translate([L2x0,-35,8]) cube([L2x1-L2x0,5.5,2]);\\n            translate([L3x0,-35,8]) cube([L3x1-L3x0,5.5,2]);\\n        }\\n        // pocket 6..10, open top\\n        translate([-37.6,-27.6,6]) cube([75.2,55.2,4]);\\n        // catch slot, open at rim top\\n        translate([-4.3,27.6,6.5]) cube([8.6,2.4,4]);\\n        // bores, through\\n        translate([-27.175, -33.5, 10]) rotate([0,90,0]) cylinder(r=R_bore, h=9.5, $fn=48);\\n        translate([-4.75, -33.5, 10]) rotate([0,90,0]) cylinder(r=R_bore, h=9.5, $fn=48);\\n        translate([17.675, -33.5, 10]) rotate([0,90,0]) cylinder(r=R_bore, h=9.5, $fn=48);\\n        // rear-bottom 6x6 bevel (45 deg slope): closed top-rear edge\\n        hull() {\\n            translate([-41,-30.1,0]) cube([82,0.1,6]);\\n            translate([-41,-30,0]) cube([82,6,0.1]);\\n        }\\n    }\\n}\\n\\n// pin prints in place lying in the hinge (vertical when exported alone)\\nmodule pin() {\\n    cylinder(r=R_pin, h=79, $fn=48);\\n    translate([0,0,79]) cylinder(r1=R_pin, r2=2.5, h=1, $fn=48);\\n}\\n\\n// ---- output ----\\nif (part == \\\"box\\\") {\\n    echo(cadverify_spec = [\\n        [\\\"bounds\\\", [[-40, -36.5, 0], [40, 30, 33]]],\\n        [\\\"bodies\\\", 1],\\n        [\\\"through_holes\\\", 3],\\n        [\\\"support_faces\\\", [[\\\"bottom\\\", \\\"-z\\\", 4000]]],\\n        [\\\"overhangs_allowed\\\", [[\\\"hinge barrels bores and webs print without supports - small diameters short bridges\\\", [[-40, -37, 26], [40, -29, 33]]]]],\\n        [\\\"copies\\\", 1],\\n        [\\\"details\\\", [\\n            [\\\"box_wall\\\", \\\"thickness\\\", [41, 0, 15], [-1, 0, 0], 2.4],\\n            [\\\"box_bottom\\\", \\\"thickness\\\", [0, 0, -1], [0, 0, 1], 2.4],\\n            [\\\"tongue\\\", \\\"material\\\", [[-4, 27.9, 29.5], [4, 30, 33]], 0.9],\\n            [\\\"box_cavity\\\", \\\"void\\\", [[-37.6, -27.6, 2.4], [37.6, 27.6, 30]], 0.95],\\n            [\\\"box_bore\\\", \\\"hole\\\", [-18.7, -33.5, 30], [1, 0, 0], [[0, 4.2], [10, 4.2]]]\\n        ]]\\n    ]);\\n    box();\\n} else if (part == \\\"lid\\\") {\\n    echo(cadverify_spec = [\\n        [\\\"bounds\\\", [[-40, -36.5, 0], [40, 30, 13]]],\\n        [\\\"bodies\\\", 1],\\n        [\\\"through_holes\\\", 3],\\n        [\\\"support_faces\\\", [[\\\"top\\\", \\\"-z\\\", 4000]]],\\n        [\\\"overhangs_allowed\\\", [[\\\"hinge barrels bores and webs print without supports - small diameters short bridges\\\", [[-40, -37, 6], [40, -29, 13]]]]],\\n        [\\\"copies\\\", 1],\\n        [\\\"details\\\", [\\n            [\\\"lid_top\\\", \\\"thickness\\\", [0, 0, -1], [0, 0, 1], 6],\\n            [\\\"lid_wall\\\", \\\"thickness\\\", [10, 31, 8], [0, -1, 0], 2.4],\\n            [\\\"slot\\\", \\\"void\\\", [[-4.3, 27.6, 6.5], [4.3, 30, 10]], 0.9],\\n            [\\\"lid_pocket\\\", \\\"void\\\", [[-37.6, -27.6, 6], [37.6, 27.6, 10]], 0.95],\\n            [\\\"lid_bore\\\", \\\"hole\\\", [-5.3, -33.5, 10], [1, 0, 0], [[0, 4.2], [8, 4.2]]]\\n        ]]\\n    ]);\\n    lid();\\n} else if (part == \\\"pin\\\") {\\n    echo(cadverify_spec = [\\n        [\\\"bounds\\\", [[-2.5, -2.5, 0], [2.5, 2.5, 80]]],\\n        [\\\"bodies\\\", 1],\\n        [\\\"through_holes\\\", 0],\\n        [\\\"support_faces\\\", [[\\\"base\\\", \\\"-z\\\", 5]]],\\n        [\\\"overhangs_allowed\\\", []],\\n        [\\\"copies\\\", 1],\\n        [\\\"details\\\", [\\n            [\\\"pin_body\\\", \\\"material\\\", [[-1, -1, 1], [1, 1, 78]], 0.95],\\n            [\\\"pin_thickness\\\", \\\"thickness\\\", [2, 0, 40], [-1, 0, 0], 3.0]\\n        ]]\\n    ]);\\n    pin();\\n} else if (part == \\\"assembly\\\") {\\n    echo(cadverify_spec = [\\n        [\\\"bounds\\\", [[-40, -36.5, 0], [41, 30, 40]]],\\n        [\\\"support_faces\\\", [[\\\"bottom\\\", \\\"-z\\\", 4000]]],\\n        [\\\"allowed_interferences\\\", []],\\n        [\\\"motions\\\", [\\n            [\\\"lid_swing\\\", [\\\"lid_inst\\\"], \\\"rotate\\\", [0, -33.5, 30], [1, 0, 0], [0, 110]]\\n        ]],\\n        [\\\"assembly_order\\\", [\\n            [[\\\"box_inst\\\"], [0, 0, 0]],\\n            [[\\\"lid_inst\\\"], [0, 0, -1]],\\n            [[\\\"pin_inst\\\"], [-1, 0, 0]]\\n        ]],\\n        [\\\"print_in_place\\\", 0.4],\\n        [\\\"print_pose\\\", [[\\\"lid_swing\\\", 90]]],\\n        [\\\"overhangs_allowed\\\", [\\n            [\\\"knuckle barrels webs and pin print with half-mm gaps, short bridges\\\", [[-40, -37, 26], [41.5, -30, 34]]],\\n            [\\\"lid rim strip first layers bridge 8.5 between box barrels\\\", [[-40, -38, 33], [40, -33, 34]]],\\n            [\\\"lid front wall top bar, short end bridges\\\", [[-40, -38, 90.5], [40, -33, 94]]]\\n        ]]\\n    ]);\\n    instance(\\\"box_inst\\\", \\\"box\\\", 1) box();\\n    instance(\\\"lid_inst\\\", \\\"lid\\\", 1) translate([0,0,40]) rotate([0,180,0]) lid();\\n    instance(\\\"pin_inst\\\", \\\"pin\\\", 1) translate([-39,-33.5,30]) rotate([0,90,0]) pin();\\n}\\n\",\"path\":\"model.scad\"}"
+      },
+      {
+        "type": "function_call_output",
+        "call_id": "call_01a19c57d6e2738681f40f97c2a54062",
+        "output": "{\"ok\": true, \"path\": \"model.scad\", \"replaced\": true, \"bytes\": 7730, \"lines\": 173, \"sha256\": \"374b216e2d30f26eb6c9bd4c0092eaa255fd65ab8375eda803ae4b097961c5e3\"}"
+      },
+      {
+        "role": "user",
+        "content": "About 7 requests of the session are left: 11 of 100 done, USD 0.05 of 2.00 and 36 of 60 min. Put closing first: finish what you are fixing, export each part with the default parameters and look at it, verify the assembly if there is one, and close. A big change now may stay unverified."
+      }
+    ]
+  },
+  "status_code": 200,
+  "response_headers": {
+    "content-type": "text/event-stream",
+    "x-ratelimit-limit-requests": "150",
+    "x-ratelimit-remaining-requests": "150",
+    "x-ratelimit-limit-tokens": "3000000",
+    "x-ratelimit-remaining-tokens": "2912119",
+    "x-request-id": "ead3028c-9697-455b-b0c3-ea56e9da7e80",
+    "date": "Mon, 02 Nov 2026 13:00:12 GMT"
+  },
+  "response": {
+    "background": false,
+    "completed_at": 1793624413.0,
+    "created_at": 1793624412.0,
+    "error": null,
+    "id": "resp_6ae8895cc2d16e6d9584472d",
+    "incomplete_details": null,
+    "instructions": "You are a design engineer for FDM 3D printing who works in OpenSCAD. You work in an isolated workspace and only through the tools. The main file is model.scad.\n\nVERIFIABLE SPEC (required)\nBefore modeling, turn the request into measurable specifications and declare them in model.scad, for each part, with this echo, computed from the parameters, in the coordinates of the exported part (oriented for printing, in mm):\necho(cadverify_spec = [\n    [\"bounds\", [[xmin, ymin, zmin], [xmax, ymax, zmax]]],\n    [\"bodies\", 1],\n    [\"through_holes\", N],\n    [\"support_faces\", [[\"name\", \"-x\", min_area_mm2]]],\n    [\"overhangs_allowed\", [[\"reason\", [[xmin, ymin, zmin], [xmax, ymax, zmax]]]]],\n    [\"copies\", 1],\n    [\"details\", [\n        [\"name\", \"material\", [[xmin, ymin, zmin], [xmax, ymax, zmax]], min_fraction],\n        [\"name\", \"void\", [[xmin, ymin, zmin], [xmax, ymax, zmax]], min_fraction],\n        [\"name\", \"hole\", [x, y, z], [dx, dy, dz], [[depth, diameter], ...]],\n        [\"name\", \"thickness\", [x, y, z], [dx, dy, dz], mm],\n        [\"name\", \"view\", [[xmin, ymin, zmin], [xmax, ymax, zmax]]]\n    ]]\n]);\n- bounds: the box the exported part must fill (tolerance 0.2 mm). Required.\n- bodies: separate bodies (1 by default). through_holes: through holes (optional).\n- support_faces: faces that must sit flush against another surface (a wall, a shelf, the bed). The direction is the part's outward normal: +x, -x, +y, -y, +z or -z. The check is that nothing sticks out beyond that face and that the face has at least the given area.\n- overhangs_allowed: zones where you accept overhangs of more than 45°, with the reason. Each box goes around the overhang it justifies: together they cannot cover more than half of the part's surface. The flat part of an overhang (a ceiling, within 1° of horizontal) prints as a bridge, in the air from one support to another: no point of it can be more than 5 mm from material under it, so a bridge spans 10 mm at most. Declaring a longer one does not make it printable.\n- copies: how many of this part one unit of the product takes (1 by default).\n- details: every feature the request or your design announces (a rib, a flared mouth, an entry chamfer, a slot, a wall, a relief), with how it is measured on the mesh:\n  - material: a box that must be full to at least that fraction (0 to 1): a rib, a reinforcement, a medallion;\n  - void: a box that must be empty to at least that fraction: a slot, a channel;\n  - hole: a point outside the part on the hole's axis, the direction inward and the diameter at each depth from the mouth (0 is the mouth): a flare, a countersink, a chamfered entry, a step;\n  - thickness: a point outside the part, the direction inward and the material that ray crosses, in mm: a wall, a floor;\n  - view: a box with something no number describes (a texture, a relief, a shape). The box must touch the surface, and in the final version you have to look at it up close.\nA detail is in the code and not in the mesh more often than it seems: an offset that empties a profile, a cone sunk below the face it had to flare, a chamfer the wrong way round. That is why it is measured, and render_view draws it with its measurement (highlight details).\nThe spec is the design intent. If a measurement does not match, fix the geometry. Change the spec only if it was badly posed against the request, and say so in the close: the harness flags a spec that moves to what the mesh already measured while the part stays the same.\n\nORIENTATION\nEach part is exported in its print orientation: +Z is the print direction and the part rests on its minimum z. If you define a `part` selector in the Customizer, every option except \"assembly\" is verified; if not, the default output is verified.\n\nASSEMBLY\nWith two printable parts or more, the part selector has the option \"assembly\": the assembled product, each part where it goes in use. Copy these lines into model.scad and put each part of the assembly inside an instance:\ncadverify_only = \"\";\nmodule instance(name, part, unit = 1) {\n    echo(cadverify_instance = [name, part, unit]);\n    if (cadverify_only == \"\" || cadverify_only == name) children();\n}\n// for example: instance(\"pin_left\", \"pin\") translate([...]) rotate([...]) pin();\n- name: one per instance. part: the option of the selector that is printed (the instance has to be that part, moved: the same volume, area and inertia), or \"external\" for what is not printed (a wall, a screw, a rope). unit: 1, or 2, 3... for the next units when the product chains.\n- Nothing of the assembly goes outside an instance, and unit 1 places each printable part as many times as its copies.\n- The assembly has its own cadverify_spec echo (when part = \"assembly\"), in assembly coordinates:\necho(cadverify_spec = [\n    [\"bounds\", [[xmin, ymin, zmin], [xmax, ymax, zmax]]],\n    [\"support_faces\", [[\"wall\", \"-y\", min_area_mm2]]],\n    [\"allowed_interferences\", [[\"instance_a\", \"instance_b\", \"reason\"]]],\n    [\"motions\", [\n        [\"name\", [\"instance\", ...], \"rotate\", [x, y, z], [ax, ay, az], [from, to]],\n        [\"name\", [\"instance\", ...], \"slide\", [dx, dy, dz], [from, to]],\n        [\"name\", [\"instance\", ...], \"rotate\", [x, y, z], [ax, ay, az], [from, to],\n            [\"flex\", [[\"moving_instance\", \"other_instance\", mm, \"reason\"]]]]\n    ]],\n    [\"assembly_order\", [\n        [[\"instance\", ...], [0, 0, 0]],\n        [[\"instance\", ...], [dx, dy, dz]],\n        [[\"instance\", ...], [dx, dy, dz], [\"rotate\", [x, y, z], [ax, ay, az], degrees]]\n    ]],\n    [\"print_in_place\", clearance_mm],\n    [\"print_pose\", [[\"motion name\", value]]],\n    [\"overhangs_allowed\", [[\"reason\", [[xmin, ymin, zmin], [xmax, ymax, zmax]]]]]\n]);\n  - bounds and support_faces of the assembled product (optional), measured on all the instances.\n  - allowed_interferences: press fits up to 0.3 mm thick. Any other overlap between instances is an error.\n  - motions: what moves in use (a hinge, a link, a lid), from the pose of the assembly (0) through its whole range, in degrees or in mm. It is swept looking for collisions, with rigid parts. An elastic feature that bends while it moves (a detent bump, a snap) goes in the motion's flex: the instance that moves, the one it presses on and how deep they may overlap, up to 1 mm. The harness measures how deep they go, and they have to be free at both ends of the range: a flex springs back.\n  - print_in_place: only if the product is printed already assembled, all its parts in one print (+z up, the lowest faces on the bed): the smallest clearance between any two parts, from 0.2 to 1 mm. The harness checks the overhangs and bridges of all the parts together, with the assembly's own overhangs_allowed (only then does the assembly have them), the bed, and the clearances.\n  - print_pose: with print_in_place, the pose it prints in, if not the one the assembly shows: motions at a value of their range, applied in order (a box printed open: its lid's hinge at 180). The clearances and the print are checked in that pose, and the assembly's overhangs_allowed are in its coordinates.\n  - assembly_order: the order it is put together in, with every instance once. Each step comes in from far away moving along its direction (the first one does not need it) and, if it says \"rotate\", then turns those degrees to land in its place, without passing through what is already placed. A closed ring does not go into another closed ring: if the product needs that, the design has to open somewhere.\n- interference_check measures the assembly as the harness does: overlaps, contacts, units, motions and assembly order; it leaves each instance, each overlap and each colliding pose as an STL to look at with render_view.\n\nTOOLS TO EXPLORE\n- render_view: a view on demand, with a free camera, zoom, cuts along any plane with the profile and its numbers, several parts together and highlights (overhangs, support faces, the spec's box, through holes, details).\n- run_shell and run_python: your own code in the workspace, without network, with numpy, trimesh, manifold3d, shapely, matplotlib, openscad and cadcheck.\n- view_image: shows you a PNG or JPG image you made in the workspace.\n- interference_check: the assembly measured as in G3 and G4.\nThe harness verifies the .scad files of the workspace: changing one by shell is an edit, with the same rules. Your images and calculations do not replace the sheet G7 asks for.\n\nLOOK\nEvery scad_export of model.scad with the default parameters and a new mesh brings its sheet attached, the one render_sheet makes: look at it before going on. Look a lot. A view costs little and is the fastest way to understand the part and to find what is wrong: ask for dozens of views and cuts over the session, of every part and of the assembly. After each change, look closely at what you changed: zoomed in, from several sides, cut where it matters. In the assembly, look at every joint, every fit and every part that moves, also cut. If you doubt something, make the image that shows it: a render_view, or your own matplotlib plot and view_image. Old images leave the context to make room for new ones, and what they showed stays in their place: if you need to see one again, ask for it again.\n\nQUESTIONS\nIf you need to ask the user something, first look at what is there: compile model.scad, export each option of part (the assembly too) with the default parameters and look at it. Then, before your first edit, a message without calling tools reaches the user, and their answer comes back as the next message. After your first edit, a message without tools is the close.\n\nPROCESS\n1. scad_write with the full design and the spec.\n2. scad_compile, scad_export (it brings the sheet) and printability_report of each part; interference_check and render_view of the assembly.\n3. Look (LOOK). A visual finding is a hypothesis: before fixing it, confirm it with numbers (scad_export or mesh_report: bounds, bodies, holes, support faces, details; printability_report; interference_check; a cut or the holes of render_view; a calculation with run_python or run_shell). After an image (render_sheet, render_view or view_image), the harness refuses changes to the .scad files, by shell too, until you run one of those checks. Not after the sheet scad_export brings: it comes with its numbers.\n4. Fix with scad_patch and go back to step 2. Each request counts toward the session's limits: send in the same request all the edits of one change (several scad_patch, or scad_write if a good part of the file changes) and the checks that follow them (scad_export, interference_check). The tools of one request run in order.\n5. Before closing, understand the product as a physical object: look at it, cut it and measure it as you will use it, as you will assemble it and as you will print it.\n6. When everything passes, close with a message without calling tools (CLOSE).\n\nCLOSE\nThe close says what you designed and how it is printed and assembled, in two parts:\n- Verified: what the harness measured, with numbers. Each claim carries in double brackets the name of what backs it: a part ([[lid]]), a detail or a support face of its spec ([[lid/rib]], or [[rib]] if only one part has it), the assembly ([[assembly]]) or a support face of its spec ([[assembly/name]]), a motion by its name, the assembly order ([[assembly_order]]), the print in place ([[print_in_place]]) or a gate ([[G5]]). Each name has to exist in the final version and be green.\n- Not verified: what nobody measured (strength, looks, what depends on the printer or the material, whether a flex bends that far without breaking), and each adjustment of the spec you made so it matches what was measured, with the reason.\nAn auditor compares the close with what was verified: a claim presented as verified without backing, or a spec adjustment you did not tell, leaves G8 red.\n\nGATES: the harness verifies them when you finish, on model.scad with the default parameters. You cannot close with a red gate.\n- G1: it compiles and exports without errors, without failed asserts and without OpenSCAD warnings (an unknown variable or module gives no error, but leaves the geometry wrong).\n- G2: every part watertight, 0 bad edges, as many bodies as bodies, 0 inverted shells and a positive volume.\n- G3: the assembly: each instance is its part moved, every part is there with its copies, nothing overlaps except the declared fits, everything forms one group (parts 1 mm apart or less), the units the request asks for are there, and so are its bounds and support faces, if it declares them.\n- G4: every motion runs its whole range without colliding (a declared flex no deeper than declared, and free at the ends), and the assembly can be put together in its order.\n- G5: overhangs of more than 45° only inside overhangs_allowed zones, which cover at most half of the part's surface, each flat ceiling a bridge of 10 mm at most, and the part fits the bed (Bambu Lab A1, 256 × 256 × 256 mm). With print_in_place, also all the parts together as they print (in the print_pose, if there is one), and the clearances between them.\n- G7: the spec exists and the mesh meets it, details included; and you saw, of the final version, the sheet of each part (the one scad_export brings, or render_sheet), one render_view with all the instances of the assembly together (the STLs interference_check leaves) and each \"view\" detail up close.\n- G8: the close (CLOSE).\n\nNever claim a verification you did not run.",
+    "max_output_tokens": 64000,
+    "model": "muse-spark-1.3-contributor",
+    "object": "response",
+    "output": [
+      {
+        "id": "rs_6ae8895cc2d16e6d9584472d:rs_01a19c58906971718a5bbed4d6382378",
+        "status": "completed",
+        "summary": [],
+        "type": "reasoning"
+      },
+      {
+        "content": [
+          {
+            "annotations": [],
+            "logprobs": [],
+            "text": "Fixing the print clearances — exporting the revised parts for final checks.",
+            "type": "output_text"
+          }
+        ],
+        "id": "rs_01a19c58921d7415aa3a06c78193df75",
+        "phase": "commentary",
+        "role": "assistant",
+        "status": "completed",
+        "type": "message"
+      },
+      {
+        "arguments": "{\"part\":\"box\",\"path\":\"model.scad\"}",
+        "call_id": "call_01a19c589340708b89d1bd84321b748a",
+        "id": "fc_01a19c589340708b89d1bd84321b748a",
+        "name": "scad_export",
+        "status": "completed",
+        "type": "function_call"
+      }
+    ],
+    "parallel_tool_calls": true,
+    "prompt_cache_key": "cadverify-agent-muse-spark-1.3-contributor",
+    "reasoning": {
+      "effort": "high"
+    },
+    "service_tier": "auto",
+    "status": "completed",
+    "store": true,
+    "temperature": 1.0,
+    "tool_choice": "auto",
+    "tools": [
+      {
+        "description": "Creates or fully replaces a .scad file of the workspace.",
+        "name": "scad_write",
+        "parameters": {
+          "properties": {
+            "content": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "path",
+            "content"
+          ],
+          "type": "object"
+        },
+        "type": "function"
+      },
+      {
+        "description": "Replaces the text `old` with `new` in a .scad file. Fails unless `old` appears exactly once: copy the exact text, with its indentation.",
+        "name": "scad_patch",
+        "parameters": {
+          "properties": {
+            "new": {
+              "type": "string"
+            },
+            "old": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "path",
+            "old",
+            "new"
+          ],
+          "type": "object"
+        },
+        "type": "function"
+      },
+      {
+        "description": "Evaluates the program without building geometry: echo, warnings, failed asserts and errors.",
+        "name": "scad_compile",
+        "parameters": {
+          "properties": {
+            "overrides": {
+              "additionalProperties": {
+                "type": [
+                  "number",
+                  "string",
+                  "boolean",
+                  "array"
+                ]
+              },
+              "description": "Values that replace parameters of the file (-D name=value).",
+              "type": "object"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "path"
+          ],
+          "type": "object"
+        },
+        "type": "function"
+      },
+      {
+        "description": "Exports one part to STL (ASCII). Returns the path, the mesh_report and spec_check, the mesh compared with the file's cadverify_spec echo. From model.scad with the default parameters, if the mesh is new (you did not see its sheet or a view of it), it brings its sheet attached, the one render_sheet makes.",
+        "name": "scad_export",
+        "parameters": {
+          "properties": {
+            "overrides": {
+              "additionalProperties": {
+                "type": [
+                  "number",
+                  "string",
+                  "boolean",
+                  "array"
+                ]
+              },
+              "description": "Values that replace parameters of the file (-D name=value).",
+              "type": "object"
+            },
+            "part": {
+              "description": "Value of the `part` selector, if any.",
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "path"
+          ],
+          "type": "object"
+        },
+        "type": "function"
+      },
+      {
+        "description": "Watertightness, bad edges and where they are, volume, bounds, size, bodies, cavities, inverted shells and through holes of an STL.",
+        "name": "mesh_report",
+        "parameters": {
+          "properties": {
+            "stl": {
+              "description": "Path of the STL scad_export returned.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "stl"
+          ],
+          "type": "object"
+        },
+        "type": "function"
+      },
+      {
+        "description": "A sheet of orthographic views of the STL, which you get as an image: flat shading, sharp edges and outlines in black, open and non-manifold edges in red, faces seen from behind in magenta, axes and a scale in mm.",
+        "name": "render_sheet",
+        "parameters": {
+          "properties": {
+            "stl": {
+              "description": "Path of the STL scad_export returned.",
+              "type": "string"
+            },
+            "views": {
+              "description": "All six by default.",
+              "items": {
+                "enum": [
+                  "iso",
+                  "iso_back",
+                  "front",
+                  "side",
+                  "top",
+                  "bottom"
+                ],
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "stl"
+          ],
+          "type": "object"
+        },
+        "type": "function"
+      },
+      {
+        "description": "Overhangs of more than 45° (measured from the vertical) grouped by zone in the STL's orientation (+Z up, resting on the minimum z), whether each zone is declared in overhangs_allowed, the flat ceiling of each zone as a bridge (how far its farthest point is from material under it), and whether the part fits the bed of the Bambu Lab A1 (256 × 256 × 256 mm).",
+        "name": "printability_report",
+        "parameters": {
+          "properties": {
+            "stl": {
+              "description": "Path of the STL scad_export returned.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "stl"
+          ],
+          "type": "object"
+        },
+        "type": "function"
+      },
+      {
+        "description": "Runs a bash command. Runs in /work, inside the sandbox: no network, 2 CPUs and 4 GB; only /work (1 GB) and /tmp (512 MB) are writable. There is python with numpy, scipy, trimesh, manifold3d, shapely and matplotlib, openscad and cadcheck (the tools' CLI). Returns stdout and stderr (if long, the start and the end with the count of bytes left out), the exit code, the time and the files created, modified or deleted. Processes still alive are ended when the call ends.",
+        "name": "run_shell",
+        "parameters": {
+          "properties": {
+            "cmd": {
+              "type": "string"
+            },
+            "timeout_s": {
+              "description": "Seconds; 60 by default, 300 at most.",
+              "type": "number"
+            }
+          },
+          "required": [
+            "cmd"
+          ],
+          "type": "object"
+        },
+        "type": "function"
+      },
+      {
+        "description": "Runs a Python program (python -c). Runs in /work, inside the sandbox: no network, 2 CPUs and 4 GB; only /work (1 GB) and /tmp (512 MB) are writable. There is python with numpy, scipy, trimesh, manifold3d, shapely and matplotlib, openscad and cadcheck (the tools' CLI). Returns stdout and stderr (if long, the start and the end with the count of bytes left out), the exit code, the time and the files created, modified or deleted. Processes still alive are ended when the call ends.",
+        "name": "run_python",
+        "parameters": {
+          "properties": {
+            "code": {
+              "type": "string"
+            },
+            "timeout_s": {
+              "description": "Seconds; 60 by default, 300 at most.",
+              "type": "number"
+            }
+          },
+          "required": [
+            "code"
+          ],
+          "type": "object"
+        },
+        "type": "function"
+      },
+      {
+        "description": "Shows you a PNG or JPG image of the workspace that you made (for example, a matplotlib plot), scaled down to 1568 px per side and 1.8 MP at most.",
+        "name": "view_image",
+        "parameters": {
+          "properties": {
+            "path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "path"
+          ],
+          "type": "object"
+        },
+        "type": "function"
+      },
+      {
+        "description": "A view on demand of one or more STLs, which you get as an image with its numbers. Free camera, orthographic or perspective; zoom to a box or to a point; a cut along any plane: the cut part with the cut face in salmon and, beside it, the 2D profile of the cut on a mm grid, with area, regions, holes and box; several parts together, apart with explode; highlights: overhangs, support faces and the spec's bounds box, through holes with their diameter at each end, and the spec's details (highlight details) with what each one measures, and for each declared detail whether it is in frame and up close (details_in_view). Coordinates in mm of the STL.",
+        "name": "render_view",
+        "parameters": {
+          "properties": {
+            "camera": {
+              "description": "One of: {\"view\": name}, {\"direction\": [x, y, z]} (from the part toward the camera) or {\"azimuth\": degrees, \"elevation\": degrees}. iso by default; with a cut, facing the cut face.",
+              "properties": {
+                "azimuth": {
+                  "type": "number"
+                },
+                "direction": {
+                  "items": {
+                    "type": "number"
+                  },
+                  "maxItems": 3,
+                  "minItems": 3,
+                  "type": "array"
+                },
+                "elevation": {
+                  "type": "number"
+                },
+                "view": {
+                  "enum": [
+                    "iso",
+                    "iso_back",
+                    "front",
+                    "side",
+                    "top",
+                    "bottom"
+                  ],
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            },
+            "cut": {
+              "description": "Cut plane; the side the normal points to is taken away.",
+              "properties": {
+                "normal": {
+                  "items": {
+                    "type": "number"
+                  },
+                  "maxItems": 3,
+                  "minItems": 3,
+                  "type": "array"
+                },
+                "point": {
+                  "items": {
+                    "type": "number"
+                  },
+                  "maxItems": 3,
+                  "minItems": 3,
+                  "type": "array"
+                }
+              },
+              "required": [
+                "point",
+                "normal"
+              ],
+              "type": "object"
+            },
+            "explode": {
+              "description": "mm to move several parts apart.",
+              "type": "number"
+            },
+            "highlight": {
+              "items": {
+                "enum": [
+                  "overhangs",
+                  "support_faces",
+                  "spec_bounds",
+                  "holes",
+                  "details"
+                ],
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "projection": {
+              "enum": [
+                "orthographic",
+                "perspective"
+              ],
+              "type": "string"
+            },
+            "stl": {
+              "description": "STLs from scad_export; several are shown together.",
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "title": {
+              "type": "string"
+            },
+            "zoom": {
+              "description": "{\"center\": [x, y, z], \"size_mm\": side} or {\"box\": [[xmin, ymin, zmin], [xmax, ymax, zmax]]}.",
+              "properties": {
+                "box": {
+                  "items": {
+                    "items": {
+                      "type": "number"
+                    },
+                    "maxItems": 3,
+                    "minItems": 3,
+                    "type": "array"
+                  },
+                  "maxItems": 2,
+                  "minItems": 2,
+                  "type": "array"
+                },
+                "center": {
+                  "items": {
+                    "type": "number"
+                  },
+                  "maxItems": 3,
+                  "minItems": 3,
+                  "type": "array"
+                },
+                "size_mm": {
+                  "type": "number"
+                }
+              },
+              "type": "object"
+            }
+          },
+          "required": [
+            "stl"
+          ],
+          "type": "object"
+        },
+        "type": "function"
+      },
+      {
+        "description": "Measures the assembly (part = \"assembly\") as G3 and G4 measure it: exports each instance in assembly coordinates and compares it with its part (volume, area, inertia); copies and units; overlaps between instances (volume, mean thickness and where) and the gap between the ones that touch; whether everything forms one group; bounds and support faces of the assembly; each motion swept through its whole range, with how deep each declared flex goes, and the assembly order; with print_in_place, the clearances and the print of all the parts together, in the print_pose if there is one (G5). Leaves in checks/assembly/ the STL of each instance, each overlap, each pose that collides, the deepest overlap of each flex and the parts as they print in place, to look at with render_view.",
+        "name": "interference_check",
+        "parameters": {
+          "properties": {
+            "path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "path"
+          ],
+          "type": "object"
+        },
+        "type": "function"
+      }
+    ],
+    "top_logprobs": 0,
+    "top_p": 1.0,
+    "truncation": "disabled",
+    "usage": {
+      "input_tokens": 43009,
+      "input_tokens_details": {
+        "cached_tokens": 36977
+      },
+      "output_tokens": 137,
+      "output_tokens_details": {
+        "reasoning_tokens": 46
+      },
+      "total_tokens": 43146
+    }
+  },
+  "latency_s": 3.802,
+  "total_with_retries_s": 3.802,
+  "attempts": [
+    {
+      "attempt": 1,
+      "status_code": 200,
+      "latency_s": 3.802,
+      "error": null,
+      "stream": {
+        "events": 16,
+        "terminal": "response.completed"
+      }
+    }
+  ],
+  "client_error": null
+}

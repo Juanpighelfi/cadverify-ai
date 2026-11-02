@@ -1,0 +1,42 @@
+{
+  "seq": 49,
+  "iteration": 19,
+  "name": "run_shell",
+  "arguments": {
+    "cmd": "python3 - <<'PY'\nimport glob, shutil, trimesh\nfor f in sorted(glob.glob('checks/assembly/model.assembly.*.stl')):\n    m = trimesh.load(f)\n    print(f, 'vol', round(float(m.volume)), 'bounds', m.bounds.tolist())\n    # base: rests on z=0 and is the larger volume; lid: lowest z ~16.3\n    dst = 'checks/final_base.stl' if m.bounds[0][2] < 1 else 'checks/final_lid.stl'\n    shutil.copy(f, dst)\n    print(' ->', dst)\nPY\nls -l checks/final_*.stl"
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.849,
+    "stdout": "checks/assembly/model.assembly.07b3764e.stl vol 21741 bounds [[-40.0, -30.4, 16.3], [40.0, 36.2, 40.0]]\n -> checks/final_lid.stl\nchecks/assembly/model.assembly.6062a230.stl vol 40127 bounds [[-40.0, -28.0, 0.0], [40.0, 36.2, 30.0]]\n -> checks/final_base.stl\n-rw-r--r-- 1 26344 26344 157012 Nov  2 16:33 checks/final_base.stl\n-rw-r--r-- 1 26344 26344 275409 Nov  2 16:33 checks/final_lid.stl\n",
+    "stderr": "",
+    "stdout_bytes": 391,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [
+        "checks/final_base.stl",
+        "checks/final_lid.stl"
+      ],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 1.272,
+  "image": null,
+  "files": {
+    "new": [
+      "checks/final_base.stl",
+      "checks/final_lid.stl"
+    ],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "2ea9388ea895d3b6"
+}

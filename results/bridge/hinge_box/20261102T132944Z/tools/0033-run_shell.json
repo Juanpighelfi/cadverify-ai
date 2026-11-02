@@ -1,0 +1,37 @@
+{
+  "seq": 33,
+  "iteration": 25,
+  "name": "run_shell",
+  "arguments": {
+    "cmd": "grep -n \"farthest\\|bridge\\|under\" /opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/printability.py | head -40",
+    "timeout_s": 30.0
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.03,
+    "stdout": "1:\"\"\"printability_report: overhangs by face normal in the print orientation, bridges, and bed fit.\n27:# A downward face within 1° of flat prints as a bridge: in the air, from one support to another.\n29:# The longest bridge that prints clean with a 0.4 mm nozzle. A quick FDM design guide gives 10 mm\n30:# as the longest unsupported bridge (Xometry); Protolabs Network, about 5 mm without sagging.\n31:# Every point of a bridge is then at most half of it from what holds it.\n33:# What holds a ceiling: the mesh's section half a layer (0.2 mm) under its lowest point.\n38:# lies flat or not depending on its $fn, and droops into the clearance under it either way.\n43:# layers). It may start over material up to START_GAP_MM under them, drooping into a print in\n72:    - A zone's faces within 1° of flat print as a bridge. Each flat piece is measured against\n73:      the material half a layer under it (the mesh's section there): `farthest_mm`, the farthest\n74:      any of its points is from that material, so a bridge over it spans at least twice that\n75:      (`bridge_mm`), whatever direction it is laid in; or `floating`, when no point of it is\n76:      within 0.5 mm of that material. A zone keeps its worst piece under `bridge`; pieces\n79:      has no other body under its lowest two layers within 1 mm: it starts printing in the air,\n94:        zone[\"bridge\"] = bridge(mesh, zone[\"_faces\"][angle[zone[\"_faces\"]] >= BRIDGE_DEG])\n109:        \"max_bridge_mm\": MAX_BRIDGE_MM,\n152:    keeps its face indices under \"_faces\" (dropped from the report).\"\"\"\n176:def bridge(mesh: trimesh.Trimesh, faces: np.ndarray) -> dict[str, Any] | None:\n177:    \"\"\"The worst flat piece among `faces` as a bridge (mesh_printability), None without one.\"\"\"\n197:            row.update(floating=True, farthest_mm=None, bridge_mm=None)\n200:            row.update(floating=False, farthest_mm=round(far, 2), bridge_mm=round(2 * far, 1))\n257:    return (a[\"bridge_mm\"] or 0.0) > (b[\"bridge_mm\"] or 0.0)\n",
+    "stderr": "",
+    "stdout_bytes": 1977,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 0.577,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "68e1591a9f449fe3"
+}

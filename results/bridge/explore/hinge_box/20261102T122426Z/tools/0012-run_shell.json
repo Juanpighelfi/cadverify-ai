@@ -1,0 +1,36 @@
+{
+  "seq": 12,
+  "iteration": 13,
+  "name": "run_shell",
+  "arguments": {
+    "cmd": "head -47 model.scad > /tmp/h47.scad; echo 'cube(1);' >> /tmp/h47.scad\nopenscad /tmp/h47.scad -o /tmp/o47.stl 2>&1 | head -5\necho \"=== 48-71 ===\"\npython3 -c \"\nh=open('/tmp/h47.scad').read()\nopen('/tmp/h48.scad','w').write(h)\"\nsed -n '48,71p' model.scad > /tmp/mid.scad; cat /tmp/mid.scad\necho \"=== parse mid alone with stubs ===\"\ncat > /tmp/stub.scad <<'EOF'\nW=80; D=60; Hb=30; Hl=10; T=2.4;\nHR=4; BORE_D=4.8; LIPW=20; LIPG=0.3;\n$fn=48;\nmodule barrelX(x1,x2,yc,zc,r){ translate([(x1+x2)/2,yc,zc]) rotate([0,90,0]) cylinder(h=x2-x1,r=r,center=true); }\nEOF\ncat /tmp/stub.scad /tmp/mid.scad > /tmp/midfull.scad; echo 'cube(1);' >> /tmp/midfull.scad\nopenscad /tmp/midfull.scad -o /tmp/omid.stl 2>&1 | head -5"
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.168,
+    "stdout": "Geometries in cache: 1\nGeometry cache size in bytes: 856\nCGAL Polyhedrons in cache: 0\nCGAL cache size in bytes: 0\nTotal rendering time: 0:00:00.000\n=== 48-71 ===\nmodule lid_part_geo(){\n // printed top-down: top plate z0..2.4, skirt up to 10, hinge axis at z=10,y=-D/2\n difference(){\n  union(){\n   difference(){\n    translate([-W/2,-D/2,0]) cube([W,D,Hl]);\n    translate([-W/2+T,-D/2+T,0-1]) cube([W-2*T,D-2*T,Hl-2.4+1]);\n    // top plate is at bottom: cavity from top down to 2.4\n   }\n   // lid knuckles L1 L2\n   barrelX(-17.5,-6.5,-D/2,10,HR); barrelX(6.5,17.5,-D/2,10,HR);\n   // catch lip: top bridge + lower leg\n   translate([-LIPW/2,D/2-0.01-2.4,8]) cube([LIPW,2.4+2.4,2]);\n   translate([-LIPW/2,D/2+LIPG,8-7+2]) cube([LIPW,2.4,7]);\n  }\n  // base notches in back wall (upper near opening)\n  translate([-12.5,-D/2-5,5.6]) cube([13,5+T+0.5,4.5]);\n  translate([-0.5+6,-D/2-5,5.6]) cube([13,5+T+0.5,4.5]);\n  // bores thru\n  barrelX(-17.5-0.2,-6.5+0.2,-D/2,10,BORE_D/2);\n  barrelX(6.5-0.2,17.5+0.2,-D/2,10,BORE_D/2);\n }\n}\nmodule pin_geo(){ translate([0,0,0]) cylinder(h=57,r=PIN_D/2); }\n=== parse mid alone with stubs ===\nGeometries in cache: 1\nGeometry cache size in bytes: 856\nCGAL Polyhedrons in cache: 0\nCGAL cache size in bytes: 0\nTotal rendering time: 0:00:00.000\n",
+    "stderr": "",
+    "stdout_bytes": 1269,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 0.556,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "70e3ef839f6e8ad6"
+}
