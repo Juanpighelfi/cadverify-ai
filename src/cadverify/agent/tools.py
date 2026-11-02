@@ -163,8 +163,9 @@ SCHEMAS = [
         "printability_report",
         "Overhangs of more than 45° (measured from the vertical) grouped by zone in the STL's "
         "orientation (+Z up, resting on the minimum z), whether each zone is declared in "
-        "overhangs_allowed, and whether the part fits the bed of the Bambu Lab A1 "
-        "(256 × 256 × 256 mm).",
+        "overhangs_allowed, the part of each zone steeper than 60° as a bridge (how far its "
+        "farthest point is from the material under its lowest edge, seen from above), and "
+        "whether the part fits the bed of the Bambu Lab A1 (256 × 256 × 256 mm).",
         {"stl": _STL},
         ["stl"],
     ),
@@ -247,9 +248,10 @@ SCHEMAS = [
         "where) and the gap between the ones that touch; whether everything forms one group; "
         "bounds and support faces of the assembly; each motion swept through its whole range, "
         "with how deep each declared flex goes, and the assembly order; with print_in_place, "
-        "the clearances and the print of all the parts together (G5). Leaves in "
-        f"{ASSEMBLY_DIR}/ the STL of each instance, each overlap, each pose that collides and "
-        "the deepest overlap of each flex, to look at with render_view.",
+        "the clearances and the print of all the parts together, in the print_pose if there is "
+        f"one (G5). Leaves in {ASSEMBLY_DIR}/ the STL of each instance, each overlap, each pose "
+        "that collides, the deepest overlap of each flex and the parts as they print in place, "
+        "to look at with render_view.",
         {"path": {"type": "string"}},
         ["path"],
     ),
@@ -595,6 +597,8 @@ class ToolBox:
             for flex in motion.get("flex") or []:
                 label = f"flex {flex['a']} / {flex['b']} of {motion['name']}"
                 register(flex.get("overlap_stl"), "collision", label)
+        in_place = report.get("print_in_place") or {}
+        register(in_place.get("stl"), "print", "the parts as they print in place")
         report.pop("spec", None)  # the model wrote it
         report["ok"] = True  # the measurement ran; its findings are in problems
         # As G5 judges it: the clearances, and the print of all the parts together.

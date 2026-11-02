@@ -21,11 +21,14 @@ from typing import Any
 
 import manifold3d
 import numpy as np
+import scipy.sparse
 import shapely
 import trimesh
+from scipy.sparse.csgraph import connected_components
+from scipy.spatial import cKDTree
 
 ENGINES = ("auto", "manifold", "trimesh")
-GRID_MM = 1e-6  # segment endpoints are snapped to this grid before joining them
+GRID_MM = 1e-6  # segment endpoints this close are one point, then snapped to this grid
 ON_PLANE_MM = 1e-5
 END_INSET_MM = 0.05  # holes are measured this far inside each end
 MAX_LEVELS = 400  # per axis for the hole search
@@ -205,12 +208,22 @@ def triangulate(prof: Profile) -> trimesh.Trimesh:
 def polygons_from_segments(segments: np.ndarray) -> tuple[list[shapely.Polygon], int]:
     """Join 2D segments (k, 2, 2) into polygons by the even-odd rule.
 
-    Endpoints are snapped to a 1e-6 mm grid so that the two triangles sharing an edge give the
-    same point. Returns the polygons and the number of chains that do not close.
+    The two triangles sharing an edge give the same point up to rounding: endpoints within 1e-6
+    mm are merged into one before they are snapped to a 1e-6 mm grid, since two copies of a
+    point halfway between grid lines can round apart. Returns the polygons and the number of
+    chains that do not close.
     """
     if len(segments) == 0:
         return [], 0
-    lines = shapely.set_precision(shapely.linestrings(segments), GRID_MM)
+    points = np.asarray(segments, dtype=float).reshape(-1, 2)
+    pairs = cKDTree(points).query_pairs(GRID_MM, output_type="ndarray")
+    graph = scipy.sparse.coo_matrix(
+        (np.ones(len(pairs)), (pairs[:, 0], pairs[:, 1])), shape=(len(points), len(points))
+    )
+    _, label = connected_components(graph, directed=False)
+    _, first = np.unique(label, return_index=True)
+    merged = points[first[label]].reshape(-1, 2, 2)
+    lines = shapely.set_precision(shapely.linestrings(merged), GRID_MM)
     lines = lines[~shapely.is_empty(lines) & (shapely.length(lines) > 0)]
     faces, cuts, dangles, invalid = shapely.polygonize_full(lines)
     filled = shapely.Polygon()

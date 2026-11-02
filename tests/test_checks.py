@@ -12,6 +12,7 @@ from cadverify.cadcheck.files import scad_patch, scad_write
 from cadverify.cadcheck.mesh import load_exact, mesh_report, report_from_mesh
 from cadverify.cadcheck.printability import printability_report
 from cadverify.cadcheck.render import VIEWS, camera, classify_edges, nice_length
+from cadverify.cadcheck.section import polygons_from_segments
 from cadverify.cadcheck.spec import SpecError, check_spec, find_spec, parse_spec
 from cadverify.cadcheck.verify import printable_parts
 
@@ -143,6 +144,18 @@ def test_mesh_report_counts_through_holes(tmp_path):
     assert mesh_report(_stl(tmp_path, _box((1, 1, 1))))["through_holes"] == 0
 
 
+def test_a_section_closes_where_two_copies_of_a_corner_round_apart():
+    # The two triangles at a corner give it an ulp apart, halfway between two 1e-6 mm grid lines:
+    # snapped alone, the copies land on different grid points and the outline does not close.
+    y = 29.0999985
+    below = np.nextafter(y, 0)
+    corners = [[0, 0], [40, 0], [40, y], [0, y]]
+    segments = np.array([[corners[i], corners[(i + 1) % 4]] for i in range(4)], dtype=float)
+    segments[3, 0] = [0, below]
+    polygons, open_chains = polygons_from_segments(segments)
+    assert open_chains == 0 and [round(p.area, 3) for p in polygons] == [round(40 * y, 3)]
+
+
 def test_printability_box_on_the_bed_has_no_overhangs(tmp_path):
     report = printability_report(_stl(tmp_path, _box((20, 30, 10))))
     assert report["zones_total"] == 0 and report["fits_bed"]
@@ -159,10 +172,90 @@ def test_printability_groups_a_cantilever_ceiling_into_one_zone(tmp_path):
     assert all(z["max_angle_deg"] == 90 for z in report["zones"])
     assert report["zones_undeclared"] == 2
 
-    allowed = [{"name": "izquierda", "bounds": [[0, 0, 19.8], [20, 10, 20.2]]}]
+    allowed = [{"name": "left", "bounds": [[0, 0, 19.8], [20, 10, 20.2]]}]
     declared = printability_report(_stl(tmp_path, t), allowed)
     assert declared["zones_undeclared"] == 1
-    assert [z["declared_as"] for z in declared["zones"]] == [None, "izquierda"]
+    assert [z["declared_as"] for z in declared["zones"]] == [None, "left"]
+    # Each ceiling hangs 20 mm from the post: a bridge would have to span 40 mm to hold its edge.
+    assert declared["zones"][1]["bridge"]["farthest_mm"] == pytest.approx(20, abs=0.3)
+
+
+def test_printability_measures_each_flat_ceiling_as_a_bridge(tmp_path):
+    walls = _box((5, 20, 20)).union(_box((5, 20, 20), (55, 0, 0)))
+    arch = walls.union(_box((60, 20, 3), (0, 0, 20)))
+    (zone,) = printability_report(_stl(tmp_path, arch))["zones"]
+    assert zone["bridge"] == {
+        "z": 20.0,
+        "z_top": 20.0,
+        "flat": True,
+        "area_mm2": 1000.0,
+        "bounds_xy": [[5.0, 0.0], [55.0, 20.0]],
+        "floating": False,
+        "farthest_mm": 25.0,
+        "bridge_mm": 50.0,
+    }
+    short = (
+        _box((5, 20, 20)).union(_box((5, 20, 20), (13, 0, 0))).union(_box((18, 20, 3), (0, 0, 20)))
+    )
+    assert printability_report(_stl(tmp_path, short))["zones"][0]["bridge"]["bridge_mm"] == 8.0
+    # A plate in the air beside a tower: nothing under it to start from.
+    floating = trimesh.util.concatenate([_box((5, 5, 30)), _box((10, 10, 2), (8, 0, 10))])
+    (plate,) = printability_report(_stl(tmp_path, floating))["zones"]
+    assert plate["bridge"]["floating"] and plate["bridge"]["bridge_mm"] is None
+    # The same plate 0.5 mm over a block: the block holds it through the gap, as a support would.
+    held = trimesh.util.concatenate([floating, _box((10, 10, 9.5), (8, 0, 0))])
+    held_plate = printability_report(_stl(tmp_path, held))["zones"][0]["bridge"]
+    assert held_plate["farthest_mm"] == 0.0
+
+
+def test_printability_measures_the_part_of_an_overhang_steeper_than_60_degrees(tmp_path):
+    def ledge(degrees, out):  # a wall with a ledge whose underside rises `degrees` from vertical
+        rise = out / np.tan(np.radians(degrees))
+        side = np.array(
+            [[4, 0, 20 - rise / out], [5 + out, 0, 20 + rise], [5 + out, 0, 23 + rise], [4, 0, 23]]
+        )
+        wedge = trimesh.convex.convex_hull(np.vstack([side, side + [0, 20, 0]]))
+        return _box((5, 20, 30)).union(wedge)
+
+    (steep,) = printability_report(_stl(tmp_path, ledge(80, 10)))["zones"]
+    assert steep["bridge"]["flat"] is False and steep["bridge"]["z"] == 20.0
+    assert steep["bridge"]["farthest_mm"] == 10.0 and steep["bridge"]["bridge_mm"] == 20.0
+    assert printability_report(_stl(tmp_path, ledge(80, 4)))["zones"][0]["bridge"]["bridge_mm"] == 8
+    (sloped,) = printability_report(_stl(tmp_path, ledge(50, 10)))["zones"]
+    assert (
+        sloped["max_angle_deg"] == 50 and sloped["bridge"] is None
+    )  # each layer rests on the last
+    # A hole across a block: the top of its curved roof is steep, held by the sides of the hole.
+    hole = trimesh.creation.cylinder(3, 30, sections=48)
+    hole.apply_transform(trimesh.transformations.rotation_matrix(np.pi / 2, [0, 1, 0], [0, 0, 0]))
+    block = _box((20, 20, 20), (-10, -10, -10)).difference(hole)
+    (roof,) = printability_report(_stl(tmp_path, block))["zones"]
+    assert not roof["bridge"]["floating"] and roof["bridge"]["bridge_mm"] == pytest.approx(3.3)
+    # A pin lying 0.3 mm over a plate starts over it; 3 mm over it, it starts in the air.
+    pin = trimesh.creation.cylinder(2, 10, sections=48)
+    pin.apply_transform(trimesh.transformations.rotation_matrix(np.pi / 2, [1, 0, 0]))
+    over = trimesh.util.concatenate([_box((10, 10, 5)), pin.copy().apply_translation([5, 5, 7.3])])
+    (underside,) = printability_report(_stl(tmp_path, over))["zones"]
+    assert underside["bridge"]["farthest_mm"] == 0.0
+    high = trimesh.util.concatenate([_box((10, 10, 5)), pin.apply_translation([5, 5, 10])])
+    report = printability_report(_stl(tmp_path, high))
+    assert report["zones"][0]["bridge"]["floating"] and len(report["in_the_air"]) == 1
+
+
+def test_printability_finds_the_bodies_that_start_in_the_air(tmp_path):
+    def body(z):  # a block standing on its edge, hung over a plate: its faces slope at 45°
+        block = _box((10, 10, 10), (-5, -5, -5))
+        block.apply_transform(trimesh.transformations.rotation_matrix(np.pi / 4, [1, 0, 0]))
+        return block.apply_translation([5, 5, z + 5 * np.sqrt(2)])
+
+    plate = _box((10, 10, 5))
+    near = printability_report(_stl(tmp_path, trimesh.util.concatenate([plate, body(5.4)])))
+    assert near["in_the_air"] == []  # 0.4 mm over the plate: it droops into the clearance
+    far = printability_report(_stl(tmp_path, trimesh.util.concatenate([plate, body(6.5)])))
+    (hung,) = far["in_the_air"]
+    assert hung["z"] == 6.5 and hung["volume_mm3"] == pytest.approx(1000, rel=1e-3)
+    assert all(z["bridge"] is None for z in far["zones"])  # none steep enough to be a bridge
+    assert printability_report(_stl(tmp_path, plate))["in_the_air"] == []
 
 
 def test_printability_45_degree_chamfer_is_not_an_overhang(tmp_path):

@@ -36,12 +36,16 @@ The assembly (`part = "assembly"`) declares instead, in assembly coordinates
                         [["insert"], [0, 0, -1]],
                         [["lid"], [0, 0, 1], ["rotate", [x, y, z], [ax, ay, az], 90]]]],
     ["print_in_place", 0.3],
+    ["print_pose", [["hinge", 180]]],
     ["overhangs_allowed", [["pin underside", [[x, y, z], [x, y, z]]]]]
 
 A motion's `flex` lets two instances overlap while it moves, up to that many mm deep: an elastic
 feature (a detent, a snap) that deflects and springs back. `print_in_place` says the assembly is
-printed as it stands, every part at once, with that clearance or more between any two of them;
-only then does the assembly have `overhangs_allowed`, for the print of the whole.
+printed whole, every part at once, with that clearance or more between any two of them; only
+then does the assembly have `overhangs_allowed`, for the print of the whole. It prints as it
+stands, or in its `print_pose`: motions at a value of their range, applied in order (a box
+printed open, its lid's hinge at 180). The assembly's `overhangs_allowed` are in the coordinates
+of the pose it prints in.
 
 The assembly's own `bounds` (optional) and `support_faces` are measured on its instances
 together. Bodies, through holes, copies and details belong to each part, and so do overhangs
@@ -75,6 +79,7 @@ ASSEMBLY_KEYS = {
     "motions",
     "assembly_order",
     "print_in_place",
+    "print_pose",
     "overhangs_allowed",
 }
 MOTIONS = ("rotate", "slide")
@@ -262,9 +267,9 @@ def _assembly_keys(pairs: dict[str, Any]) -> dict[str, Any]:
     steps = []
     for item in _list(pairs.get("assembly_order", []), "assembly_order"):
         usage = (
-            'assembly_order: each step is [["instance", ...], direction it comes in from] or, if '
-            'it turns after it comes in, [["instance", ...], direction, ["rotate", point, axis, '
-            "degrees]]"
+            'assembly_order: each step is [["instance", ...], direction it moves along as it '
+            'comes in] or, if it turns after it comes in, [["instance", ...], direction, '
+            '["rotate", point, axis, degrees]]'
         )
         if not (isinstance(item, list) and len(item) in (2, 3)):
             raise SpecError(f"{usage}; got {item!r}")
@@ -291,12 +296,43 @@ def _assembly_keys(pairs: dict[str, Any]) -> dict[str, Any]:
                 f"from {lo} to {hi} mm (closer, they fuse); got {in_place!r}"
             )
         in_place = {"min_gap_mm": float(in_place)}
+    pose = _print_pose(pairs.get("print_pose", []), motions)
+    if pose and in_place is None:
+        raise SpecError(
+            "print_pose is the pose an assembly printed in place prints in: it needs print_in_place"
+        )
     return {
         "allowed_interferences": allowed,
         "motions": motions,
         "assembly_order": steps,
         "print_in_place": in_place,
+        "print_pose": pose,
     }
+
+
+def _print_pose(value: Any, motions: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The motions that take the assembly to the pose it prints in, each at a value."""
+    by_name = {m["name"]: m for m in motions}
+    out = []
+    for item in _list(value, "print_pose"):
+        if not (isinstance(item, list) and len(item) == 2 and isinstance(item[0], str)):
+            raise SpecError(
+                'print_pose: each entry is ["motion", value], a motion of the assembly at a '
+                f"value of its range; got {item!r}"
+            )
+        motion = by_name.get(item[0])
+        if motion is None:
+            raise SpecError(
+                f"print_pose: there is no motion {item[0]!r}; motions: {sorted(by_name)}"
+            )
+        lo, hi = min(0.0, motion["range"][0]), max(0.0, motion["range"][1])
+        if not (_number(item[1]) and lo <= item[1] <= hi):
+            raise SpecError(
+                f"print_pose {item[0]!r}: the value is a number in the motion's range "
+                f"[{lo:g}, {hi:g}]; got {item[1]!r}"
+            )
+        out.append({"motion": item[0], "value": float(item[1])})
+    return out
 
 
 def _flex(value: Any, where: str) -> list[dict[str, Any]]:

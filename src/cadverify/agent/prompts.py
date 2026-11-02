@@ -36,7 +36,11 @@ The direction is the part's outward normal: +x, -x, +y, -y, +z or -z. The check 
 sticks out beyond that face and that the face has at least the given area.
 - overhangs_allowed: zones where you accept overhangs of more than 45°, with the reason. Each \
 box goes around the overhang it justifies: together they cannot cover more than half of the \
-part's surface.
+part's surface. The part of an overhang steeper than 60° (a ceiling, the underside of a ledge, \
+the bottom of a round pin) rests on almost nothing of the layer under it and prints as a bridge, \
+in the air from the material under its lowest edge: no point of it, seen from above, can be more \
+than 5 mm from that material, so a bridge spans 10 mm at most. Declaring a longer one does not \
+make it printable.
 - copies: how many of this part one unit of the product takes (1 by default).
 - details: every feature the request or your design announces (a rib, a flared mouth, an entry \
 chamfer, a slot, a wall, a relief), with how it is measured on the mesh:
@@ -94,11 +98,13 @@ echo(cadverify_spec = [
         [["instance", ...], [dx, dy, dz], ["rotate", [x, y, z], [ax, ay, az], degrees]]
     ]],
     ["print_in_place", clearance_mm],
+    ["print_pose", [["motion name", value]]],
     ["overhangs_allowed", [["reason", [[xmin, ymin, zmin], [xmax, ymax, zmax]]]]]
 ]);
   - bounds and support_faces of the assembled product (optional), measured on all the instances.
   - allowed_interferences: press fits up to 0.3 mm thick. Any other overlap between instances \
-is an error.
+is an error. A press fit is still swept: along a motion it may stay pressed no thicker than a \
+fit, and on its way in a part may push only into the overlap it has in place.
   - motions: what moves in use (a hinge, a link, a lid), from the pose of the assembly (0) \
 through its whole range, in degrees or in mm. It is swept looking for collisions, with rigid \
 parts. An elastic feature that bends while it moves (a detent bump, a snap) goes in the \
@@ -106,10 +112,15 @@ motion's flex: the instance that moves, the one it presses on and how deep they 
 up to 1 mm. The harness measures how deep they go, and they have to be free at both ends of \
 the range: a flex springs back.
   - print_in_place: only if the product is printed already assembled, all its parts in one \
-print as the assembly places them (+z up, the lowest faces on the bed): the smallest clearance \
-between any two parts, from 0.2 to 1 mm. The harness checks the overhangs of all the parts \
-together, with the assembly's own overhangs_allowed (only then does the assembly have them), \
-the bed, and the clearances.
+print (+z up, the lowest faces on the bed): the smallest clearance between any two parts, from \
+0.2 to 1 mm. The harness checks the overhangs and bridges of all the parts together, with the \
+assembly's own overhangs_allowed (only then does the assembly have them), the bed, the \
+clearances, and that every part rests on the bed or starts over another part, 1 mm under it at \
+most: a part that hangs (a lid standing on its hinge) starts printing in the air.
+  - print_pose: with print_in_place, the pose it prints in, if not the one the assembly shows: \
+motions at a value of their range, applied in order (a box printed open: its lid's hinge at \
+180). The clearances and the print are checked in that pose, and the assembly's \
+overhangs_allowed are in its coordinates.
   - assembly_order: the order it is put together in, with every instance once. Each step comes \
 in from far away moving along its direction (the first one does not need it) and, if it says \
 "rotate", then turns those degrees to land in its place, without passing through what is \
@@ -186,8 +197,10 @@ declares them.
 - G4: every motion runs its whole range without colliding (a declared flex no deeper than \
 declared, and free at the ends), and the assembly can be put together in its order.
 - G5: overhangs of more than 45° only inside overhangs_allowed zones, which cover at most half \
-of the part's surface, and the part fits the bed (Bambu Lab A1, 256 × 256 × 256 mm). With \
-print_in_place, also all the parts together as they print, and the clearances between them.
+of the part's surface, the part of each steeper than 60° a bridge of 10 mm at most, no body \
+that starts in the air (each one rests on the bed or starts 1 mm or less over another), and the \
+part fits the bed (Bambu Lab A1, 256 × 256 × 256 mm). With print_in_place, also all the parts \
+together as they print (in the print_pose, if there is one), and the clearances between them.
 - G7: the spec exists and the mesh meets it, details included; and you saw, of the final \
 version, the sheet of each part (the one scad_export brings, or render_sheet), one render_view \
 with all the instances of the assembly together (the STLs interference_check leaves) and each \

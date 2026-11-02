@@ -80,10 +80,15 @@ def test_the_protrusion_cannot_close(tmp_path):
     assert session["status"] == "request limit reached"
     last = session["iterations"][-1]
     assert last["close"] == "rejected"
-    assert last["gates"] == _gates(red=("G7",)), last["gate_detail"]
+    assert last["gates"] == _gates(red=("G5", "G7")), last["gate_detail"]
     detail = last["gate_detail"]["G7"]["detail"]
     assert "bounds off the spec: min x: measured -2.000" in detail[0]
     assert any("material sticks out 2.0 mm" in d for d in detail)
+    # Printed on its side, the gusset's floor is a 70 mm triangle in the air, held by the two
+    # flanges only: declared, it still cannot bridge.
+    (bridge,) = last["gate_detail"]["G5"]["detail"]
+    assert bridge.startswith("default output: declared overhang 'rib floor': the flat ceiling")
+    assert "a point 34.75 mm from any material under it" in bridge
 
 
 def test_an_openscad_warning_cannot_close(tmp_path):

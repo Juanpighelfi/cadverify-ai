@@ -9,7 +9,7 @@ a gate is red.
 ```mermaid
 flowchart TD
     request["request.md"] --> loop["orchestrator<br/>(host, agent/loop.py)"]
-    loop <-->|"Responses API, streamed:<br/>tool calls, images, reasoning"| api["Meta Model API<br/>muse-wonder-1.0<br/>muse-spark-1.3"]
+    loop <-->|"Responses API, streamed:<br/>tool calls, images, reasoning"| api["Meta Model API<br/>Muse Wonder<br/>Muse Spark"]
     loop -->|"docker exec cadcheck"| session["session sandbox<br/>no network<br/>/work in memory<br/>runs the model's code"]
     session -->|"JSON + images"| loop
     session -->|".scad files only"| verify["verification container<br/>new per source version"]
@@ -62,7 +62,7 @@ Twelve tools, all executed by `cadcheck` inside the sandbox (`cadverify.agent.to
 | `mesh_report` | watertightness, bad edges and where they are, volume, bounds, bodies |
 | `render_sheet` | an orthographic multi-view sheet from our own OpenGL renderer (moderngl on EGL) |
 | `render_view` | a view on demand: free camera, zoom, plane cuts with the profile in mm, several parts, highlights (overhangs, support faces, holes, details) |
-| `printability_report` | overhangs above 45° by zone in the print orientation, and bed fit (Bambu Lab A1, 256 mm cube) |
+| `printability_report` | overhangs above 45° by zone in the print orientation, the part of each zone steeper than 60° as a bridge, the bodies that start in the air, and bed fit (Bambu Lab A1, 256 mm cube) |
 | `interference_check` | the assembly measured exactly as gates G3 and G4 measure it |
 | `run_shell`, `run_python` | the model's own code in `/work`, with a timeout, output truncation and every process killed after the call |
 | `view_image` | an image the model made itself (a plot, a custom render) |
@@ -112,8 +112,13 @@ module instance(name, part, unit = 1) {
 
 Its spec declares `allowed_interferences` (press fits, up to 0.3 mm thick), `motions` (a
 `rotate` or `slide` swept through its range) and `assembly_order` (each step arrives from far
-away along a direction, and may turn, without crossing what is already placed). Two more keys
-cover what a rigid sweep and a part-by-part print check cannot:
+away along a direction, and may turn, without crossing what is already placed). A press fit is
+swept like any other pair, as a fit: along a motion its parts may stay pressed no thicker than
+0.3 mm, and on the way in, in each column along the direction, the first of the other part a
+part meets must be their overlap in place. The last hinge box of the bridge runs closed green
+when G4 still left press-fit pairs out of its sweeps: its catch was declared a press fit, and its
+lid came in moving up, through the floor of the box. Two more keys cover what a rigid sweep and
+a part-by-part print check cannot:
 
 - a motion's `flex` names a pair of instances that may overlap while it moves, and how deep (up
   to 1 mm): an elastic detent or snap that bends and springs back. The harness measures the
@@ -121,15 +126,50 @@ cover what a rigid sweep and a part-by-part print check cannot:
   sampled and refined until it is known to stay under the declared value (within 0.05 mm) or
   to pass it, and refuses any overlap at either end of the range;
 - `print_in_place` says the product is printed already assembled, with the smallest clearance
-  between any two parts (0.2 to 1 mm). G5 then also checks every printed part together, in the
-  assembly pose, against the assembly's own `overhangs_allowed`, and every two of them at least
-  that far apart.
+  between any two parts (0.2 to 1 mm). G5 then also checks every printed part together against
+  the assembly's own `overhangs_allowed`, and every two of them at least that far apart. They
+  print as the assembly places them or in its `print_pose`: declared motions at a value of their
+  range (a box printed open, its lid's hinge at 180°), with the clearances measured again in
+  that pose.
 
 ```openscad
 ["motions", [["lock", ["lid"], "rotate", [0, 0, 0], [0, 0, 1], [-90, 0],
               ["flex", [["lid", "jar", 0.5, "the detent bump rides over the ramp"]]]]]],
-["print_in_place", 0.3]
+["print_in_place", 0.3],
+["print_pose", [["hinge", 180]]]
 ```
+
+### Bridges
+
+A declared overhang is accepted with its reason, but the part of it steeper than 60° from
+vertical rests on little of the layer under it, and the A1's slicer supports it by default
+(Bambu Studio's threshold angle, 30° to the horizontal,
+[Bambu Lab wiki](https://wiki.bambulab.com/en/software/bambu-studio/support)). Without support
+it prints as a bridge: in the air from the material under its lowest edge. G5 measures each
+connected steep piece, a flat ceiling or a slope, against that material, the mesh's sections
+from half a layer (0.1 mm) to 1 mm under its lowest point, which holds it through such a gap
+the way a support does: the farthest any point of the piece is from that material, seen from
+above. A bridge laid in any direction has to reach that point from both sides, so it spans at
+least twice that distance, and G5 refuses more than 10 mm, the longest unsupported bridge in a
+quick FDM design guide ([Xometry](https://xometry.pro/en/?p=154421); Protolabs Network gives
+about 5 mm without sagging,
+[Hubs](https://hubs.com/knowledge-base/how-design-parts-fdm-3d-printing)). A piece with no point
+within 0.5 mm of that material starts from nothing and is refused too. The measure is a lower
+bound: it does not tell a piece held on one side (a cantilever) from one held on two, and
+strips narrower than 0.8 mm are not judged. The top of a round hole passes up to about 20 mm
+across, held by the sides of the hole; a lid printed closed over its box does not, its ceiling
+held only at the rim.
+
+A body that does not rest on the bed starts printing at its lowest layers, whatever the angle
+of its faces. G5 refuses one with nothing under its lowest two layers within 1 mm, the largest
+print-in-place clearance: a pin 0.4 mm over the bottom of its bore droops into the clearance
+and passes; a lid printed standing, hung from its hinge, starts in the air and does not. The
+first Spark box on the bridge check closed green that way, and this check came from it. A later
+one stood its lid up again, on a hinge held by a post from the bed, and declared the lid's lower
+edge, 80° from vertical and 10 mm out from the hinge, an allowed overhang: G5 then measured
+only flat ceilings as bridges, and measures every face steeper than 60° since. On that, the
+boxes that printed open fail too: the underside of each hinge knuckle starts in the air, an
+island beside the wall that holds it.
 
 ## Gates
 
@@ -141,8 +181,8 @@ tool results (`agent/gates.py`):
 | G1 | the source compiles and every part exports with no errors, failed asserts or warnings |
 | G2 | every part is a closed mesh with the declared number of bodies |
 | G3 | the assembly: each instance is its part moved (same volume, area and principal moments), every part present as many times as its `copies`, no overlaps beyond the allowed ones, one connected group, and the units the request chains |
-| G4 | every declared motion and the assembly order run without collisions; a declared flex no deeper than declared and free at both ends of its range |
-| G5 | overhangs only inside the allowed boxes (at most half of a part's surface), and every part fits the bed; with `print_in_place`, the same on all the parts together as they print, and the declared clearance between any two |
+| G4 | every declared motion and the assembly order run without collisions (a press fit only as a fit); a declared flex no deeper than declared and free at both ends of its range |
+| G5 | overhangs only inside the allowed boxes (at most half of a part's surface), the part of each steeper than 60° a bridge of 10 mm at most, no body that starts in the air, and every part fits the bed; with `print_in_place`, the same on all the parts together as they print (as placed, or in the `print_pose`), and the declared clearance between any two |
 | G7 | the spec holds, details included, and the model saw the final version: the sheet of every part, a view of the whole assembly, a close view of every `view` detail |
 | G8 | the close: every `[[name]]` it cites is something the harness verified green, and an auditor (`muse-wonder-1.0` without tools, whatever model designed) finds no claim presented as verified that nothing backs, and no untold spec adjustment |
 

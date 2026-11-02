@@ -181,6 +181,22 @@ def test_a_motion_may_flex_and_an_assembly_may_print_in_place():
         parse_spec('[["overhangs_allowed", [["a", [[0, 0, 0], [1, 1, 1]]]]]]', assembly=True)
 
 
+def test_an_assembly_printed_in_place_may_print_in_another_pose():
+    hinge = '["hinge", ["lid"], "rotate", [0, 30, 10], [1, 0, 0], [0, 180]]'
+    spec = f'[["motions", [{hinge}]], ["print_in_place", 0.3], ["print_pose", [["hinge", 180]]]]'
+    assert parse_spec(spec, assembly=True)["print_pose"] == [{"motion": "hinge", "value": 180.0}]
+    assert parse_spec(f'[["motions", [{hinge}]]]', assembly=True)["print_pose"] == []
+    for pose, message in [
+        ('[["hinge", 200]]', r"in the motion's range \[0, 180\]; got 200"),
+        ('[["drawer", 10]]', "there is no motion 'drawer'"),
+        ('[["hinge"]]', r'each entry is \["motion", value\]'),
+    ]:
+        with pytest.raises(SpecError, match=message):
+            parse_spec(spec.replace('[["hinge", 180]]', pose), assembly=True)
+    with pytest.raises(SpecError, match="print_pose .* needs print_in_place"):
+        parse_spec(f'[["motions", [{hinge}]], ["print_pose", [["hinge", 90]]]]', assembly=True)
+
+
 def test_allowed_coverage_is_the_share_of_the_surface_in_the_boxes():
     box = trimesh.creation.box((10, 10, 10))
     box.apply_translation((5, 5, 5))
@@ -207,7 +223,9 @@ entry = [0, 0, -1];
 turn_axis = [0, 0, 1];
 hole = 8.4;
 in_place = 0;
+print_pose = false;
 head_allowed = false;
+press = false;
 no_pin = false;
 loose = false;
 two_units = false;
@@ -239,8 +257,10 @@ if (part == "assembly") {
         ["assembly_order", concat([[["base1"], [0, 0, 0]], [["pin1"], entry]],
             two_units ? [[["base2"], [-1, 0, 0]], [["pin2"], [0, 0, -1]]] : [])],
         each (in_place > 0 ? [["print_in_place", in_place]] : []),
+        each (print_pose ? [["print_pose", [["pin turn", 90]]]] : []),
         each (head_allowed ? [["overhangs_allowed", [["pin head", [[14, 14, 13.5],
-            [26, 26, 14.5]]]]]] : [])
+            [26, 26, 14.5]]]]]] : []),
+        each (press ? [["allowed_interferences", [["base1", "pin1", "press fit"]]]] : [])
     ]);
 } else if (part == "base") {
     base();
@@ -369,6 +389,23 @@ def test_a_motion_that_collides_and_an_entry_that_is_blocked(tmp_path):
 
 
 @in_sandbox
+def test_a_press_fit_is_swept_and_pushed_in_as_a_fit(tmp_path):
+    # The pin 0.1 mm into the wall of its hole, declared as a press fit.
+    fit = _report(tmp_path / "a", pin_diameter=8.6, press=True)
+    assert fit["ok"], fit["problems"]
+    assert [p.get("permitted") for p in fit["pairs"]] == ["press fit"]
+    # Turning in its hole stays a fit all the way round; swinging out through the base does not.
+    swing = _report(tmp_path / "b", pin_diameter=8.6, press=True, turn_axis="[1, 0, 0]")
+    (problem,) = swing["problems"]["G4"]
+    assert problem.startswith("motion pin turn: collides between") and "pin1 with base1" in problem
+    # Pushed in from above it goes in; from below, its head would cross the base.
+    below = _report(tmp_path / "c", pin_diameter=8.6, press=True, entry="[0, 0, 1]")
+    (problem,) = below["problems"]["G4"]
+    assert "does not go in moving along [0, 0, 1]: it hits base1" in problem
+    assert "it would go in along -z" in problem
+
+
+@in_sandbox
 def test_a_closed_ring_does_not_go_into_another(tmp_path):
     report = _report(tmp_path, source=RINGS)
     (problem,) = report["problems"]["G4"]
@@ -435,3 +472,56 @@ def test_an_assembly_printed_in_place(tmp_path):
     assert declared["print_in_place"]["printability"]["zones"][0]["declared_as"] == "pin head"
     (tight,) = _report(tmp_path / "c", in_place=0.3)["problems"]["G5"]
     assert "base1 and pin1 are 0.2 mm apart: printed in place they fuse" in tight
+    # Turned 90° about its own axis, the pin prints the same: the pose is measured again.
+    posed = _report(tmp_path / "d", hole=8.8, in_place=0.3, print_pose=True, head_allowed=True)
+    assert posed["problems"]["G5"] == [], posed["problems"]
+    assert posed["print_in_place"]["pose"] == [{"motion": "pin turn", "value": 90.0}]
+    assert [g["gap_mm"] for g in posed["print_in_place"]["gaps"]] == [pytest.approx(0.39, abs=0.01)]
+    assert Path(posed["print_in_place"]["stl"]).exists()
+
+
+def test_a_box_prints_in_place_open_where_closed_its_lid_would_bridge(tmp_path):
+    from cadverify.agent.gates import print_in_place_problems
+    from cadverify.cadcheck.assembly import _pairs, _print_in_place
+
+    # A tray 40 × 30 × 20 with 2 mm walls, and its lid 0.3 mm above it, hinged at the back on an
+    # axis at half the closed height: turned 180°, the lid lies on the bed behind the tray.
+    tray = manifold3d.Manifold.cube((40, 30, 20)) - manifold3d.Manifold.cube(
+        (36, 26, 20)
+    ).translate((2, 2, 2))
+    lid = manifold3d.Manifold.cube((40, 30, 2)).translate((0, 0, 20.3))
+    instances = [
+        {"name": n, "part": n, "unit": 1, "_mesh": _mesh(s), "_solid": s}
+        for n, s in (("tray", tray), ("lid", lid))
+    ]
+    hinge = {"name": "hinge", "instances": ["lid"], "kind": "rotate", "range": [0, 180]}
+    hinge.update(point=[0, 30.15, 11.15], axis=[1, 0, 0])
+    spec = {"print_in_place": {"min_gap_mm": 0.3}, "motions": [hinge], "overhangs_allowed": []}
+    spec["print_pose"] = []
+
+    def judged(spec, out):
+        out.mkdir()
+        g5: list[str] = []
+        report = _print_in_place(instances, spec, _pairs(instances, {}, out, []), {}, out, g5)
+        return report, print_in_place_problems({"print_in_place": report, "problems": {"G5": g5}})
+
+    # Closed, the rim holds the edge of the lid's ceiling 0.3 mm under it, and the middle of the
+    # ceiling is 13 mm from the rim: a bridge of 26 mm.
+    closed, problems = judged(spec, tmp_path / "closed")
+    (problem,) = problems
+    assert problem.startswith("assembly as printed in place: undeclared 90.0° overhang")
+    assert (
+        "has a point 13.0 mm from any material under it: a bridge that reaches it spans " in problem
+    )
+    assert problem.endswith(
+        "26.0 mm or more, and a bridge prints clean up to 10 mm: hold it from "
+        "below, narrow it, or print it in another pose: declaring it is not enough"
+    )
+    open_, problems = judged(
+        dict(spec, print_pose=[{"motion": "hinge", "value": 180}]), tmp_path / "o"
+    )
+    assert problems == [] and open_["pose"] == [{"motion": "hinge", "value": 180}]
+    assert open_["gaps"] == [{"a": "tray", "b": "lid", "gap_mm": 0.3, "ok": True}]
+    assert open_["printability"]["zones_total"] == 0
+    assert open_["printability"]["size"] == [40.0, 60.3, 20.0]
+    assert Path(open_["stl"]).exists()

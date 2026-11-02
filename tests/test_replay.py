@@ -95,6 +95,24 @@ def test_the_gate_grid_has_one_cell_per_gate_and_iteration(tmp_path):
     assert len(cells) == len(GATES) * 3
     g8 = [state for state, _ in cells[(len(GATES) - 1) * 3 :]]
     assert g8 == ["pend", "red", "ok"]
+    assert "nothing verified" not in page
+
+
+def test_an_iteration_cut_short_shows_an_empty_cell_for_every_gate(tmp_path):
+    run = _run(tmp_path)
+    session = json.loads((run / "session.json").read_text())
+    cut = {"iteration": 2, "request": _request(), "text": "", "tool_calls": [], "images": []}
+    session["iterations"].insert(1, {**cut, "incomplete": {"reason": "max_output_tokens"}})
+    for n, it in enumerate(session["iterations"], 1):
+        it["iteration"] = n
+    (run / "session.json").write_text(json.dumps(session))
+    page = replay.html_page(run)
+    cells = re.findall(r'<a class="(ok|red|pend|none)" href="#it-(\d)"', page)
+    assert len(cells) == len(GATES) * 4
+    assert [n for state, n in cells if state == "none"] == ["2"] * len(GATES)
+    assert 'title="iteration 2: nothing verified, the response was cut short"' in page
+    assert "nothing verified: response cut short or failed." in page
+    assert "response cut short (max_output_tokens)" in page
 
 
 def test_everything_the_model_wrote_is_escaped(tmp_path):

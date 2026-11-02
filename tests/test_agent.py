@@ -149,6 +149,51 @@ def test_g5_undeclared_overhang_and_bed():
     assert len(detail["G5"]["detail"]) == 2 and not detail["G5"]["ok"]
 
 
+def test_g5_judges_the_steep_part_of_each_zone_as_a_bridge():
+    ceiling = {"z": 20.3, "z_top": 20.3, "flat": True, "area_mm2": 1200.0, "floating": False}
+    ceiling["bounds_xy"] = [[0, 0], [40, 30]]
+    zone = {"declared": True, "declared_as": "lid ceiling", "max_angle_deg": 90.0}
+    zone.update(area_mm2=1200.0, bounds=[])
+
+    def g5(*zones):
+        report = {"ok": True, "fits_bed": True, "max_bridge_mm": 10.0, "zones": list(zones)}
+        report["bridge_deg"] = 60.0
+        report["zones_undeclared"] = sum(not z["declared"] for z in zones)
+        return gates.print_problems(report)
+
+    long = dict(ceiling, farthest_mm=13.0, bridge_mm=26.0)
+    (problem,) = g5(dict(zone, bridge=long))
+    assert problem.startswith("declared overhang 'lid ceiling': the flat ceiling at z 20.3")
+    assert "a point 13.0 mm from any material under it" in problem
+    assert "spans 26.0 mm or more, and a bridge prints clean up to 10 mm" in problem
+    assert g5(dict(zone, bridge=dict(ceiling, farthest_mm=4.0, bridge_mm=8.0))) == []
+    assert g5(dict(zone, bridge=None)) == []
+    air = dict(ceiling, floating=True, farthest_mm=None, bridge_mm=None)
+    assert g5(dict(zone, bridge=air))[0].endswith(
+        "no material under it to start from: it prints in the air"
+    )
+    (undeclared,) = g5(dict(zone, declared=False, declared_as=None, bridge=long))
+    assert undeclared.startswith("undeclared 90.0° overhang")
+    assert undeclared.endswith("in another pose: declaring it is not enough")
+    # A lid printed standing: its lower edge slopes 80° from vertical, 10 mm out from its hinge.
+    edge = dict(long, z=33.81, z_top=35.55, flat=False, farthest_mm=10.17, bridge_mm=20.3)
+    (sloped,) = g5(dict(zone, declared_as="lid_open", max_angle_deg=80.0, bridge=edge))
+    assert sloped.startswith(
+        "declared overhang 'lid_open': its part steeper than 60° from z 33.81 to 35.55 (1200.0 mm²"
+        ", [[0, 0], [40, 30]] seen from above) has a point 10.17 mm from any material under its "
+        "lowest edge: a bridge that reaches it spans 20.3 mm or more"
+    )
+
+
+def test_g5_refuses_a_body_that_starts_in_the_air():
+    hung = {"z": 27.0, "bounds": [[-40, -54.4, 27], [40, -30.5, 92.5]], "volume_mm3": 30753.0}
+    report = {"ok": True, "fits_bed": True, "zones": [], "zones_undeclared": 0}
+    (problem,) = gates.print_problems(dict(report, in_the_air=[hung]))
+    assert problem.startswith("a body (30753.0 mm³, bounds [[-40, -54.4, 27], [40, -30.5, 92.5]])")
+    assert "starts in the air at z 27.0: nothing under its lowest layers within 1 mm" in problem
+    assert gates.print_problems(report) == []
+
+
 def test_g5_caps_the_allowed_boxes():
     printability = {
         "ok": True,

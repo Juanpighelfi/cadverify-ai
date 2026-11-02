@@ -360,6 +360,28 @@ def test_assembly_adjustments_a_collision_declared_as_flex_and_a_clearance_moved
     )
     assert raised["item"] == "motion m flex lid / base" and raised["measured"] == 0.42
 
+    # Stuck at an end of the range, then free there after a change of geometry: the flex and its
+    # depth did not move, so nothing declared did (a session was told "from 0.7 to 0.7").
+    stuck = dict(flex, ok=False)
+    instances = assembly_report()["instances"]
+    history.observe_assembly(
+        assembly_report(motions=[{"name": "n", "range": [0, 9], "ok": False, "flex": [stuck]}])
+    )
+    moved = [dict(i, sha256=f"other {i['name']}") for i in instances]
+    freed = {"name": "n", "range": [0, 9], "ok": True, "flex": [flex]}
+    assert history.observe_assembly(assembly_report(motions=[freed], instances=moved)) == []
+    # With the parts unchanged, a shorter range is what freed it, and the note says so.
+    history.observe_assembly(
+        assembly_report(motions=[{"name": "s", "range": [0, 9], "ok": False, "flex": [stuck]}])
+    )
+    (shorter,) = history.observe_assembly(
+        assembly_report(motions=[{"name": "s", "range": [0, 8], "ok": True, "flex": [flex]}])
+    )
+    assert shorter["text"] == (
+        "motion s flex lid / base from range [0, 9] to range [0, 8], the mesh measures 0.42 "
+        "(the mesh is the same)"
+    )
+
 
 # ---- the close ----------------------------------------------------------------------------
 

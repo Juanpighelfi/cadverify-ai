@@ -282,7 +282,12 @@ def _assembly_items(report: dict[str, Any]) -> dict[str, dict[str, Any]]:
     for motion in report.get("motions") or []:
         for flex in motion.get("flex") or []:
             items[f"motion {motion['name']} flex {flex['a']} / {flex['b']}"] = _item(
-                flex["max_mm"], flex["depth_mm"], flex["ok"], "mm", flex.get("at")
+                flex["max_mm"],
+                flex["depth_mm"],
+                flex["ok"],
+                "mm",
+                flex.get("at"),
+                {"range": motion.get("range")},  # a flex also passes by leaving its range ends
             )
     in_place = report.get("print_in_place") or {}
     for gap in in_place.get("gaps") or []:
@@ -314,12 +319,17 @@ def _compare(previous: dict, current: dict, same_mesh: bool) -> list[dict[str, A
             continue
         if key.startswith("bounds") and abs(old["spec"] - old["measured"]) <= BOUNDS_FLAG_MM:
             continue
+        declared = old["spec"] != new["spec"] or _moved(old["decl"], new["decl"])
         if same_mesh:
             why = "the mesh is the same"
-        elif new["where"] == old["where"] and _same(old["measured"], new["measured"], old["kind"]):
+        elif (
+            declared
+            and new["where"] == old["where"]
+            and _same(old["measured"], new["measured"], old["kind"])
+        ):
             why = "what was measured did not change"
         else:
-            continue
+            continue  # nothing it declares moved: what changed is elsewhere in the geometry
         before, after = old["spec"], new["spec"]
         if before == after and (moved := _moved(old["decl"], new["decl"])):
             before = "; ".join(f"{field} {a}" for field, (a, _) in moved.items())

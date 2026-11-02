@@ -8,9 +8,11 @@ model has seen.
 - G3, the assembly: every part where the assembly places it, all of them, no overlaps, one
   group, the units the request chains (cadcheck.assembly);
 - G4, motion: the declared motions and the assembly order, without collisions;
-- G5, overhangs only inside the allowed boxes, which cover at most half of a part's surface, and
-  every part fits the bed; for an assembly printed in place, the same on all its parts together
-  as they stand, and the clearance it declares between any two (cadcheck.assembly);
+- G5, overhangs only inside the allowed boxes, which cover at most half of a part's surface, the
+  part of each overhang steeper than 60° a bridge of 10 mm at most, no body that starts in the air
+  (cadcheck.printability), and every part fits the bed; for an assembly printed in place, the
+  same on all its parts together as they print (as they stand, or in its print pose), and the
+  clearance it declares between any two (cadcheck.assembly);
 - G7, the spec, details included, and what the model saw of the final version: the sheet of
   every part, a view of the assembly with all its instances, and a close view of every "view"
   detail (cadcheck.view, details_in_view);
@@ -35,14 +37,20 @@ GREEN_MEANS = {
     "request chains (nothing to check for one part without an assembly)",
     "G4": "every declared motion swept through its whole range, and every assembly_order step "
     "brought in from far away along its direction (turning, when it turns), without a collision "
-    "with what is already placed. The parts are swept as rigid bodies; a pair a motion declares "
-    "as flex may overlap while it moves, no deeper than declared and never at an end of the "
-    "range: how deep is measured, not whether the feature can bend that far",
+    "with what is already placed (a press fit only as a fit: no thicker than one along a motion, "
+    "and pushed in only where it overlaps in place). The parts are swept as rigid bodies; a pair "
+    "a motion declares as flex may overlap while it moves, no deeper than declared and never at "
+    "an end of the range: how deep is measured, not whether the feature can bend that far",
     "G5": "each part alone, in the orientation it is exported in: no overhang steeper than 45° "
     "outside its declared overhangs_allowed boxes (which cover at most half of its surface), "
-    "and it fits the bed (Bambu Lab A1, 256 mm cube). Only an assembly that declares "
-    "print_in_place is checked as printed whole: the same checks on all its parts together as "
-    "they stand, and every two of them at least the declared clearance apart",
+    "the part of every overhang steeper than 60° (where the A1's slicer adds supports by "
+    "default) a bridge of 10 mm at most (no point of it more than 5 mm, seen from above, from "
+    "the material under its lowest edge), every body resting on the bed or starting 1 mm or "
+    "less over another, and it fits the bed (Bambu Lab A1, 256 mm cube). Only an "
+    "assembly that declares print_in_place is checked as printed whole: the same checks on all "
+    "its parts together as they print (as they stand, or in the declared print_pose), and "
+    "every two of them at least the declared clearance apart in that pose. Whether a bridge "
+    "sags, or how the print looks, is not measured",
     "G7": "every spec check holds (bounds, bodies, through holes, support faces, details), and "
     "the designer saw the final version: the multi-view sheet of every part, all the "
     "instances of the assembly together in one view, and a close view of every detail of kind "
@@ -203,7 +211,8 @@ def mesh_problems(mesh: dict[str, Any], spec: dict[str, Any] | None) -> list[str
 
 def print_problems(report: dict[str, Any] | None) -> list[str]:
     """G5: overhangs only inside declared zones, whose boxes cover at most half of the part's
-    surface, and the part fits the bed."""
+    surface, the steep part of each zone a bridge no longer than the report's limit, no body
+    that starts in the air, and the part fits the bed."""
     if not report or not report.get("ok"):
         return ["no printability_report"]
     problems = []
@@ -220,15 +229,54 @@ def print_problems(report: dict[str, Any] | None) -> list[str]:
     if not report["fits_bed"]:
         problems.append(f"does not fit the bed {report['bed_mm']}: it measures {report['size']}")
     for zone in report["zones"]:
+        span = bridge_problem(
+            zone.get("bridge"), report.get("max_bridge_mm"), report.get("bridge_deg")
+        )
         if not zone["declared"]:
             problems.append(
                 f"undeclared {zone['max_angle_deg']}° overhang ({zone['area_mm2']} mm², "
                 f"bounds {zone['bounds']})"
+                + (f"; {span}: declaring it is not enough" if span else "")
             )
+        elif span:
+            problems.append(f"declared overhang {zone['declared_as']!r}: {span}")
+    for body in report.get("in_the_air") or []:
+        problems.append(
+            f"a body ({body['volume_mm3']} mm³, bounds {body['bounds']}) starts in the air at z "
+            f"{body['z']}: nothing under its lowest layers within 1 mm, so its first layers print "
+            "on nothing. It has to rest on the bed or start over another part"
+        )
     hidden = report["zones_undeclared"] - sum(not z["declared"] for z in report["zones"])
     if hidden > 0:
         problems.append(f"and {hidden} more undeclared overhang zones")
     return problems
+
+
+def bridge_problem(
+    bridge: dict[str, Any] | None, limit: float | None, steep: float | None = None
+) -> str | None:
+    """Why the steep part of an overhang zone (steeper than `steep` degrees, or flat) does not
+    print as a bridge, or None."""
+    if not bridge or limit is None:
+        return None
+    seen = f"{bridge['area_mm2']} mm², {bridge['bounds_xy']}"
+    if bridge.get("flat", True):
+        where, under = f"the flat ceiling at z {bridge['z']} ({seen})", "under it"
+    else:
+        where = (
+            f"its part steeper than {steep or 60:g}° from z {bridge['z']} to {bridge['z_top']} "
+            f"({seen} seen from above)"
+        )
+        under = "under its lowest edge"
+    if bridge["floating"]:
+        return f"{where} has no material {under} to start from: it prints in the air"
+    if bridge["bridge_mm"] <= limit:
+        return None
+    return (
+        f"{where} has a point {bridge['farthest_mm']} mm from any material {under}: a bridge "
+        f"that reaches it spans {bridge['bridge_mm']} mm or more, and a bridge prints clean up "
+        f"to {limit:g} mm: hold it from below, narrow it, or print it in another pose"
+    )
 
 
 def spec_problems(export: dict[str, Any]) -> list[str]:

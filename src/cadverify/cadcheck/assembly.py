@@ -41,11 +41,20 @@ And G4, motion:
   direction (the farthest point of the moving parts against the nearest of the placed ones, on a
   grid of 0.05 mm or finer than 1/3000 of the size); the turn, by steps like a movement.
 
-And G5, for an assembly that declares `print_in_place` (printed as it stands, all its parts at
-once): the instances of unit 1 that are printed, together in the assembly pose (+z up, the
-lowest faces on the bed), go through the printability of a part with the assembly's
-`overhangs_allowed` (gates.print_problems judges it), and every two of them are at least the
-declared clearance apart: closer, or a press fit, and they print fused.
+A pair that presses together in place (allowed_interferences) is swept like any other, as a
+press fit: along a motion or a turn, its overlaps no thicker than a fit are not collisions, and on
+its way in, in each column along the direction, the first of the other part that a part meets
+must be their overlap in place. A lid pressed onto its box still has to come in from above, not
+through the floor.
+
+And G5, for an assembly that declares `print_in_place` (printed whole, all its parts at once):
+the instances of unit 1 that are printed, together as they print (+z up, the lowest faces on the
+bed), go through the printability of a part with the assembly's `overhangs_allowed`
+(gates.print_problems judges it), and every two of them are at least the declared clearance
+apart: closer, or a press fit, and they print fused. They print in the assembly pose, or in the
+`print_pose`: each of its motions at its value, applied in order to the instances it moves; the
+clearances are measured again in that pose, and an overlap there is a G5 problem. The parts as
+they print are left as print-in-place.stl.
 """
 
 from __future__ import annotations
@@ -165,21 +174,20 @@ def assembly_report(
     report["spec_check"] = _own_spec(good, spec, g3)
 
     names = {i["name"]: i for i in good}
-    # Pairs left out of the motion checks: the permitted press fits, and the overlaps G3
-    # already reports (they would collide at every pose and in every direction).
-    skip = {
-        frozenset((p["a"], p["b"]))
-        for p in report["pairs"]
-        if p.get("permitted") or p.get("interference")
-    }
+    # Pairs left out of the motion checks: the overlaps G3 already reports (they would collide
+    # at every pose and in every direction). The permitted press fits stay in, as press fits.
+    skip = {frozenset((p["a"], p["b"])) for p in report["pairs"] if p.get("interference")}
+    pressed = {frozenset((p["a"], p["b"])) for p in report["pairs"] if p.get("permitted")}
     motions = spec.get("motions", [])
-    report["motions"] = [_motion(m, names, skip, out_dir, g4) for m in motions]
+    report["motions"] = [_motion(m, names, skip, pressed, out_dir, g4) for m in motions]
     steps = spec.get("assembly_order", [])
     before = len(g4)
-    report["assembly_steps"] = _assembly_order(steps, instances, names, skip, out_dir, g4)
+    report["assembly_steps"] = _assembly_order(steps, instances, names, skip, pressed, out_dir, g4)
     report["assembly_order_ok"] = len(g4) == before
     if spec.get("print_in_place"):
-        report["print_in_place"] = _print_in_place(good, spec, report["pairs"], g5)
+        report["print_in_place"] = _print_in_place(
+            good, spec, report["pairs"], permitted, out_dir, g5
+        )
     return _done(report, t0)
 
 
@@ -430,12 +438,25 @@ def _own_spec(instances: list[dict], spec: dict[str, Any], problems: list[str]) 
 
 
 def _print_in_place(
-    instances: list[dict], spec: dict[str, Any], pairs: list[dict], problems: list[str]
+    instances: list[dict],
+    spec: dict[str, Any],
+    pairs: list[dict],
+    permitted: dict,
+    out_dir: Path,
+    problems: list[str],
 ) -> dict[str, Any]:
-    """G5 of an assembly printed as it stands (module docstring)."""
+    """G5 of an assembly printed whole, as it stands or in its print pose (module docstring)."""
     need = spec["print_in_place"]["min_gap_mm"]
     printed = [i for i in instances if i["part"] != EXTERNAL and i["unit"] == 1]
     names = {i["name"] for i in printed}
+    pose = spec.get("print_pose") or []
+    if pose:
+        printed = _in_print_pose(printed, pose, spec["motions"])
+        found: list[str] = []
+        posed_dir = out_dir / "print_pose"
+        posed_dir.mkdir(parents=True, exist_ok=True)
+        pairs = _pairs(printed, permitted, posed_dir, found)
+        problems += [f"in the print pose, {p}" for p in found]
     gaps = []
     for pair in pairs:
         if not {pair["a"], pair["b"]} <= names or pair.get("interference"):
@@ -456,7 +477,37 @@ def _print_in_place(
         gaps.append(row)
     whole = trimesh.util.concatenate([i["_mesh"] for i in printed]) if printed else None
     report = mesh_printability(whole, spec["overhangs_allowed"]) if whole else None
-    return {"min_gap_mm": need, "instances": sorted(names), "gaps": gaps, "printability": report}
+    stl = None
+    if whole:
+        stl = out_dir / "print-in-place.stl"
+        _write_mesh(whole, stl)
+    return {
+        "min_gap_mm": need,
+        "pose": pose,
+        "instances": sorted(names),
+        "gaps": gaps,
+        "printability": report,
+        "stl": str(stl) if stl else None,
+    }
+
+
+def _in_print_pose(printed: list[dict], pose: list[dict], motions: list[dict]) -> list[dict]:
+    """The printed instances moved by each motion of the print pose, in order."""
+    by_name = {m["name"]: m for m in motions}
+    matrix = {i["name"]: np.eye(4) for i in printed}
+    for step in pose:
+        motion = by_name[step["motion"]]
+        for name in motion["instances"]:
+            if name in matrix:
+                matrix[name] = _pose(motion, step["value"]) @ matrix[name]
+    return [
+        {
+            **i,
+            "_mesh": _transformed(i["_mesh"], matrix[i["name"]]),
+            "_solid": i["_solid"].transform(matrix[i["name"]][:3, :]),
+        }
+        for i in printed
+    ]
 
 
 # ---- G4 -----------------------------------------------------------------------------------
@@ -502,7 +553,9 @@ def _sweep(
     return hits
 
 
-def _motion(motion: dict, names: dict, permitted: set, out_dir: Path, problems: list[str]) -> dict:
+def _motion(
+    motion: dict, names: dict, skip: set, pressed: set, out_dir: Path, problems: list[str]
+) -> dict:
     row: dict[str, Any] = {"name": motion["name"], "kind": motion["kind"], "range": motion["range"]}
     missing = [n for n in motion["instances"] if n not in names]
     if missing:
@@ -513,7 +566,7 @@ def _motion(motion: dict, names: dict, permitted: set, out_dir: Path, problems: 
     others = [
         o
         for n, o in names.items()
-        if n not in moving_names and not any(frozenset((n, m)) in permitted for m in moving_names)
+        if n not in moving_names and not any(frozenset((n, m)) in skip for m in moving_names)
     ]
     lo, hi = min(0.0, motion["range"][0]), max(0.0, motion["range"][1])
     if motion["kind"] == "rotate":
@@ -524,7 +577,7 @@ def _motion(motion: dict, names: dict, permitted: set, out_dir: Path, problems: 
     count = min(SWEEP_MAX_STEPS, max(1, math.ceil((hi - lo) / step)))
     values = np.linspace(lo, hi, count + 1)
     poses = [(float(v), _pose(motion, float(v))) for v in values]
-    hits = _sweep(moving, others, poses)
+    hits = _fits_left_out(_sweep(moving, others, poses), pressed)
     unit = "°" if motion["kind"] == "rotate" else " mm"
     flexes = motion.get("flex") or []
     if flexes:
@@ -553,6 +606,16 @@ def _motion(motion: dict, names: dict, permitted: set, out_dir: Path, problems: 
             f"({worst['thickness_mm']} mm thick)"
         )
     return row
+
+
+def _fits_left_out(hits: list[dict], pressed: set) -> list[dict]:
+    """The hits that are collisions: those of a press-fit pair no thicker than a fit are not."""
+    return [
+        h
+        for h in hits
+        if frozenset((h["moving"], h["with"])) not in pressed
+        or h["thickness_mm"] > PERMITTED_THICKNESS_MM
+    ]
 
 
 def _flexes(
@@ -727,14 +790,20 @@ def _pose(motion: dict, value: float) -> np.ndarray:
 
 
 def _assembly_order(
-    steps: list[dict], instances: list[dict], names: dict, permitted: set, out_dir: Path, problems
+    steps: list[dict],
+    instances: list[dict],
+    names: dict,
+    skip: set,
+    pressed: set,
+    out_dir: Path,
+    problems,
 ) -> list[dict]:
     if len(instances) < 2:
         return []
     if not steps:
         problems.append(
             "the assembly order is missing (assembly_order in the assembly's spec): every "
-            "instance, in order, with the direction it comes in from"
+            "instance, in order, with the direction it moves along as it comes in"
         )
         return []
     order = [n for s in steps for n in s["instances"]]
@@ -758,14 +827,14 @@ def _assembly_order(
             against = [
                 p
                 for p in placed
-                if not any(frozenset((p["name"], m)) in permitted for m in moving_names)
+                if not any(frozenset((p["name"], m)) in skip for m in moving_names)
             ]
             if np.linalg.norm(direction) < 1e-9:
                 if placed:
                     row["ok"] = False
                     problems.append(
                         f"assembly_order, step {k} ({', '.join(step['instances'])}): no direction "
-                        "to come in from; only the first step may have none"
+                        "to come in along; only the first step may have none"
                     )
             elif against and moving:
                 turn = step.get("turn")
@@ -778,8 +847,10 @@ def _assembly_order(
 
                     ctx = moderngl.create_context(standalone=True, backend="egl")
                 direction /= np.linalg.norm(direction)
+                # A part pressed in place comes in straight; one that turns presses as it turns.
+                fits = {} if turn else _fits(moving, against, pressed)
                 approach = blocked(
-                    ctx, meshes, [(p["name"], p["_mesh"]) for p in against], direction
+                    ctx, meshes, [(p["name"], p["_mesh"]) for p in against], direction, fits
                 )
                 if not approach["ok"]:
                     row["ok"] = False
@@ -791,6 +862,7 @@ def _assembly_order(
                             meshes,
                             [(p["name"], p["_mesh"]) for p in against],
                             np.array(axis, float),
+                            fits,
                         )["ok"]
                     ]
                     row["approach"] = approach
@@ -817,7 +889,7 @@ def _assembly_order(
                         (float(a), rotation(turn["point"], turn["axis"], float(a)))
                         for a in np.linspace(-span, 0.0, count + 1)
                     ]
-                    hits = _sweep(moving, against, poses)
+                    hits = _fits_left_out(_sweep(moving, against, poses), pressed)
                     row["turn_ok"] = not hits
                     if hits:
                         row["ok"] = False
@@ -853,13 +925,32 @@ void main() {
 """
 
 
+def _fits(moving: list[dict], against: list[dict], pressed: set) -> dict:
+    """The overlaps in place of the moving instances with each placed one they press into."""
+    fits: dict[str, list[trimesh.Trimesh]] = {}
+    for p in against:
+        for m in moving:
+            if frozenset((m["name"], p["name"])) not in pressed:
+                continue
+            if hit := overlap(m["_solid"], p["_solid"]):
+                fits.setdefault(p["name"], []).append(_trimesh(hit["_solid"]))
+    return fits
+
+
 def blocked(
-    ctx, moving: list[trimesh.Trimesh], placed: list[tuple[str, trimesh.Trimesh]], direction
+    ctx,
+    moving: list[trimesh.Trimesh],
+    placed: list[tuple[str, trimesh.Trimesh]],
+    direction,
+    fits: dict[str, list[trimesh.Trimesh]] | None = None,
 ) -> dict:
     """Whether the moving meshes, arriving from far away along `direction`, cross the placed
     ones: in some column along the direction, placed material lies behind (against the motion)
     the farthest-forward point of the moving parts. One pixel of border is forgiven on each
-    side, where two outlines that only touch share pixels."""
+    side, where two outlines that only touch share pixels. `fits` holds, by placed part, the
+    overlaps in place of a press fit: in a column where the first of that part the moving parts
+    meet is their overlap in place, they push into it as a fit; anywhere else they cross it."""
+    fits = fits or {}
     basis = section.frame(direction)  # rows u, v and the direction
     points = np.vstack([m.vertices for m in moving])
     uv = points @ basis[:2].T
@@ -881,10 +972,28 @@ def blocked(
     mvp[2, :3], mvp[2, 3] = basis[2] * 2 / (s_hi - s_lo), -(s_hi + s_lo) / (s_hi - s_lo)
     mvp[3, 3] = 1.0
     front, _ = _depth(ctx, moving, mvp, tuple(shape), farthest=True)
-    behind, owner = _depth(ctx, [m for _, m in near], mvp, tuple(shape), farthest=False)
     front_s = s_lo + front * (s_hi - s_lo)
-    behind_s = s_lo + behind * (s_hi - s_lo)
-    hit = (front > 0.0) & (behind < 1.0) & (behind_s < front_s - DEPTH_EPS_MM)
+    hit = np.zeros(front.shape, bool)
+    behind_s = np.zeros(front.shape)
+    names = np.full(front.shape, "", dtype=object)
+    free = [x for x in near if x[0] not in fits]
+    pressed = [x for x in near if x[0] in fits]
+    for group in (free, pressed):
+        if not group:
+            continue
+        behind, owner = _depth(ctx, [m for _, m in group], mvp, tuple(shape), farthest=False)
+        group_s = s_lo + behind * (s_hi - s_lo)
+        crossed = (front > 0.0) & (behind < 1.0) & (group_s < front_s - DEPTH_EPS_MM)
+        if group is pressed:
+            overlaps = [m for name, _ in group for m in fits[name]]
+            fit, _ = _depth(ctx, overlaps, mvp, tuple(shape), farthest=False)
+            fit_s = s_lo + fit * (s_hi - s_lo)
+            crossed &= ~((fit < 1.0) & (group_s >= fit_s - px - DEPTH_EPS_MM))
+        crossed &= ~hit
+        hit |= crossed
+        behind_s[crossed] = group_s[crossed]
+        label = np.array([name for name, _ in group] + [""], dtype=object)
+        names[crossed] = label[np.where((owner >= 0) & (owner < len(group)), owner, -1)][crossed]
     hit = binary_erosion(hit, structure=np.ones((3, 3), bool))
     if not hit.any():
         return {"ok": True}
@@ -892,8 +1001,8 @@ def blocked(
     u = lo[0] + (cols + 0.5) * px
     v = lo[1] + (rows + 0.5) * px
     world = u[:, None] * basis[0] + v[:, None] * basis[1] + behind_s[rows, cols][:, None] * basis[2]
-    ids, counts = np.unique(owner[rows, cols], return_counts=True)
-    against = [near[i][0] for i in ids[np.argsort(-counts)] if 0 <= i < len(near)]
+    found, counts = np.unique(names[rows, cols].astype(str), return_counts=True)
+    against = [str(n) for n in found[np.argsort(-counts)] if n]
     return {
         "ok": False,
         "against": against,
@@ -966,11 +1075,13 @@ def _overlaps_2d(points: np.ndarray, lo: np.ndarray, hi: np.ndarray) -> bool:
     return bool(np.all(points.min(axis=0) <= hi) and np.all(points.max(axis=0) >= lo))
 
 
-def _write_stl(solid: manifold3d.Manifold, path: Path) -> None:
+def _trimesh(solid: manifold3d.Manifold) -> trimesh.Trimesh:
     mesh = solid.to_mesh()
-    _write_mesh(
-        trimesh.Trimesh(np.asarray(mesh.vert_properties)[:, :3], np.asarray(mesh.tri_verts)), path
-    )
+    return trimesh.Trimesh(np.asarray(mesh.vert_properties)[:, :3], np.asarray(mesh.tri_verts))
+
+
+def _write_stl(solid: manifold3d.Manifold, path: Path) -> None:
+    _write_mesh(_trimesh(solid), path)
 
 
 def _write_mesh(mesh: trimesh.Trimesh, path: Path) -> None:

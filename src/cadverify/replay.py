@@ -114,6 +114,7 @@ details[open] > summary { margin-bottom: 10px; }
 .grid a.ok { background: var(--ok); }
 .grid a.red { background: var(--red); }
 .grid a.pend { background: var(--pend); }
+.grid a.none { box-shadow: inset 0 0 0 1.5px var(--pend); }
 .grid .num { font-size: 11px; color: var(--muted); text-align: center; }
 ol.timeline { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
 .it-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; }
@@ -145,13 +146,14 @@ ul.found.note b { color: var(--info); }
 .legend i:first-child { margin-left: 0; }
 .legend .ok { background: var(--ok); } .legend .red { background: var(--red); }
 .legend .pend { background: var(--pend); }
+.legend .none { box-shadow: inset 0 0 0 1.5px var(--pend); }
 a { color: var(--info); }
 .lead { color: var(--muted); max-width: 780px; margin: 0; }
 .runs { overflow-x: auto; padding: 6px 8px; }
 .runs table { border-collapse: collapse; width: 100%; min-width: 960px; table-layout: fixed;
   font-size: 14px; }
-.runs col.request { width: 23%; } .runs col.model { width: 19%; }
-.runs col.status { width: 14%; } .runs col.n { width: 7%; } .runs col.when { width: 16%; }
+.runs col.request { width: 22%; } .runs col.model { width: 19%; }
+.runs col.status { width: 17%; } .runs col.n { width: 6.5%; } .runs col.when { width: 16%; }
 .runs th { font-weight: 500; color: var(--muted); font-size: 13px; text-align: left; }
 .runs th, .runs td { padding: 6px 8px; }
 .runs th { vertical-align: bottom; }
@@ -291,7 +293,12 @@ def _gate_grid(iterations: list[dict[str, Any]]) -> str:
         for it in iterations:
             gates = it.get("gates")
             if not gates:
-                cells.append("<td></td>")
+                why = "the response was cut short" if "incomplete" in it else "no response"
+                label = f"iteration {it['iteration']}: nothing verified, {why}"
+                cells.append(
+                    f'<td><a class="none" href="#it-{it["iteration"]}" '
+                    f'title="{escape(label)}"></a></td>'
+                )
                 continue
             ok = gates.get(gate)
             label = f"iteration {it['iteration']}: {gate} {_state(ok)}"
@@ -300,10 +307,15 @@ def _gate_grid(iterations: list[dict[str, Any]]) -> str:
                 f'title="{escape(label)}"></a></td>'
             )
         rows.append(f"<tr><th>{gate} {GATE_NAMES[gate]}</th>{''.join(cells)}</tr>")
+    unverified = (
+        '<i class="none"></i>nothing verified: response cut short or failed.'
+        if any(not it.get("gates") for it in iterations)
+        else ""
+    )
     legend = (
         '<p class="legend"><i class="ok"></i>passed<i class="red"></i>failed'
-        '<i class="pend"></i>pending: G8 is judged when the model closes. One column per '
-        "iteration; each cell links to it.</p>"
+        f'<i class="pend"></i>pending: G8 is judged when the model closes.{unverified} One '
+        "column per iteration; each cell links to it.</p>"
     )
     return (
         f'<div class="grid panel"><table style="--cell: {cell}px">{"".join(rows)}</table>'
