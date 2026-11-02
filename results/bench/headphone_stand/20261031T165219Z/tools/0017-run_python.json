@@ -1,0 +1,36 @@
+{
+  "seq": 17,
+  "iteration": 11,
+  "name": "run_python",
+  "arguments": {
+    "code": "import trimesh, numpy as np\nh = trimesh.load('exports/model.hanger.bb97b27d.stl')\ngrid = np.array([[-30,-15,0]]) # dummy\n# probe: is point inside hanger? points in print coords (x, y=height rel tip, z=width)\ntests = {\n 'saddle x=30 z=0 y=crown-0.3 (expect False if chamfer cut)': (30, 41.0, 0.3),\n 'saddle x=30 z=17 y=crown-0.5 (expect True)': (30, 39.7, 17),\n 'saddle x=60 z=0 y=top-0.3': (60, 30.0, 0.3),\n 'saddle x=60 z=8.5 y top': (60, 29.0, 8.5),\n 'tenon x=0 y=10 z=8': (0, 10, 8),\n 'neck x=15 y=21.5 z=17': (15, 21.5, 17),\n}\nfor k,(x,y,z) in tests.items():\n    print(k, h.contains(np.array([[x,y,z]]))[0])\n# raycast inward from above at x=30, z=0: first hit y => actual crown edge height\nfor x in [0,15,30,45,60]:\n    hits = h.ray.intersects_location([[x,60,0.0]],[[0,-1,0]], multiple_hits=True)\n    print(f'x={x} z=0 hits y:', sorted([round(float(p[1]),2) for p in hits], reverse=True)[:3])\n    hits = h.ray.intersects_location([[x,60,17.0]],[[0,-1,0]], multiple_hits=True)\n    print(f'x={x} z=17 hits y:', sorted([round(float(p[1]),2) for p in hits], reverse=True)[:3])\n"
+  },
+  "result": {
+    "ok": false,
+    "exit_code": 1,
+    "timed_out": false,
+    "seconds": 0.89,
+    "stdout": "saddle x=30 z=0 y=crown-0.3 (expect False if chamfer cut) False\nsaddle x=30 z=17 y=crown-0.5 (expect True) False\nsaddle x=60 z=0 y=top-0.3 True\nsaddle x=60 z=8.5 y top True\ntenon x=0 y=10 z=8 True\nneck x=15 y=21.5 z=17 False\n",
+    "stderr": "Traceback (most recent call last):\n  File \"<string>\", line 18, in <module>\nTypeError: only 0-dimensional arrays can be converted to Python scalars\n",
+    "stdout_bytes": 225,
+    "stderr_bytes": 147,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 1.259,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "921d682e29453b50"
+}

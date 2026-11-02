@@ -1,0 +1,36 @@
+{
+  "seq": 22,
+  "iteration": 19,
+  "name": "run_python",
+  "arguments": {
+    "code": "# tip stability estimate\n# solid PLA ~1.24 g/cm3; assume 20% infill -> effective ~0.5 g/cm3 for body? be conservative: stand self-weight helps, headphones 350g\n# worst case: headphones hung offset to one side, CG at edge of hanger (x=+55mm) at height 270\n# base half-widths: 90 (X), 70 (Y)\n# tipping about base edge: restoring moment = W_stand * half_base + W_phones*(half_base - offset_in_tip_dir)\n# headphones centered in Y (ridge along X, cups hang in Y?) Actually hanger ridge along X, headphones sit across -> CG near center. Worst offset along X = 30mm?\nfor axis,half in [(\"X\",90),(\"Y\",70)]:\n    Wstand=0.4*9.81 # assume only 400g printed weight conservative\n    Wph=0.35*9.81\n    offset=30 # mm worst eccentricity\n    restore=Wstand*half + Wph*(half-offset)\n    tip=Wph*0 # static vertical loads don't tip unless offset beyond edge\n    print(axis, \"restore Nmm\", restore, \"tip-over offset needed mm\", half, \"headphone offset\", offset, \"margin\", half-offset)\nprint(\"top height 270, earcup clearance: hanger underside ~242+6=248, base top 14 -> clearance ~234mm\")\n"
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.022,
+    "stdout": "X restore Nmm 559.1700000000001 tip-over offset needed mm 90 headphone offset 30 margin 60\nY restore Nmm 412.02 tip-over offset needed mm 70 headphone offset 30 margin 40\ntop height 270, earcup clearance: hanger underside ~242+6=248, base top 14 -> clearance ~234mm\n",
+    "stderr": "",
+    "stdout_bytes": 266,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 0.505,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "1cf2f57d6dbef78e"
+}

@@ -1,0 +1,32 @@
+{
+  "seq": 20,
+  "iteration": 13,
+  "name": "scad_patch",
+  "arguments": {
+    "path": "model.scad",
+    "old": "/* ---------- HANGER (printed on its side) ---------- */\nmodule hanger_part() {\n    top_pts    = [for (x = [56 : -8 : -56]) [x, hang_top_z(x)]];\n    bot_r_pts  = [for (x = [40 : 8 : 64]) [x, hang_bot_z(x)]];\n    bot_l_pts  = [for (x = [-64 : 8 : -40]) [x, hang_bot_z(x)]];\n    mid64 = (hang_top_z(64) + hang_bot_z(64)) / 2;\n    profile = concat(\n        [[-10, 0], [10, 0], [12, 2], [12, hang_shoulder_rel],\n         [hang_neck_half_w, hang_shoulder_rel], [30, hang_bot_z(30)]],\n        bot_r_pts,\n        [[hang_len_half - 0.5, mid64], [64, hang_top_z(64)]],\n        top_pts,\n        [[-64, hang_top_z(64)], [-(hang_len_half - 0.5), mid64], [-64, hang_bot_z(64)]],\n        bot_l_pts,\n        [[-30, hang_bot_z(30)], [-hang_neck_half_w, hang_shoulder_rel],\n         [-hang_tenon_half_w, hang_shoulder_rel], [-12, 2]]\n    );\n    difference() {\n        linear_extrude(hang_width) polygon(profile);",
+    "new": "/* ---------- HANGER (printed on its side) ---------- */\nmodule hanger_part() {\n    top_pts    = [for (x = [56 : -8 : -56]) [x, hang_top_z(x)]];\n    bot_r_pts  = [for (x = [40 : 8 : 64]) [x, hang_bot_z(x)]];\n    bot_l_pts  = [for (x = [-64 : 8 : -40]) [x, hang_bot_z(x)]];\n    mid64 = (hang_top_z(64) + hang_bot_z(64)) / 2;\n    // Saddle/neck profile above the shoulder plane (print y = hang_shoulder_rel).\n    profile = concat(\n        [[-hang_neck_half_w, hang_shoulder_rel], [hang_neck_half_w, hang_shoulder_rel],\n         [30, hang_bot_z(30)]],\n        bot_r_pts,\n        [[hang_len_half - 0.5, mid64], [64, hang_top_z(64)]],\n        top_pts,\n        [[-64, hang_top_z(64)], [-(hang_len_half - 0.5), mid64], [-64, hang_bot_z(64)]],\n        bot_l_pts,\n        [[-30, hang_bot_z(30)]]\n    );\n    difference() {\n        union() {\n            linear_extrude(hang_width) polygon(profile);\n            // Blade tenon below the shoulder: 24 x 34 with 4 mm corner radii,\n            // so it clears the post socket's 5 mm rounded corners. It reaches\n            // 2 mm up into the neck so the union is volumetric, not face-only.\n            translate([0, 0, hang_width/2]) rotate([-90, 0, 0])\n                linear_extrude(hang_shoulder_rel + 2)\n                    rounded_rect(2*hang_tenon_half_w, hang_width, 4);\n        }"
+  },
+  "result": {
+    "ok": false,
+    "error": "After an image, confirm with numbers before changing the .scad: confirm it with numbers before fixing it: mesh_report, scad_export, printability_report, interference_check, a cut or the holes of render_view, or a calculation with run_python or run_shell."
+  },
+  "seconds": 0.119,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": {
+    "seq": 20,
+    "tool": "scad_patch",
+    "edit": "refused",
+    "image_seq": 19,
+    "image_tool": "render_view",
+    "numbers_before_image": true
+  },
+  "source": "921d682e29453b50"
+}

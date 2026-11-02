@@ -1,0 +1,146 @@
+{
+  "label": "tool-call",
+  "endpoint": "POST /v1/responses",
+  "request": {
+    "model": "muse-spark-1.3",
+    "stream": true,
+    "prompt_cache_key": "cadverify-probe-muse-spark-1.3",
+    "prompt_cache_retention": "24h",
+    "instructions": "You are a CAD assistant.",
+    "tools": [
+      {
+        "type": "function",
+        "name": "measure",
+        "description": "Measure a part and return its bounding box in mm.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "part": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "part"
+          ],
+          "additionalProperties": false
+        }
+      }
+    ],
+    "reasoning": {
+      "effort": "high"
+    },
+    "max_output_tokens": 64000,
+    "input": "Call the measure tool for the part named lid, then say in one sentence what the image shows."
+  },
+  "status_code": 200,
+  "response_headers": {
+    "content-type": "text/event-stream",
+    "x-ratelimit-limit-requests": "3000",
+    "x-ratelimit-remaining-requests": "2998",
+    "x-ratelimit-limit-tokens": "4000000",
+    "x-ratelimit-remaining-tokens": "3994449",
+    "x-request-id": "b747c8fe-9f9c-4efc-be98-dd6dd8af9184",
+    "date": "Sat, 31 Oct 2026 13:02:43 GMT"
+  },
+  "response": {
+    "background": false,
+    "completed_at": 1793451764.0,
+    "created_at": 1793451763.0,
+    "error": null,
+    "id": "resp_6ae5e6f340f34fe5bc2d45b8",
+    "incomplete_details": null,
+    "instructions": "You are a CAD assistant.",
+    "max_output_tokens": 64000,
+    "model": "muse-spark-1.3",
+    "object": "response",
+    "output": [
+      {
+        "id": "rs_6ae5e6f340f34fe5bc2d45b8:rs_01a1920e289772e5824cd424338a2a5a",
+        "status": "completed",
+        "summary": [],
+        "type": "reasoning"
+      },
+      {
+        "content": [
+          {
+            "annotations": [],
+            "logprobs": [],
+            "text": "I'll measure the lid and describe what I see.",
+            "type": "output_text"
+          }
+        ],
+        "id": "rs_01a1920e2b67758086e44ae4b39a67e3",
+        "phase": "commentary",
+        "role": "assistant",
+        "status": "completed",
+        "type": "message"
+      },
+      {
+        "arguments": "{\"part\":\"lid\"}",
+        "call_id": "call_01a1920e2ba271ceb53a76ff8b399805",
+        "id": "fc_01a1920e2ba271ceb53a76ff8b399805",
+        "name": "measure",
+        "status": "completed",
+        "type": "function_call"
+      }
+    ],
+    "parallel_tool_calls": true,
+    "prompt_cache_key": "cadverify-probe-muse-spark-1.3",
+    "reasoning": {
+      "effort": "high"
+    },
+    "service_tier": "auto",
+    "status": "completed",
+    "store": true,
+    "temperature": 1.0,
+    "tool_choice": "auto",
+    "tools": [
+      {
+        "description": "Measure a part and return its bounding box in mm.",
+        "name": "measure",
+        "parameters": {
+          "additionalProperties": false,
+          "properties": {
+            "part": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "part"
+          ],
+          "type": "object"
+        },
+        "type": "function"
+      }
+    ],
+    "top_logprobs": 0,
+    "top_p": 1.0,
+    "truncation": "disabled",
+    "usage": {
+      "input_tokens": 555,
+      "input_tokens_details": {
+        "cached_tokens": 0
+      },
+      "output_tokens": 317,
+      "output_tokens_details": {
+        "reasoning_tokens": 251
+      },
+      "total_tokens": 872
+    }
+  },
+  "latency_s": 2.12,
+  "total_with_retries_s": 2.12,
+  "attempts": [
+    {
+      "attempt": 1,
+      "status_code": 200,
+      "latency_s": 2.12,
+      "error": null,
+      "stream": {
+        "events": 15,
+        "terminal": "response.completed"
+      }
+    }
+  ],
+  "client_error": null
+}

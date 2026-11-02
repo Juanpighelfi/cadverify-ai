@@ -1,0 +1,36 @@
+{
+  "seq": 67,
+  "iteration": 49,
+  "name": "run_python",
+  "arguments": {
+    "code": "import trimesh, numpy as np\n# check band_points self-intersection / ordering and duplicates for t=1.2 (ch=0.7)\ndef saddle_top(x): return 54-14*(x/55)**2\ndef band(t):\n    ch=min(2.5,max(t-0.5,0))\n    pts=[]\n    for x in range(-52,53,4): pts.append((x, saddle_top(x)-6+t))\n    pts.append((55, saddle_top(55)-6+t-ch)); pts.append((55, saddle_top(55)-6-t+ch))\n    for x in range(52,-53,-4): pts.append((x, saddle_top(x)-6-t))\n    pts.append((-55, saddle_top(-55)-6-t+ch)); pts.append((-55, saddle_top(-55)-6+t-ch))\n    return pts\nfor t in [6,5.6,4.6,1.2]:\n    p=band(t)\n    print(t, 'n',len(p), 'min y', min(y for _,y in p), 'max y', max(y for _,y in p))\n    # check consecutive duplicates / direction: signed area\n    area=sum(p[i][0]*p[(i+1)%len(p)][1]-p[(i+1)%len(p)][0]*p[i][1] for i in range(len(p)))/2\n    print(' signed area', round(area,1))\n"
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.92,
+    "stdout": "6 n 58 min y 29.485619834710747 max y 54.0\n signed area -1305.0\n5.6 n 58 min y 29.885619834710745 max y 53.6\n signed area -1217.0\n4.6 n 58 min y 30.885619834710745 max y 52.6\n signed area -997.0\n1.2 n 58 min y 33.5 max y 49.2\n signed area -259.8\n",
+    "stderr": "",
+    "stdout_bytes": 246,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 1.308,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "b4498a54e9a988e6"
+}

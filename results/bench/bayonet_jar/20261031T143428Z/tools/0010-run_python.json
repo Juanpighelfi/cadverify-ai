@@ -1,0 +1,36 @@
+{
+  "seq": 10,
+  "iteration": 10,
+  "name": "run_python",
+  "arguments": {
+    "code": "import trimesh\nlid = trimesh.load('exports/model.lid.6029fe16.stl')\nprint('bounds', lid.bounds)\n# ray from [50,0,10] direction [-1,0,0]\nimport numpy as np\nray_o = np.array([[50.,0.,10.]])\nray_d = np.array([[-1.,0.,0.]])\nlocs, idx_ray, idx_tri = lid.ray.ray_pyembree.intersects_location(ray_o, ray_d, return_locations=True) if hasattr(lid.ray, 'ray_pyembree') else (None,None,None)\nprint('try pyembree')\nfrom trimesh.ray.ray_triangle import RayMeshIntersector\nri = RayMeshIntersector(lid)\npts, ir, it = ri.intersects_location(ray_o, ray_d, return_locations=True)\nprint('hits', pts)\n# sort by x descending\nif len(pts)>0:\n    print(sorted(pts[:,0], reverse=True))\nprint('is watertight', lid.is_watertight)\n# check point inside?\nprint('contains point 50,0,10?', lid.contains([[50.,0.,10.]]))\nprint('contains 34,0,10?', lid.contains([[34.,0.,10.]]))\nprint('contains 32,0,10?', lid.contains([[32.,0.,10.]]))\n"
+  },
+  "result": {
+    "ok": false,
+    "exit_code": 1,
+    "timed_out": false,
+    "seconds": 0.851,
+    "stdout": "bounds [[-40.  -40.    0. ]\n [ 40.   40.   16.5]]\ntry pyembree\n",
+    "stderr": "Traceback (most recent call last):\n  File \"<string>\", line 12, in <module>\n  File \"/opt/venv/lib/python3.12/site-packages/trimesh/ray/ray_triangle.py\", line 93, in intersects_location\n    (index_tri, index_ray, locations) = self.intersects_id(\n                                        ^^^^^^^^^^^^^^^^^^^\nTypeError: trimesh.ray.ray_triangle.RayMeshIntersector.intersects_id() got multiple values for keyword argument 'return_locations'\n",
+    "stdout_bytes": 63,
+    "stderr_bytes": 435,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 1.212,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "44c41db30c1149e9"
+}

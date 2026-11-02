@@ -1,0 +1,37 @@
+{
+  "seq": 13,
+  "iteration": 7,
+  "name": "run_python",
+  "arguments": {
+    "code": "import trimesh, numpy as np\nfor name, path in [(\"box\",\"exports/model.box.e1af9484.stl\"),(\"lid\",\"exports/model.lid.6029fe16.stl\")]:\n    m = trimesh.load(path)\n    x = -24 if name==\"box\" else -12\n    sec = m.section(plane_origin=[x,0,0], plane_normal=[1,0,0])\n    print(name, \"entities:\", len(sec.entities))\n    p2,_ = sec.to_2D()\n    print(\" verts\", len(p2.vertices))\n    # each entity: loop vertices\n    for i,e in enumerate(sec.entities):\n        pts = sec.vertices[e.points]\n        print(f\" ent{i} n={len(e.points)} yrng=({pts[:,1].min():.2f},{pts[:,1].max():.2f}) zrng=({pts[:,2].min():.2f},{pts[:,2].max():.2f})\")\n",
+    "timeout_s": 60.0
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.822,
+    "stdout": "box entities: 2\n verts 253\n ent0 n=140 yrng=(-33.90,30.00) zrng=(0.00,34.20)\n ent1 n=115 yrng=(-32.80,-28.20) zrng=(28.50,33.10)\nlid entities: 3\n verts 245\n ent0 n=123 yrng=(-33.90,30.00) zrng=(0.00,13.00)\n ent1 n=17 yrng=(-27.60,-27.20) zrng=(4.20,10.60)\n ent2 n=108 yrng=(-32.80,-28.24) zrng=(1.10,5.70)\n",
+    "stderr": "",
+    "stdout_bytes": 306,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 1.17,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "f492e7d169b57822"
+}

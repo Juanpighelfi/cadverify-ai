@@ -1,0 +1,37 @@
+{
+  "seq": 12,
+  "iteration": 6,
+  "name": "run_python",
+  "arguments": {
+    "code": "import trimesh, numpy as np\nfor name, path in [(\"box\",\"exports/model.box.e1af9484.stl\"),(\"lid\",\"exports/model.lid.6029fe16.stl\")]:\n    m = trimesh.load(path)\n    print(name, \"watertight\", m.is_watertight, \"vol\", m.volume)\n    # slice perpendicular to X at mid-knuckle\n    x = -24 if name==\"box\" else -12\n    sec = m.section(plane_origin=[x,0,0], plane_normal=[1,0,0])\n    if sec is None:\n        print(\" no section\"); continue\n    p3,_ = sec.to_planar()\n    # find loops near bore center\n    yc, zc = (-30.5, 30.8) if name==\"box\" else (-30.5, 3.4)\n    for poly in p3.polygons_full:\n        if poly.contains(trimesh.points.Point([yc, zc])) if False else True:\n            pass\n    # use faces: get paths\n    print(\"entities:\", len(sec.entities))\n    import shapely.ops as ops\n    polys = sec.polygons_full\n    print(\"npolys\", len(polys))\n    for poly in polys:\n        c = poly.centroid\n        a = poly.area\n        deq = 2*np.sqrt(a/np.pi)\n        print(f\"  centroid=({c.x:.2f},{c.y:.2f}) area={a:.3f} deq={deq:.3f} bounds={np.round(poly.bounds,2)}\")\n",
+    "timeout_s": 60.0
+  },
+  "result": {
+    "ok": false,
+    "exit_code": 1,
+    "timed_out": false,
+    "seconds": 1.049,
+    "stdout": "box watertight True vol 30012.482476090503\nentities: 2\n",
+    "stderr": "<string>:10: DeprecationWarning: DEPRECATED: replace `path.to_planar`->`path.to_2D), removal 1/1/2026\nTraceback (most recent call last):\n  File \"<string>\", line 19, in <module>\nAttributeError: 'Path3D' object has no attribute 'polygons_full'\n",
+    "stdout_bytes": 55,
+    "stderr_bytes": 242,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 1.512,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "f492e7d169b57822"
+}

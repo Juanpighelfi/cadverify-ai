@@ -1,0 +1,37 @@
+{
+  "seq": 127,
+  "iteration": 82,
+  "name": "run_python",
+  "arguments": {
+    "code": "p = \"/work/model.scad\"\ns = open(p).read()\ndef rep(old, new):\n    global s\n    assert s.count(old) == 1, \"NOT FOUND: \" + old[:100]\n    s = s.replace(old, new)\n\nrep('''            // top band of back wall split into segs clearing lid knuckles axially (0.6 gap each side)\n            translate([-40, -30, 27.0]) cube([11.48, 2.4, 3.0]);\n            translate([-17.32, -30, 27.0]) cube([10.88, 2.4, 3.0]);\n            translate([6.84, -30, 27.0]) cube([10.88, 2.4, 3.0]);\n            translate([28.52, -30, 27.0]) cube([11.48, 2.4, 3.0]);''',\n'''            // top band of back wall split into segs clearing lid knuckles axially (0.6 gap each side)\n            translate([-40, -30, 27.0]) cube([21.48, 2.4, 3.0]);\n            translate([-5.64, -30, 27.0]) cube([11.28, 2.4, 3.0]);\n            translate([18.52, -30, 27.0]) cube([21.48, 2.4, 3.0]);''')\nrep('''            translate([-40, -30, 3]) cube([9.4, 2.4, 7.6]);\n            translate([-5.34, -30, 3]) cube([10.68, 2.4, 7.6]);\n            translate([18.82, -30, 3]) cube([10.68, 2.4, 7.6]);\n            translate([30.6, -30, 3]) cube([9.4, 2.4, 7.6]);''',\n'''            translate([-40, -30, 3]) cube([9.4, 2.4, 7.6]);\n            translate([-17.72, -30, 3]) cube([11.28, 2.4, 7.6]);\n            translate([6.44, -30, 3]) cube([11.28, 2.4, 7.6]);\n            translate([30.6, -30, 3]) cube([9.4, 2.4, 7.6]);''')\nrep('''        xcyl(k0x0-0.06, k0x1+0.06, rbore, yh, zh);\n        xcyl(k2x0-0.06, k2x1+0.06, rbore, yh, zh);\n        xcyl(k4x0-0.06, k4x1+0.06, rbore, yh, zh);''',\n'''        xcyl(k0x0-0.06, k0x1+0.06, rbore, yh, zh);\n        xcyl(k2x0-0.06, k2x1+0.06, rbore, yh, zh);\n        xcyl(k4x0-0.06, k4x1+0.06, rbore, yh, zh);\n        // pin-head clearance slots in back wall top band (0.5 around heads)\n        translate([30.9, -30.1, 27.9]) cube([2.0, 2.6, 2.2]);\n        translate([-32.9, -30.1, 27.9]) cube([2.0, 2.6, 2.2]);''')\nrep('''        xcyl(k1x0-0.06, k1x1+0.06, rbore, yh, lid_zh);\n        xcyl(k3x0-0.06, k3x1+0.06, rbore, yh, lid_zh);''',\n'''        xcyl(k1x0-0.06, k1x1+0.06, rbore, yh, lid_zh);\n        xcyl(k3x0-0.06, k3x1+0.06, rbore, yh, lid_zh);\n        // pin-head clearance slots in back skirt end segs (0.5 around heads)\n        translate([30.9, -30.1, 2.9]) cube([2.0, 2.6, 3.8]);\n        translate([-32.9, -30.1, 2.9]) cube([2.0, 2.6, 3.8]);''')\nrep('[\"lid back skirt gaps between knuckles, flat bridge\", [[-30.6, -30.2, 2.8], [30.6, -27.4, 3.4]]],',\n    '[\"lid back skirt gaps between knuckles, flat bridge\", [[-40.2, -30.2, 2.8], [40.2, -27.4, 3.4]]],\\n            [\"pin head slot ceilings\", [[-33, -30.2, 6.5], [33, -27.4, 6.9]]],')\nopen(p, \"w\").write(s)\nprint(\"patched ok\")\n",
+    "timeout_s": 30.0
+  },
+  "result": {
+    "ok": false,
+    "exit_code": 1,
+    "timed_out": false,
+    "seconds": 0.016,
+    "stdout": "",
+    "stderr": "Traceback (most recent call last):\n  File \"<string>\", line 17, in <module>\n  File \"<string>\", line 5, in rep\nAssertionError: NOT FOUND:             translate([-40, -30, 3]) cube([9.4, 2.4, 7.6]);\n            translate([-5.34, -30, 3]) c\n",
+    "stdout_bytes": 0,
+    "stderr_bytes": 237,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 0.381,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "2f3d49c266af3292"
+}

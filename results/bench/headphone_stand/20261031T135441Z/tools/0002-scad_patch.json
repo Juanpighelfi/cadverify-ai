@@ -1,0 +1,35 @@
+{
+  "seq": 2,
+  "iteration": 2,
+  "name": "scad_patch",
+  "arguments": {
+    "new": "module hanger_A() {\n    union() {\n        // lower block 0 .. Zc-r\n        translate([-hangW/2, -hangL/2, 0]) cube([hangW, hangL, hangZc-hangFillet]);\n        // upper block (narrower) Zc-r .. top\n        translate([-(hangW-2*hangFillet)/2, -hangL/2, hangZc-hangFillet])\n            cube([hangW-2*hangFillet, hangL, hangFillet]);\n        // two side fillet cylinders along Y\n        for (sx=[-1,1])\n            translate([sx*(hangW/2-hangFillet), -hangL/2, hangZc-hangFillet])\n                rotate([-90,0,0])\n                    cylinder(r=hangFillet, h=hangL, $fn=32);\n    }\n}",
+    "old": "module hanger_solid() {\n    // A: transverse profile (filleted top) extruded along Y\n    // B: longitudinal arch (parabolic top) extruded along X\n    // D: plan rounded rect prism; result = A n B n D\n    intersection() {\n        // A\n        union() {\n            translate([0,0,0]) cube([hangW, hangL, hangZc-hangFillet], center=true);\n            // recentre: cube center=true gives Z centred; shift up\n            // => redo with bottom at 0:\n        }\n        // placeholder (replaced below)\n        cube([1,1,1]);\n    }\n}\n// build A/B/D explicitly (no placeholder)\nmodule hanger_A() {\n    union() {\n        // lower block 0 .. Zc-r\n        translate([-hangW/2, -hangL/2, 0]) cube([hangW, hangL, hangZc-hangFillet]);\n        // upper block (narrower) r .. top\n        translate([-(hangW-2*hangFillet)/2, -hangL/2, hangZc-hangFillet])\n            cube([hangW-2*hangFillet, hangL, hangFillet]);\n        // two side fillet cylinders along Y\n        for (sx=[-1,1])\n            translate([sx*(hangW/2-hangFillet), -hangL/2, hangZc-hangFillet])\n                rotate([90,0,0]) translate([0,0,0]) { }\n        for (sx=[-1,1])\n            translate([sx*(hangW/2-hangFillet), -hangL/2, hangZc-hangFillet])\n                rotate([-90,0,0])\n                    cylinder(r=hangFillet, h=hangL, $fn=32);\n    }\n}",
+    "path": "model.scad"
+  },
+  "result": {
+    "ok": true,
+    "path": "model.scad",
+    "line": 83,
+    "lines_removed": 33,
+    "lines_added": 14,
+    "bytes": 7679,
+    "lines": 194,
+    "sha256": "51f1b246161630572fd47fc55460622ed419a26eb1998a4de935319db8bc8a62"
+  },
+  "seconds": 0.374,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [
+      "model.scad"
+    ],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [
+    "model.scad"
+  ],
+  "rule": null,
+  "source": "a1e9da8fc920f18b"
+}

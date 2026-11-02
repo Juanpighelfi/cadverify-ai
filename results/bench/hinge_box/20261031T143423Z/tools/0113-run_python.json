@@ -1,0 +1,53 @@
+{
+  "seq": 113,
+  "iteration": 74,
+  "name": "run_python",
+  "arguments": {
+    "code": "p = \"/work/model.scad\"\ns = open(p).read()\ndef rep(old, new):\n    global s\n    assert s.count(old) == 1, \"NOT FOUND: \" + old[:100]\n    s = s.replace(old, new)\n\n# --- restore full-length knuckle cylinders; clearances come from walls/webs only ---\nfor a in [\"xcyl(k0x0 + 0.5, k0x1 - 0.5, Rkn, yh, zh);\",\n          \"xcyl(k2x0 + 0.5, k2x1 - 0.5, Rkn, yh, zh);\",\n          \"xcyl(k4x0 + 0.5, k4x1 - 0.5, Rkn, yh, zh);\",\n          \"xcyl(k1x0 + 0.5, k1x1 - 0.5, Rkn, yh, lid_zh);\",\n          \"xcyl(k3x0 + 0.5, k3x1 - 0.5, Rkn, yh, lid_zh);\"]:\n    b = a.replace(\" + 0.5,\", \",\").replace(\" - 0.5,\", \",\")\n    rep(a, b)\n\n# --- box back wall: widen gaps to 0.6 each side ---\nrep('''            // top band of back wall split into segs clearing lid knuckles axially (0.5 gap each side)\n            translate([-40, -30, 27.0]) cube([11.68, 2.4, 3.0]);\n            translate([-17.42, -30, 27.0]) cube([11.08, 2.4, 3.0]);\n            translate([6.74, -30, 27.0]) cube([11.08, 2.4, 3.0]);\n            translate([28.32, -30, 27.0]) cube([11.68, 2.4, 3.0]);''',\n'''            // top band of back wall split into segs clearing lid knuckles axially (0.6 gap each side)\n            translate([-40, -30, 27.0]) cube([11.48, 2.4, 3.0]);\n            translate([-17.32, -30, 27.0]) cube([10.88, 2.4, 3.0]);\n            translate([6.84, -30, 27.0]) cube([10.88, 2.4, 3.0]);\n            translate([28.52, -30, 27.0]) cube([11.48, 2.4, 3.0]);''')\n\n# --- lid back skirt: widen gaps to 0.6 each side ---\nrep('''            translate([-40, -30, 3]) cube([9.4, 2.4, 7.6]);\n            translate([-5.34, -30, 3]) cube([10.68, 2.4, 7.6]);\n            translate([18.82, -30, 3]) cube([10.68, 2.4, 7.6]);\n            translate([30.6, -30, 3]) cube([9.4, 2.4, 7.6]);''',\n'''            translate([-40, -30, 3]) cube([9.2, 2.4, 7.6]);\n            translate([-5.24, -30, 3]) cube([10.48, 2.4, 7.6]);\n            translate([18.92, -30, 3]) cube([10.48, 2.4, 7.6]);\n            translate([30.8, -30, 3]) cube([9.2, 2.4, 7.6]);''')\n\n# --- lug webs: keep 0.5 inset (their faces were concentric with knuckle faces) ---\n# (already narrowed; keep)\n\n# --- notch: widen for radial clearance of bump side faces (bump y 27.05..27.65, z 27.5..29) ---\nrep('        translate([-3.25, 26.5, -0.05]) cube([6.5, 1.35, 2.05]);',\n    '        translate([-3.35, 26.4, -0.05]) cube([6.7, 1.55, 2.05]);')\nrep('[\\\"catch_notch\\\", \\\"void\\\", [[-3.25, 26.5, 0], [3.25, 27.85, 2.0]], 0.9]',\n    '[\\\"catch_notch\\\", \\\"void\\\", [[-3.35, 26.4, 0], [3.35, 27.95, 2.0]], 0.9]')\n\n# --- pin: restore nominal bounds 64.8x6x6, shaft r1.8 with heads r2.8; fix spec boxes ---\nrep('        xcyl(-32.4, 32.4, 1.8, 0, 3);', '        xcyl(-32.4, 32.4, 1.8, 0, 3);\\n        xcyl(-32.4, 32.4, 2.8, 0, 0.2);')\nrep('[\\\"shaft\\\", \\\"thickness\\\", [0, 3, 3], [0, -1, 0], 3.6]', '[\\\"shaft\\\", \\\"thickness\\\", [0, 3, 3], [0, -1, 0], 3.6]')\nopen(p, \"w\").write(s)\nprint(\"patched ok\")\n",
+    "timeout_s": 30.0
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.015,
+    "stdout": "patched ok\n",
+    "stderr": "",
+    "stdout_bytes": 11,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "scad_edited": [
+      "model.scad"
+    ],
+    "files": {
+      "created": [],
+      "modified": [
+        "model.scad"
+      ],
+      "deleted": []
+    }
+  },
+  "seconds": 0.449,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [
+      "model.scad"
+    ],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [
+    "model.scad"
+  ],
+  "rule": {
+    "seq": 113,
+    "tool": "run_python",
+    "scad": [
+      "model.scad"
+    ],
+    "edit": "allowed"
+  },
+  "source": "24d225e3ea499658"
+}

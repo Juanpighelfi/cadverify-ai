@@ -1,0 +1,35 @@
+{
+  "seq": 39,
+  "iteration": 29,
+  "name": "scad_patch",
+  "arguments": {
+    "path": "model.scad",
+    "old": "// post segment along +x, cross-section (y width) x (z height) rounded, bottom flat-ish on bed\nmodule post_seg(x0, x1, w, h, r) {\n    hull() for (yy = [-(w/2 - r), w/2 - r], zz = [r, h - r])\n        translate([x0, yy, zz]) rotate([0, 90, 0]) cylinder(h = x1 - x0, r = r);\n}",
+    "new": "// post cross-section: flat bottom on the bed, vertical sides, rounded top\nmodule post_profile(w, h, r) {\n    hull() {\n        polygon(points = [[0, -w/2], [0, w/2], [-(h-r), w/2], [-(h-r), -w/2]]);\n        translate([-(h-r), -(w/2-r)]) circle(r = r);\n        translate([-(h-r), (w/2-r)]) circle(r = r);\n    }\n}\nmodule post_seg(x0, x1, w, h, r) {\n    translate([x0, 0, 0]) rotate([0, 90, 0])\n        linear_extrude(x1 - x0) post_profile(w, h, r);\n}"
+  },
+  "result": {
+    "ok": true,
+    "path": "model.scad",
+    "line": 94,
+    "lines_removed": 5,
+    "lines_added": 12,
+    "bytes": 7229,
+    "lines": 167,
+    "sha256": "475ab6657b126af4a9efbf885b4c2c242183619dd9850552a7ad1c580ded8284"
+  },
+  "seconds": 0.375,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [
+      "model.scad"
+    ],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [
+    "model.scad"
+  ],
+  "rule": null,
+  "source": "75d1cce55337d3d5"
+}

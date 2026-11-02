@@ -1,0 +1,36 @@
+{
+  "seq": 50,
+  "iteration": 36,
+  "name": "run_python",
+  "arguments": {
+    "code": "import trimesh, numpy as np, math\n\n# --- 1. Crown flat contact width of the hanger (print coords) ---\nh = trimesh.load('exports/model.hanger.bb97b27d.stl')\n# topmost point for each z column at x=0: sweep rays downward at x=0\nzs = np.linspace(0.05, 33.95, 680)\norigins = np.column_stack([np.zeros_like(zs), np.full_like(zs, 60.0), zs])\ndirs = np.tile([0.0, -1.0, 0.0], (len(zs), 1))\nloc, rid, tid = h.ray.intersects_location(origins, dirs, multiple_hits=True)\ntop_y = np.full(len(zs), -1.0)\nfor i, loc_i in enumerate(loc):\n    top_y[rid[i]] = max(top_y[rid[i]], loc_i[1])\ncrown = top_y.max()\nflat = zs[top_y > crown - 0.05]\nprint(f'crown y at x=0: {crown:.3f} mm (assembly height = 228.5 + y)')\nprint(f'crown flat width within 0.05mm of top: z {flat.min():.2f}..{flat.max():.2f} -> {flat.max()-flat.min():.2f} mm')\ncontact = zs[top_y > crown - 1.0]\nprint(f'contact band within 1mm of crown: {contact.max()-contact.min():.2f} mm wide')\n\n# --- 2. Tipping analysis (assembly coords) ---\nrho = 1.24  # PLA g/cm3\nparts = {\n    'base':   ('exports/model.base.87e59dfb.stl',   [0, 0, 0]),\n    'post':   ('exports/model.post.2b1e5522.stl',   [0, 0, 14.5]),\n    'hanger': ('exports/model.hanger.bb97b27d.stl', None),\n}\ntot_m, tot_mx, tot_my = 0.0, 0.0, 0.0\nfor name, (path, off) in parts.items():\n    m = trimesh.load(path)\n    if name == 'hanger':  # print -> assembly: (x, 17-z_print, 228.5+y_print)\n        v = m.vertices[:, ::-1] * [1, 1, 0]  # placeholder, rotate properly below\n        T = np.eye(4)\n        T[:3, :3] = np.array([[1, 0, 0], [0, 0, -1], [0, 1, 0]], float)\n        T[:3, 3] = [0, 17.0, 228.5]\n        m.apply_transform(T)\n    else:\n        m.apply_translation(off)\n    com = m.center_mass\n    mass = m.volume * rho / 1000.0\n    print(f'{name}: {mass:.0f} g, COM=({com[0]:.1f}, {com[1]:.1f}, {com[2]:.1f})')\n    tot_m += mass; tot_mx += mass * com[0]; tot_my += mass * com[1]\nstand_x, stand_y = tot_mx / tot_m, tot_my / tot_m\nphone = 350.0  # g of headphones, hung centred on saddle (worst realistic offset 30 mm sideways)\nfor off_x, off_y, label in [(0, 0, 'centred'), (30, 0, '30mm to the side'), (0, 45, '45mm front'), (35, 45, 'corner')]:\n    cx = (tot_m * stand_x + phone * off_x) / (tot_m + phone)\n    cy = (tot_m * stand_y + phone * off_y) / (tot_m + phone)\n    margin = min(94 - abs(cx), 80 - abs(cy))\n    print(f'headphones {label}: combined COM ({cx:.1f}, {cy:.1f}); margin to base edge {margin:.1f} mm')\nprint(f'stand alone: {tot_m:.0f} g, COM ({stand_x:.1f}, {stand_y:.1f})')\n"
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.865,
+    "stdout": "crown y at x=0: 41.500 mm (assembly height = 228.5 + y)\ncrown flat width within 0.05mm of top: z 3.84..30.16 -> 26.31 mm\ncontact band within 1mm of crown: 28.21 mm wide\nbase: 509 g, COM=(0.0, -0.0, 8.3)\npost: 472 g, COM=(-0.0, 0.0, 127.1)\nhanger: 96 g, COM=(-0.0, 0.0, 254.7)\nheadphones centred: combined COM (-0.0, 0.0); margin to base edge 80.0 mm\nheadphones 30mm to the side: combined COM (7.4, 0.0); margin to base edge 80.0 mm\nheadphones 45mm front: combined COM (-0.0, 11.0); margin to base edge 69.0 mm\nheadphones corner: combined COM (8.6, 11.0); margin to base edge 69.0 mm\nstand alone: 1076 g, COM (-0.0, 0.0)\n",
+    "stderr": "",
+    "stdout_bytes": 620,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 1.22,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "5e79db7a0344e00e"
+}

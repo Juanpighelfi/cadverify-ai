@@ -1,0 +1,53 @@
+{
+  "seq": 116,
+  "iteration": 77,
+  "name": "run_python",
+  "arguments": {
+    "code": "p = \"/work/model.scad\"\ns = open(p).read()\ndef rep(old, new):\n    global s\n    assert s.count(old) == 1, \"NOT FOUND: \" + old[:100]\n    s = s.replace(old, new)\n# rail under shaft spans full width at z0..0.2 y-2.8..2.8? xcyl along X r2.8 at y0 z0.2 -> z range -2.6..3.0 clipped? cylinder centered (y0,z0.2) r2.8 => z min -2.6. That dips below bed! Remove; instead make a flat foot y -1..1 z 0..0.4? that changes bounds y. Simplest: drop the rail, pin rests on two heads (r2.8 at ends) + shaft sags 0? shaft center z3 r1.8 -> bottom z1.2, heads bottom z0.2. Shaft bridges between heads: declared overhang. That prints: heads on bed, shaft bridges 62.8mm. OK for 0.4 nozzle? 62mm bridge of 3.6mm dia rod - saggy but workable; declare it. Remove rail:\nrep('        xcyl(-32.4, 32.4, 1.8, 0, 3);\\n        xcyl(-32.4, 32.4, 2.8, 0, 0.2);\\n', '        xcyl(-32.4, 32.4, 1.8, 0, 3);\\n')\n# spec bounds must then be shaft+heads actual: ymin -2.8 ymax 2.8 zmin 0.2 zmax 5.8\nrep('        [\"bounds\", [[-32.4, -3, 0], [32.4, 3, 6]]],', '        [\"bounds\", [[-32.4, -2.8, 0.2], [32.4, 2.8, 5.8]]],')\nopen(p, \"w\").write(s)\nprint(\"ok\")\n",
+    "timeout_s": 30.0
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.016,
+    "stdout": "ok\n",
+    "stderr": "",
+    "stdout_bytes": 3,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "scad_edited": [
+      "model.scad"
+    ],
+    "files": {
+      "created": [],
+      "modified": [
+        "model.scad"
+      ],
+      "deleted": []
+    }
+  },
+  "seconds": 0.468,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [
+      "model.scad"
+    ],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [
+    "model.scad"
+  ],
+  "rule": {
+    "seq": 116,
+    "tool": "run_python",
+    "scad": [
+      "model.scad"
+    ],
+    "edit": "allowed"
+  },
+  "source": "2f3d49c266af3292"
+}

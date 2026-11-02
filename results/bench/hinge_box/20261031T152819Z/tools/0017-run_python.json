@@ -1,0 +1,37 @@
+{
+  "seq": 17,
+  "iteration": 8,
+  "name": "run_python",
+  "arguments": {
+    "code": "import trimesh, numpy as np\nbase = trimesh.load('exports/model.base.87e59dfb.stl')\nlid = trimesh.load('exports/model.lid.6029fe16.stl')\nprint(\"base bounds\", base.bounds, \"lid bounds\", lid.bounds)\nax_pt = np.array([0.,56.,29.8]); ax = np.array([-1.,0.,0.])\nfor deg in [95,100,105,110]:\n    m = trimesh.transformations.rotation_matrix(np.radians(deg), ax, ax_pt)\n    l = lid.copy(); l.apply_transform(m)\n    inter = base.intersection(l)\n    v = inter.volume if hasattr(inter,'volume') else 0\n    try: b = inter.bounds\n    except: b = None\n    print(deg, \"inter_vol=%.3f\"%v, \"bounds=\", None if b is None else b.tolist())\n",
+    "timeout_s": 120.0
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.874,
+    "stdout": "base bounds [[ 0.  0.  0.]\n [80. 60. 34.]] lid bounds [[ 0.   0.  25.8]\n [80.  60.  40. ]]\n95 inter_vol=110.843 bounds= [[0.0, 55.850616455078125, 25.434764862060547], [80.0, 60.0, 29.600000381469727]]\n100 inter_vol=150.546 bounds= [[0.0, 55.50236892700195, 25.03298568725586], [80.0, 60.0, 29.600000381469727]]\n105 inter_vol=200.804 bounds= [[0.0, 55.15790939331055, 24.587099075317383], [80.0, 60.0, 29.600000381469727]]\n110 inter_vol=258.697 bounds= [[0.0, 54.81985855102539, 24.0874080657959], [80.0, 60.0, 29.600000381469727]]\n",
+    "stderr": "",
+    "stdout_bytes": 532,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 1.251,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "84d96dbe71b9b46a"
+}

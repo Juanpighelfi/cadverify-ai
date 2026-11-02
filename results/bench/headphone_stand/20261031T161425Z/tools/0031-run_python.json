@@ -1,0 +1,36 @@
+{
+  "seq": 31,
+  "iteration": 24,
+  "name": "run_python",
+  "arguments": {
+    "code": "import trimesh, numpy as np\npost = trimesh.load('checks/assembly/model.assembly.fc1fddf8.stl')\nhang = trimesh.load('checks/assembly/model.assembly.c4305b67.stl')\nfor name,m in [('post',post),('hanger',hang)]:\n    for z in [220,225]:\n        s=m.section([0,0,z],[0,0,1])\n        print(name, z, None if s is None else np.round(s.bounds,2))\n# also base socket alignment check at z=10\nbase = trimesh.load('checks/assembly/model.assembly.6062a230.stl')\nfor z in [10]:\n    s=base.section([0,0,z],[0,0,1]); print('base',z, np.round(s.bounds,2))\n"
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.898,
+    "stdout": "post 220 None\npost 225 None\nhanger 220 None\nhanger 225 None\nbase 10 [[-84.8 -84.8   1. ]\n [ 84.8  84.8   1. ]]\n",
+    "stderr": "",
+    "stdout_bytes": 111,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 1.241,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "a9bd1236506730eb"
+}

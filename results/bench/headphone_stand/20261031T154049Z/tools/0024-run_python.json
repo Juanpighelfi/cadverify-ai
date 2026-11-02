@@ -1,0 +1,36 @@
+{
+  "seq": 24,
+  "iteration": 18,
+  "name": "run_python",
+  "arguments": {
+    "code": "import itertools\nimport numpy as np\nL=20.4; W=16.4; zb=11.9; za=22.0\npts=np.array([[-L/2,-W/2,zb],[L/2,-W/2,zb],[L/2,W/2,zb],[-L/2,W/2,zb],[-L/2,0,za],[L/2,0,za]])\n# candidate faces: bottom quad, two slopes quads, two end triangles\nfaces=[[0,1,2,3],[0,1,5,4],[2,3,4,5],[0,4,3],[1,2,5]]\ncentroid=pts.mean(axis=0)\nfor f in faces:\n    # normal via newell's method\n    n=np.zeros(3)\n    for i in range(len(f)):\n        p=pts[f[i]]; q=pts[f[(i+1)%len(f)]]\n        n[0]+=(p[1]-q[1])*(p[2]+q[2])\n        n[1]+=(p[2]-q[2])*(p[0]+q[0])\n        n[2]+=(p[0]-q[0])*(p[1]+q[1])\n    mid=pts[f].mean(axis=0)\n    to_out=mid-centroid\n    print(f,\"normal\",np.round(n,3),\"dot\",round(float(n@to_out),3),\"->\",\"OK\" if n@to_out>0 else \"REVERSE\")\n"
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.162,
+    "stdout": "[0, 1, 2, 3] normal [  0.     0.   669.12] dot -2252.704 -> REVERSE\n[0, 1, 5, 4] normal [   0.   -412.08  334.56] dot 2252.704 -> OK\n[2, 3, 4, 5] normal [  0.   412.08 334.56] dot 2252.704 -> OK\n[0, 4, 3] normal [-165.64    0.      0.  ] dot 1689.528 -> OK\n[1, 2, 5] normal [165.64   0.     0.  ] dot 1689.528 -> OK\n",
+    "stderr": "",
+    "stdout_bytes": 316,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 0.571,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "03cf2578438dc571"
+}

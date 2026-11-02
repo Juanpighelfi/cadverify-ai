@@ -1,0 +1,35 @@
+{
+  "seq": 27,
+  "iteration": 20,
+  "name": "scad_patch",
+  "arguments": {
+    "path": "model.scad",
+    "old": "        // 45 deg chamfers on the two crown side edges, limited to the central\n        // contact zone |x| <= 36: the box spans start at x = +-36, meet at the\n        // edge point (|x|, crown) = (36, hang_top_z(36)) and stop 3 mm inside\n        // the crown (tangency point), so the chamfer widens the crown flat to\n        // 3 mm at |x| = 36+ and the plate keeps full width beyond it.\n        // far side: keeps Z + Y <= hang_top_z(36) + hang_width\n        translate([0, hang_top_z(36) + hang_width, hang_width]) rotate([135, 0, 0])\n            translate([-36, 0, 0]) cube([72, 40, 40]);\n        // bed side: keeps Z - Y >= -hang_top_z(36)\n        translate([0, hang_top_z(36), 0]) rotate([-135, 0, 0])\n            translate([-36, 0, 0]) cube([72, 40, 40]);",
+    "new": "        // 45 deg chamfers on the two crown side edges, limited to the central\n        // contact zone |x| <= 36. Each box is the half-space beyond its\n        // chamfer plane, rotated -45 deg about X from an origin on the plane:\n        //   far side keeps Y + Z <= hang_top_z(36) + hang_width\n        //   bed side keeps Y - Z <= hang_top_z(36)\n        // At |x| = 36 the crown meets the plane, so beyond it the plate keeps\n        // its full 34 mm width; at the centre the chamfers leave a ~30.7 mm\n        // flat crown. The bed-side chamfer face itself is exactly 45 deg.\n        translate([0, hang_top_z(36), hang_width]) rotate([-45, 0, 0])\n            translate([-36, 0, 0]) cube([72, 40, 40]);\n        translate([0, hang_top_z(36), 0]) rotate([-45, 0, 0])\n            translate([-36, 0, 0]) cube([72, 40, 40]);"
+  },
+  "result": {
+    "ok": true,
+    "path": "model.scad",
+    "line": 138,
+    "lines_removed": 11,
+    "lines_added": 12,
+    "bytes": 10271,
+    "lines": 232,
+    "sha256": "78d21b7564ada36bf86590f6e9a55adb776435e11c30902040c3760260e13771"
+  },
+  "seconds": 0.409,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [
+      "model.scad"
+    ],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [
+    "model.scad"
+  ],
+  "rule": null,
+  "source": "073666fb1b812152"
+}

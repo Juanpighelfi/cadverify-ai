@@ -1,0 +1,35 @@
+{
+  "seq": 14,
+  "iteration": 8,
+  "name": "scad_patch",
+  "arguments": {
+    "new": "module post_part() {\n    // single hull of nested rounded-rect slices: no internal ledges,\n    // straight sides, 45° lead-in chamfers at both ends\n    hull() {\n        translate([0,0,0]) rounded_box(tipW, tipD, 0.2, tipR);\n        translate([0,0,postCham-0.15]) rounded_box(postW, postD, 0.3, postR);\n        translate([0,0,postH-postCham-0.15]) rounded_box(postW, postD, 0.3, postR);\n        translate([0,0,postH-0.2]) rounded_box(tipW, tipD, 0.2, tipR);\n    }\n}",
+    "old": "module post_part() {\n    union() {\n        // middle shaft (overlap frustums)\n        translate([0,0,postCham-0.2]) rounded_box(postW, postD, postH-2*postCham+0.4, postR);\n        // bottom lead-in (small face on bed)\n        translate([0,0,0]) rect_frustum(tipW,tipD,tipR, postW,postD,postR, postCham+0.2);\n        // top lead-in\n        translate([0,0,postH-postCham-0.2]) rect_frustum(postW,postD,postR, tipW,tipD,tipR, postCham+0.2);\n    }\n}",
+    "path": "model.scad"
+  },
+  "result": {
+    "ok": true,
+    "path": "model.scad",
+    "line": 72,
+    "lines_removed": 10,
+    "lines_added": 10,
+    "bytes": 7699,
+    "lines": 194,
+    "sha256": "16df2ecb6d6d866ea1b3abdd823cca8418431df14a1ecd3c33909c07b995f5cc"
+  },
+  "seconds": 0.362,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [
+      "model.scad"
+    ],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [
+    "model.scad"
+  ],
+  "rule": null,
+  "source": "e33f9f65185d0644"
+}

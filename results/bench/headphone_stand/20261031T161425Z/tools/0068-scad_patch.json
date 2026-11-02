@@ -1,0 +1,35 @@
+{
+  "seq": 68,
+  "iteration": 50,
+  "name": "scad_patch",
+  "arguments": {
+    "path": "model.scad",
+    "old": "// true loft of the band profile along print z (no hull: the profile is\n// concave). Full thickness at z=0 (flat bed face), far edge rounded off.\nmodule saddle() {\n    zt = [[0, 6], [37.5, 6], [39, 5.6], [40.5, 4.6], [42, 1.2]];\n    n = len(band_points(6));\n    pts = [for (s = zt) for (p = band_points(s[1])) [p[0], p[1], s[0]]];\n    side = [for (i = [0 : len(zt) - 2]) for (j = [0 : n - 1])\n        [i*n + j, i*n + (j+1)%n, (i+1)*n + (j+1)%n, (i+1)*n + j]];\n    cap0 = [for (j = [0 : n - 1]) j];\n    cap1 = [for (j = [n-1 : -1 : 0]) (len(zt)-1)*n + j];\n    polyhedron(points = pts, faces = concat([cap0], side, [cap1]));\n}",
+    "new": "// saddle along print z: full-thickness prism to z=37.5 (flat bed face at\n// z=0), then thin stepped slices easing the far edge down (rounded edge).\nmodule saddle() {\n    linear_extrude(37.5) polygon(points = band_points(6));\n    for (i = [0 : 5]) {\n        zc = 37.5 + (i + 0.5) * 0.75;\n        t = 1.2 + 4.8 * cos((zc - 37.5) / 4.5 * 90);\n        translate([0, 0, 37.5 + i * 0.75]) linear_extrude(0.77)\n            polygon(points = band_points(t));\n    }\n}"
+  },
+  "result": {
+    "ok": true,
+    "path": "model.scad",
+    "line": 140,
+    "lines_removed": 12,
+    "lines_added": 11,
+    "bytes": 7978,
+    "lines": 179,
+    "sha256": "57e5878f2ec45ba52ccb6537cf1afc6102d14dbb4ff72b59205e289577b73295"
+  },
+  "seconds": 0.295,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [
+      "model.scad"
+    ],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [
+    "model.scad"
+  ],
+  "rule": null,
+  "source": "78e396b26db3136a"
+}

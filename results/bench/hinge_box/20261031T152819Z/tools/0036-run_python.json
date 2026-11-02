@@ -1,0 +1,37 @@
+{
+  "seq": 36,
+  "iteration": 19,
+  "name": "run_python",
+  "arguments": {
+    "code": "import trimesh, numpy as np\nbase = trimesh.load('exports/model.base.87e59dfb.stl')\nlid = trimesh.load('exports/model.lid.6029fe16.stl')\npin = trimesh.load('exports/model.pin.a1529210.stl')\n# sample: use vertices + AABB tree approximations via scipy?\nfrom scipy.spatial import cKDTree\nfor name,(A,B) in {\"base-pin\":(base,pin),\"base-lid\":(base,lid)}.items():\n    tA = cKDTree(np.asarray(A.vertices)); tB = np.asarray(B.vertices)\n    d,_ = tB.query(tA.data, k=1) if False else (None,None)\n    # vertex to vertex both ways approx\n    d1,_ = cKDTree(tB).query(np.asarray(A.vertices),k=1)\n    d2,_ = cKDTree(np.asarray(A.vertices)).query(np.asarray(B.vertices),k=1)\n    i1 = np.argmin(d1); i2=np.argmin(d2)\n    print(name, \"min v-v\", d1.min(), np.asarray(A.vertices)[i1], \" | \", d2.min(), np.asarray(B.vertices)[i2])\n",
+    "timeout_s": 120.0
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.919,
+    "stdout": "base-pin min v-v 0.5830084655534932 [80.         53.70982537 29.6       ]  |  0.5830084655534932 [79.5        57.99036945 29.60396572]\nbase-lid min v-v 0.3999999999999986 [ 0.   2.  29.6]  |  0.3999999999999986 [ 0.  0. 30.]\n",
+    "stderr": "",
+    "stdout_bytes": 225,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 1.295,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "258abecaf3e64b36"
+}

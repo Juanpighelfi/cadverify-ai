@@ -1,0 +1,36 @@
+{
+  "seq": 30,
+  "iteration": 21,
+  "name": "run_shell",
+  "arguments": {
+    "cmd": "python3 - << 'PY'\nimport trimesh, numpy as np\na=trimesh.load('checks/assembly/model.assembly.f07e2875.stl'); b=trimesh.load('checks/assembly/model.assembly.07b3764e.stl')\nfor name,m in [('body',a),('lid',b)]:\n    sel=m.vertices[m.vertices[:,0]>35]\n    print(name,'catch-region verts x35-45 sample')\n# brute sample small: use trimesh boolean? use contains points grid\nxs=np.arange(36,44.1,.2); ys=np.arange(0,3.01,.1); zs=np.arange(19,27.1,.2)\npts=np.array([[x,y,z] for x in xs for y in ys for z in zs],float)\nca=a.contains(pts); cb=b.contains(pts)\nprint('grid both', (ca&cb).sum())\npts2=pts[ca|cb]\n# find min distance via closest on mesh using proximity packed?\nfrom trimesh.proximity import ProximityQuery\npq=ProximityQuery(a)\n_,dist,_=pq.on_surface(b.sample(20000)[0])\nprint('sample min approx',dist.min())\nPY"
+  },
+  "result": {
+    "ok": false,
+    "exit_code": 1,
+    "timed_out": false,
+    "seconds": 15.82,
+    "stdout": "body catch-region verts x35-45 sample\nlid catch-region verts x35-45 sample\ngrid both 0\n",
+    "stderr": "Traceback (most recent call last):\n  File \"<stdin>\", line 15, in <module>\n  File \"/opt/venv/lib/python3.12/site-packages/trimesh/constants.py\", line 151, in timed\n    result = method(*args, **kwargs)\n             ^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/opt/venv/lib/python3.12/site-packages/trimesh/proximity.py\", line 342, in on_surface\n    return closest_point(mesh=self._mesh, points=points)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/opt/venv/lib/python3.12/site-packages/trimesh/proximity.py\", line 153, in closest_point\n    raise ValueError(\"points must be (n,3)!\")\nValueError: points must be (n,3)!\n",
+    "stdout_bytes": 87,
+    "stderr_bytes": 622,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 16.228,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "21031b529589fe51"
+}

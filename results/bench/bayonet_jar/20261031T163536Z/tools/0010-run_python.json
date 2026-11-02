@@ -1,0 +1,36 @@
+{
+  "seq": 10,
+  "iteration": 5,
+  "name": "run_python",
+  "arguments": {
+    "code": "import trimesh, numpy as np\nm = trimesh.load('exports/model.jar.47460a51.stl')\nparts = m.split(only_watertight=False)\nprint('bodies:', len(parts))\nfor p in parts:\n    print('vol %.2f' % p.volume, 'bounds', np.round(p.bounds,2).tolist(), 'wt', p.is_watertight)\n# non-manifold edges location summary\nimport collections\nedges = m.edges_sorted\nuniq, counts = trimesh.grouping.unique_rows(edges)\nbad = uniq[counts>2]\nprint('nonmanifold edges:', len(bad))\nif len(bad):\n    v = m.vertices[bad]\n    print('z range', v[:,:,2].min(), v[:,:,2].max())\n    r = np.hypot(v[:,:,0], v[:,:,1])\n    print('r range', r.min(), r.max())\n"
+  },
+  "result": {
+    "ok": false,
+    "exit_code": 1,
+    "timed_out": false,
+    "seconds": 1.197,
+    "stdout": "bodies: 4\nvol 68872.68 bounds [[-38.5, -38.5, 0.0], [38.5, 38.5, 82.38]] wt False\nvol 0.25 bounds [[-13.94, -34.5, 82.38], [34.28, -3.7, 82.4]] wt True\nvol 0.25 bounds [[-13.94, 3.7, 82.38], [34.28, 34.5, 82.4]] wt True\nvol 0.25 bounds [[-34.5, -27.84, 82.38], [-20.15, 27.84, 82.4]] wt True\n",
+    "stderr": "Traceback (most recent call last):\n  File \"<string>\", line 11, in <module>\nIndexError: boolean index did not match indexed array along axis 0; size of axis is 19518 but size of corresponding boolean axis is 39222\n",
+    "stdout_bytes": 292,
+    "stderr_bytes": 213,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 1.658,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "ddda2d1880752a1b"
+}

@@ -1,0 +1,53 @@
+{
+  "seq": 79,
+  "iteration": 53,
+  "name": "run_python",
+  "arguments": {
+    "code": "p=\"/work/model.scad\"\ns=open(p).read()\n# --- box back wall: split into 5 segs with clearance holes so wall clears knuckles axially ---\nold_bw = '''            translate([-40, -30, 2.4]) cube([80, 2.4, 24.6]);\n            translate([-40, -30, 27.0]) cube([11, 2.4, 3.0]);\n            translate([29, -30, 27.0]) cube([11, 2.4, 3.0]);'''\nassert s.count(old_bw)==1\nnew_bw = '''            translate([-40, -30, 2.4]) cube([80, 2.4, 27.6 - 2.4]);\n            // top band of back wall split into segs clearing lid knuckles axially (0.4 gap each side)\n            translate([-40, -30, 27.6]) cube([11.88, 2.4, 2.4]);\n            translate([-17.52, -30, 27.6]) cube([11.28, 2.4, 2.4]);\n            translate([6.64, -30, 27.6]) cube([11.28, 2.4, 2.4]);\n            translate([28.12, -30, 27.6]) cube([11.88, 2.4, 2.4]);'''\ns=s.replace(old_bw,new_bw)\n# --- lid back skirt: split into segs clearing box knuckles axially ---\nold_ls = '''            translate([k1x0, -30, 3]) cube([k1x1-k1x0, 2.4, 7.6]);\n            translate([k3x0, -30, 3]) cube([k3x1-k3x0, 2.4, 7.6]);\n            translate([-40, -30, 3]) cube([11, 2.4, 7.6]);\n            translate([29, -30, 3]) cube([11, 2.4, 7.6]);'''\nassert s.count(old_ls)==1\nnew_ls = '''            translate([-17.92, -30, 3]) cube([11.68, 2.4, 7.6]);\n            translate([6.24, -30, 3]) cube([11.68, 2.4, 7.6]);\n            translate([-40, -30, 3]) cube([9.6, 2.4, 7.6]);\n            translate([-5.44, -30, 3]) cube([10.88, 2.4, 7.6]);\n            translate([18.72, -30, 3]) cube([10.88, 2.4, 7.6]);\n            translate([30.4, -30, 3]) cube([9.6, 2.4, 7.6]);'''\ns=s.replace(old_ls,new_ls)\n# --- box plug-front/catch: shrink bump radial (0.5) and move plug walls? box plug? box has no plug; catch bump sits on front wall face at y27.0..27.6. shrink to 0.3:\nold_cb='            translate([-3, 27.0, 27.5]) cube([6, 0.6, 1.5]);'\nassert s.count(old_cb)==1\ns=s.replace(old_cb,'            translate([-3, 27.15, 27.5]) cube([6, 0.45, 1.5]);')\n# --- notch update to match bump: keep 0.15 clearance around bump at closed pose ---\nold_nt='        translate([-3.3, 26.3, -0.05]) cube([6.6, 1.5, 2.05]);'\nassert s.count(old_nt)==1\ns=s.replace(old_nt,'        translate([-3.25, 26.5, -0.05]) cube([6.5, 1.35, 2.05]);')\n# --- spec updates: catch boxes ---\ns=s.replace('[\\\"catch_bump\\\", \\\"material\\\", [[-3, 27.0, 27.5], [3, 27.6, 29.0]], 0.9]', '[\\\"catch_bump\\\", \\\"material\\\", [[-3, 27.15, 27.5], [3, 27.6, 29.0]], 0.9]')\ns=s.replace('[\\\"catch_notch\\\", \\\"void\\\", [[-3.3, 26.3, 0], [3.3, 27.8, 2.0]], 0.9]', '[\\\"catch_notch\\\", \\\"void\\\", [[-3.25, 26.5, 0], [3.25, 27.85, 2.0]], 0.9]')\ns=s.replace('[\\\"catch_view\\\", \\\"view\\\", [[-5, 26, 0], [5, 28.5, 3]]]', '[\\\"catch_view\\\", \\\"view\\\", [[-5, 26.3, 0], [5, 28.5, 3]]]')\n# --- assembly overhangs: add front skirt band, bump and notch covers ---\nold_ao='''        [\"overhangs_allowed\", [\n            [\"hinge undersides, pin bridge and cutouts in place\", [[-33, -34, 26.5], [33, -27, 34.8]]],\n            [\"lid top bridging over box cavity\", [[-37.2, -24.9, 37.5], [37.2, 25.2, 38.5]]]\n        ]]'''\nassert s.count(old_ao)==1\nnew_ao='''        [\"overhangs_allowed\", [\n            [\"hinge undersides, pin bridge and cutouts in place\", [[-33, -34, 26.5], [33, -27, 34.8]]],\n            [\"lid top bridging over box cavity\", [[-37.2, -24.9, 37.5], [37.2, 25.2, 38.5]]],\n            [\"front lid skirt band over box rim, 0.4 gap flat bridge\", [[-40.2, -30.2, 30.2], [40.2, 30.2, 30.6]]],\n            [\"lid plug bottom face over print gap, flat bridge\", [[-37.4, -27.4, 27.2], [37.4, 27.4, 27.6]]],\n            [\"lid skirt inner ledge over box rim, flat bridge\", [[-37.8, -30.2, 37.8], [37.8, 27.8, 38.2]]],\n            [\"notch top face over notch void, tiny bridge\", [[-3.5, 26.3, 29.2], [3.5, 28.0, 29.6]]],\n            [\"catch bump underside, tiny 3.6 mm2 ledge\", [[-3.2, 26.9, 27.3], [3.2, 27.8, 27.7]]]\n        ]]'''\ns=s.replace(old_ao,new_ao)\nopen(p,\"w\").write(s)\nprint(\"ok\")\n",
+    "timeout_s": 30.0
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.016,
+    "stdout": "ok\n",
+    "stderr": "",
+    "stdout_bytes": 3,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "scad_edited": [
+      "model.scad"
+    ],
+    "files": {
+      "created": [],
+      "modified": [
+        "model.scad"
+      ],
+      "deleted": []
+    }
+  },
+  "seconds": 0.456,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [
+      "model.scad"
+    ],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [
+    "model.scad"
+  ],
+  "rule": {
+    "seq": 79,
+    "tool": "run_python",
+    "scad": [
+      "model.scad"
+    ],
+    "edit": "allowed"
+  },
+  "source": "47070cbdc0c4a0ef"
+}

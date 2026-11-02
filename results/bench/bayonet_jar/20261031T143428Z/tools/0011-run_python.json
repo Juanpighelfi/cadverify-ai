@@ -1,0 +1,36 @@
+{
+  "seq": 11,
+  "iteration": 11,
+  "name": "run_python",
+  "arguments": {
+    "code": "import trimesh, numpy as np\nlid = trimesh.load('exports/model.lid.6029fe16.stl')\nprint('watertight', lid.is_watertight)\nfor p in [[50.,0.,10.],[39.,0.,10.],[34.,0.,10.],[32.,0.,10.],[0.,0.,10.]]:\n    try:\n        print(p, 'contains:', lid.contains([p]))\n    except Exception as e:\n        print(p, 'contains ERR', e)\nri = lid.ray.ray_triangle.RayMeshIntersector(lid)\no = np.array([[50.,0.,10.]])\nd = np.array([[-1.,0.,0.]])\ntry:\n    locs, ir, it = ri.intersects_location(o, d)\n    print('hits x:', sorted([float(p[0]) for p in locs], reverse=True) if len(locs)>0 else [])\nexcept Exception as e:\n    print('ray ERR', e)\nimport math\nprint('bump75 xy at r36:', 36*math.cos(math.radians(75)), 36*math.sin(math.radians(75)))\n"
+  },
+  "result": {
+    "ok": false,
+    "exit_code": 1,
+    "timed_out": false,
+    "seconds": 0.88,
+    "stdout": "watertight True\n[50.0, 0.0, 10.0] contains: [False]\n[39.0, 0.0, 10.0] contains: [False]\n[34.0, 0.0, 10.0] contains: [ True]\n[32.0, 0.0, 10.0] contains: [ True]\n[0.0, 0.0, 10.0] contains: [False]\n",
+    "stderr": "Traceback (most recent call last):\n  File \"<string>\", line 9, in <module>\nAttributeError: 'RayMeshIntersector' object has no attribute 'ray_triangle'\n",
+    "stdout_bytes": 195,
+    "stderr_bytes": 150,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 1.229,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "44c41db30c1149e9"
+}

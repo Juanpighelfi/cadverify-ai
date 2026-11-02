@@ -1,0 +1,37 @@
+{
+  "seq": 17,
+  "iteration": 11,
+  "name": "run_python",
+  "arguments": {
+    "code": "import trimesh, numpy as np\nm = trimesh.load(\"exports/model.box.e1af9484.stl\")\nv = m.vertices\naxis = np.array([-30.5, 30.8])\nd = np.hypot(v[:,1]-axis[0], v[:,2]-axis[1])\nfor x0,x1 in [(-30,-18.32),(18.32,30),(5.84-0.0,5.84)]:\n    for pad,tag in [(0.0,\"inside\"),(0.6,\"extended\")]:\n        mask = (v[:,0]>x0-pad)&(v[:,0]<x1+pad)&(d<3.0)\n        sel = d[mask]\n        print(f\"x[{x0},{x1}] {tag}: count={mask.sum()}\" + (f\" min={sel.min():.3f} max={sel.max():.3f} mean={sel.mean():.3f}\" if mask.sum() else \"\"))\n# histogram of d for verts near knuckle 0\nmask = (v[:,0]>-30.1)&(v[:,0]<-18.2)\nprint(\"all-vert dist hist near k0:\")\nh,edges = np.histogram(d[mask], bins=[0,1,1.5,2,2.3,2.6,3,3.4,4])\nprint(h, edges)\n",
+    "timeout_s": 60.0
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.785,
+    "stdout": "x[-30,-18.32] inside: count=0\nx[-30,-18.32] extended: count=113 min=2.297 max=2.684 mean=2.303\nx[18.32,30] inside: count=0\nx[18.32,30] extended: count=112 min=2.297 max=2.300 mean=2.300\nx[5.84,5.84] inside: count=0\nx[5.84,5.84] extended: count=56 min=2.297 max=2.300 mean=2.300\nall-vert dist hist near k0:\n[ 0  0  0 52 60  1 58 64] [0.  1.  1.5 2.  2.3 2.6 3.  3.4 4. ]\n",
+    "stderr": "",
+    "stdout_bytes": 370,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 1.126,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "f492e7d169b57822"
+}

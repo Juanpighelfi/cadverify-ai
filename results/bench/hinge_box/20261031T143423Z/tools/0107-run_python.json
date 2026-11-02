@@ -1,0 +1,53 @@
+{
+  "seq": 107,
+  "iteration": 69,
+  "name": "run_python",
+  "arguments": {
+    "code": "p = \"/work/model.scad\"\ns = open(p).read()\ndef rep(old, new):\n    global s\n    assert s.count(old) == 1, \"NOT FOUND: \" + old[:80]\n    s = s.replace(old, new)\n\nrep('part = \"box\";\\n// [box, lid, pin, assembly]', 'part = \"box\"; // [box, lid, pin, assembly]')\nrep('''            // top band of back wall split into segs clearing lid knuckles axially (0.4 gap each side)\n            translate([-40, -30, 27.0]) cube([11.88, 2.4, 3.0]);\n            translate([-17.52, -30, 27.0]) cube([11.28, 2.4, 3.0]);\n            translate([6.64, -30, 27.0]) cube([11.28, 2.4, 3.0]);\n            translate([28.12, -30, 27.0]) cube([11.88, 2.4, 3.0]);''',\n'''            // top band of back wall split into segs clearing lid knuckles axially (0.5 gap each side)\n            translate([-40, -30, 27.0]) cube([11.68, 2.4, 3.0]);\n            translate([-17.42, -30, 27.0]) cube([11.08, 2.4, 3.0]);\n            translate([6.74, -30, 27.0]) cube([11.08, 2.4, 3.0]);\n            translate([28.32, -30, 27.0]) cube([11.68, 2.4, 3.0]);''')\nrep('''            translate([-40, -30, 3]) cube([9.6, 2.4, 7.6]);\n            translate([-5.44, -30, 3]) cube([10.88, 2.4, 7.6]);\n            translate([18.72, -30, 3]) cube([10.88, 2.4, 7.6]);\n            translate([30.4, -30, 3]) cube([9.6, 2.4, 7.6]);''',\n'''            translate([-40, -30, 3]) cube([9.4, 2.4, 7.6]);\n            translate([-5.34, -30, 3]) cube([10.68, 2.4, 7.6]);\n            translate([18.82, -30, 3]) cube([10.68, 2.4, 7.6]);\n            translate([30.6, -30, 3]) cube([9.4, 2.4, 7.6]);''')\nrep('''            translate([k0x0, -31, 26.8]) cube([k0x1-k0x0, 3.4, 4.0]);\n            translate([k2x0, -31, 26.8]) cube([k2x1-k2x0, 3.4, 4.0]);\n            translate([k4x0, -31, 26.8]) cube([k4x1-k4x0, 3.4, 4.0]);''',\n'''            translate([k0x0 + 0.5, -31, 26.8]) cube([k0x1-k0x0 - 1.0, 3.4, 4.0]);\n            translate([k2x0 + 0.5, -31, 26.8]) cube([k2x1-k2x0 - 1.0, 3.4, 4.0]);\n            translate([k4x0 + 0.5, -31, 26.8]) cube([k4x1-k4x0 - 1.0, 3.4, 4.0]);''')\nrep('''            translate([k1x0, -31, 0]) cube([k1x1-k1x0, 3.4, 5]);\n            translate([k3x0, -31, 0]) cube([k3x1-k3x0, 3.4, 5]);''',\n'''            translate([k1x0 + 0.5, -31, 0]) cube([k1x1-k1x0 - 1.0, 3.4, 5]);\n            translate([k3x0 + 0.5, -31, 0]) cube([k3x1-k3x0 - 1.0, 3.4, 5]);''')\nfor a,b in [(\"xcyl(k0x0, k0x1, Rkn, yh, zh);\",\"xcyl(k0x0 + 0.5, k0x1 - 0.5, Rkn, yh, zh);\"),\n            (\"xcyl(k2x0, k2x1, Rkn, yh, zh);\",\"xcyl(k2x0 + 0.5, k2x1 - 0.5, Rkn, yh, zh);\"),\n            (\"xcyl(k4x0, k4x1, Rkn, yh, zh);\",\"xcyl(k4x0 + 0.5, k4x1 - 0.5, Rkn, yh, zh);\"),\n            (\"xcyl(k1x0, k1x1, Rkn, yh, lid_zh);\",\"xcyl(k1x0 + 0.5, k1x1 - 0.5, Rkn, yh, lid_zh);\"),\n            (\"xcyl(k3x0, k3x1, Rkn, yh, lid_zh);\",\"xcyl(k3x0 + 0.5, k3x1 - 0.5, Rkn, yh, lid_zh);\")]:\n    rep(a,b)\nrep('''        xcyl(-32.4, 32.4, rpin, 0, 3);\n        xcyl(30.4, 32.4, 3, 0, 3);\n        xcyl(-32.4, -30.4, 3, 0, 3);''',\n'''        xcyl(-32.4, 32.4, 1.8, 0, 3);\n        xcyl(31.4, 32.4, 2.8, 0, 3);\n        xcyl(-32.4, -31.4, 2.8, 0, 3);''')\nrep('[\"shaft\", \"thickness\", [0, 3, 3], [0, -1, 0], 3.8]', '[\"shaft\", \"thickness\", [0, 3, 3], [0, -1, 0], 3.6]')\nrep('[[30.4, -3, 0], [32.4, 3, 6]]', '[[31.4, -2.8, 0], [32.4, 2.8, 6]]')\nrep('''        [\"overhangs_allowed\", [\n            [\"hinge knuckles and bores print in place\", [[-18.2, -33.9, 0], [18.2, -27.1, 4.2]]],\n            [\"lid top bridging over plug cavity\", [[-37.2, -24.9, 10.1], [37.2, 25.2, 11.1]]]\n        ]],''',\n'''        [\"overhangs_allowed\", [\n            [\"hinge knuckles and bores print in place\", [[-18.2, -33.9, 0], [18.2, -27.1, 4.2]]],\n            [\"lid top bridging over plug cavity\", [[-37.2, -24.9, 10.1], [37.2, 25.2, 11.1]]],\n            [\"lid skirt bottom band, flat 0.4-gap bridge when assembled\", [[-40.2, -30.2, 2.8], [40.2, 30.2, 3.2]]],\n            [\"lid skirt inner ledge over box rim, flat bridge\", [[-37.8, -30.2, 10.4], [37.8, 27.8, 10.8]]],\n            [\"hinge knuckle underside rounds, 0.4-gap print bridge\", [[-18.2, -33.9, 3.0], [18.2, -27.1, 6.6]]],\n            [\"lid back skirt gaps between knuckles, flat bridge\", [[-30.6, -30.2, 2.8], [30.6, -27.4, 3.4]]],\n            [\"notch top face over notch void, tiny bridge\", [[-3.5, 26.3, 1.8], [3.5, 28.0, 2.2]]]\n        ]],''')\nopen(p, \"w\").write(s)\nprint(\"patched ok\")\n",
+    "timeout_s": 30.0
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.018,
+    "stdout": "patched ok\n",
+    "stderr": "",
+    "stdout_bytes": 11,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "scad_edited": [
+      "model.scad"
+    ],
+    "files": {
+      "created": [],
+      "modified": [
+        "model.scad"
+      ],
+      "deleted": []
+    }
+  },
+  "seconds": 0.456,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [
+      "model.scad"
+    ],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [
+    "model.scad"
+  ],
+  "rule": {
+    "seq": 107,
+    "tool": "run_python",
+    "scad": [
+      "model.scad"
+    ],
+    "edit": "allowed"
+  },
+  "source": "3bb5695d87f9dd9e"
+}

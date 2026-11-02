@@ -1,0 +1,36 @@
+{
+  "seq": 63,
+  "iteration": 46,
+  "name": "run_python",
+  "arguments": {
+    "code": "import trimesh, numpy as np\nh = trimesh.load('exports/model.hanger.bb97b27d.stl')\n\ndef ray_oo(pt, d):\n    loc, rid, _ = h.ray.intersects_location(np.array([pt], float), np.array([d], float), multiple_hits=True)\n    if len(loc) == 0: return []\n    proj = (loc - np.array(pt, float)) @ np.array(d, float)\n    return [round(float(v), 3) for v in sorted(proj)]\n\ntests = [\n    ('tenon X width: from (20,10,17) dir -x -> expect segment 24 (4..28)', [20,10,17], [-1,0,0]),\n    ('tenon Z depth: from (0,10,50) dir -z -> expect 34 (16..50)', [0,10,50], [0,0,-1]),\n    ('crown flat: from (0,41.45,50) dir -z -> expect 30 (18..48)', [0,41.45,50], [0,0,-1]),\n    ('full width at x=40: from (40,35,50) dir -z -> expect 34', [40,35,50], [0,0,-1]),\n]\nfor name, pt, d in tests:\n    print(name, 'rays at:', ray_oo(pt, d))\np = trimesh.load('exports/model.post.2b1e5522.stl')\nloc, rid, _ = p.ray.intersects_location(np.array([[0,35,100]], float), np.array([[0,-1,0]], float), multiple_hits=True)\nprint('post depth ray from (0,35,100) -y:', [round(float(v),2) for v in sorted((loc-[0,35,100]) @ [0,-1,0])] if len(loc) else [])\n"
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.823,
+    "stdout": "tenon X width: from (20,10,17) dir -x -> expect segment 24 (4..28) rays at: [8.0, 32.0]\ntenon Z depth: from (0,10,50) dir -z -> expect 34 (16..50) rays at: [16.0, 50.0]\ncrown flat: from (0,41.45,50) dir -z -> expect 30 (18..48) rays at: [17.95, 48.05]\nfull width at x=40: from (40,35,50) dir -z -> expect 34 rays at: [16.0, 50.0]\npost depth ray from (0,35,100) -y: [12.0, 58.0]\n",
+    "stderr": "",
+    "stdout_bytes": 378,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 1.163,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "1049fdd2b1544358"
+}

@@ -1,0 +1,36 @@
+{
+  "seq": 29,
+  "iteration": 22,
+  "name": "run_shell",
+  "arguments": {
+    "cmd": "sed -n 100,165p model.scad"
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.004,
+    "stdout": "        // Solid rectangular column, corners rounded 8 mm in plan view.\n        linear_extrude(post_len) rounded_rect(post_w, post_d, 8);\n        // Blind rectangular socket in the top for the hanger blade tenon:\n        // tenon + 0.6 mm per side (0.3 mm clearance); the non-round rectangle\n        // is what stops the hanger spinning on the post.\n        translate([0, 0, post_top_socket_floor_local])\n            linear_extrude(post_len - post_top_socket_floor_local + 2)\n                rounded_rect(post_top_socket_w, post_top_socket_d, 5);\n    }\n}\n\n/* ---------- HANGER (printed on its side) ---------- */\nmodule hanger_part() {\n    top_pts    = [for (x = [56 : -8 : -56]) [x, hang_top_z(x)]];\n    bot_r_pts  = [for (x = [40 : 8 : 64]) [x, hang_bot_z(x)]];\n    bot_l_pts  = [for (x = [-64 : 8 : -40]) [x, hang_bot_z(x)]];\n    mid64 = (hang_top_z(64) + hang_bot_z(64)) / 2;\n    // Saddle/neck profile above the shoulder plane (print y = hang_shoulder_rel).\n    profile = concat(\n        [[-hang_neck_half_w, hang_shoulder_rel], [hang_neck_half_w, hang_shoulder_rel],\n         [30, hang_bot_z(30)]],\n        bot_r_pts,\n        [[hang_len_half - 0.5, mid64], [64, hang_top_z(64)]],\n        top_pts,\n        [[-64, hang_top_z(64)], [-(hang_len_half - 0.5), mid64], [-64, hang_bot_z(64)]],\n        bot_l_pts,\n        [[-30, hang_bot_z(30)]]\n    );\n    difference() {\n        union() {\n            linear_extrude(hang_width) polygon(profile);\n            // Blade tenon below the shoulder: 24 x 34 with 4 mm corner radii,\n            // so it clears the post socket's 5 mm rounded corners. It reaches\n            // 2 mm up into the neck so the union is volumetric, not face-only.\n            translate([0, 0, hang_width/2]) rotate([-90, 0, 0])\n                linear_extrude(hang_shoulder_rel + 2)\n                    rounded_rect(2*hang_tenon_half_w, hang_width, 4);\n        }\n        // 45 deg chamfers on the two crown side edges, limited to the central\n        // contact zone |x| <= 36. Each box is the half-space beyond its\n        // chamfer plane, rotated -45 deg about X from an origin on the plane:\n        //   far side keeps Y + Z <= hang_top_z(36) + hang_width\n        //   bed side keeps Y - Z <= hang_top_z(36)\n        // At |x| = 36 the crown meets the plane, so beyond it the plate keeps\n        // its full 34 mm width; at the centre the chamfers leave a ~30.7 mm\n        // flat crown. The bed-side chamfer face itself is exactly 45 deg.\n        translate([0, hang_top_z(36), hang_width]) rotate([-45, 0, 0])\n            translate([-36, 0, 0]) cube([72, 40, 40]);\n        translate([0, hang_top_z(36), 0]) rotate([-45, 0, 0])\n            translate([-36, 0, 0]) cube([72, 40, 40]);\n    }\n}\n\n/* ---------- Spec echoes ---------- */\nif (part == \"base\") {\n    echo(cadverify_spec = [\n        [\"bounds\", [[-base_w/2, -base_d/2, 0], [base_w/2, base_d/2, boss_top]]],\n        [\"bodies\", 1],\n        [\"through_holes\", 0],\n        [\"support_faces\", [[\"desk\", \"-z\", 25000]]],\n        [\"overhangs_allowed\", []],\n        [\"copies\", 1],\n        [\"details\", [\n            [\"plate\", \"material\", [[-80, -60, 2], [80, 60, 10]], 0.99],\n            [\"boss_wall\", \"material\", [[22, -30, 16], [31, 30, 28]], 0.99],\n            [\"post_socket\", \"void\", [[-17, -21, 16], [17, 21, 30]], 0.99],\n",
+    "stderr": "",
+    "stdout_bytes": 3290,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 0.367,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "073666fb1b812152"
+}

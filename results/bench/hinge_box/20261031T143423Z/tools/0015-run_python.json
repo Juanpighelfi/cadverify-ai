@@ -1,0 +1,37 @@
+{
+  "seq": 15,
+  "iteration": 9,
+  "name": "run_python",
+  "arguments": {
+    "code": "import trimesh, numpy as np\nfrom shapely.geometry import Polygon\nfor name, path, zc in [(\"box\",\"exports/model.box.e1af9484.stl\",30.8),(\"lid\",\"exports/model.lid.6029fe16.stl\",3.4)]:\n    m = trimesh.load(path)\n    xs = {\"box\":[-29.5,-24,-19,-5.84+0.1,0,5.8],\"lid\":[-17,-12,-7]}\n    print(\"==\",name)\n    for x in xs[name]:\n        sec = m.section(plane_origin=[x,0,0], plane_normal=[1,0,0])\n        if sec is None: print(x,\"none\"); continue\n        # entities loops in 3D (plane coords Y,Z); find loop containing bore center\n        for e in sec.entities:\n            pts = sec.vertices[e.points][:,1:]  # Y,Z\n            if len(pts) < 3: continue\n            try: poly = Polygon(pts)\n            except: continue\n            if poly.area < 1: continue\n            if poly.contains(trimesh.points.Point([-30.5, zc])) if False else True:\n                pass\n            c = poly.centroid\n            dist = np.hypot(c.x+30.5, c.y-zc)\n            if dist < 2.0:\n                print(f\" x={x} loop n={len(pts)} area={poly.area:.3f} deq={2*np.sqrt(poly.area/np.pi):.3f} yb=({pts[:,0].min():.2f},{pts[:,0].max():.2f}) zb=({pts[:,1].min():.2f},{pts[:,1].max():.2f})\")\n",
+    "timeout_s": 60.0
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 1.077,
+    "stdout": "== box\n x=-29.5 loop n=115 area=14.985 deq=4.368 yb=(-32.80,-28.20) zb=(28.50,33.10)\n x=-24 loop n=115 area=14.985 deq=4.368 yb=(-32.80,-28.20) zb=(28.50,33.10)\n x=-19 loop n=115 area=14.985 deq=4.368 yb=(-32.80,-28.20) zb=(28.50,33.10)\n x=-5.74 loop n=120 area=14.985 deq=4.368 yb=(-32.80,-28.20) zb=(28.50,33.10)\n x=0 loop n=120 area=14.985 deq=4.368 yb=(-32.80,-28.20) zb=(28.50,33.10)\n x=5.8 loop n=120 area=14.985 deq=4.368 yb=(-32.80,-28.20) zb=(28.50,33.10)\n== lid\n x=-17 loop n=108 area=12.870 deq=4.048 yb=(-32.80,-28.24) zb=(1.10,5.70)\n x=-12 loop n=108 area=12.870 deq=4.048 yb=(-32.80,-28.24) zb=(1.10,5.70)\n x=-7 loop n=108 area=12.870 deq=4.048 yb=(-32.80,-28.24) zb=(1.10,5.70)\n",
+    "stderr": "",
+    "stdout_bytes": 693,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 1.51,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "f492e7d169b57822"
+}

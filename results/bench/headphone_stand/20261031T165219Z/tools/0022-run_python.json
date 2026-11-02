@@ -1,0 +1,36 @@
+{
+  "seq": 22,
+  "iteration": 15,
+  "name": "run_python",
+  "arguments": {
+    "code": "import trimesh, numpy as np\nh = trimesh.load('exports/model.hanger.bb97b27d.stl')\np = trimesh.load('exports/model.post.2b1e5522.stl')\n\nprint('HANGER crown probes (y=crown-0.3), material at z=[0.3,2,5,10,17,24,29,32,33.7]:')\nfor x,ytop in [(0,41.5),(30,40.26),(60,30.06)]:\n    inside = h.contains(np.array([[float(x), float(ytop-0.3), float(z)] for z in [0.3,2,5,10,17,24,29,32,33.7]]))\n    print('  x=%d' % x, list(inside))\nprint('neck/tenon probes:')\nfor name, pt in [('neck corner (11,21.5,16.9)',(11,21.5,16.9)), ('neck corner (11,21.5,0.3)',(11,21.5,0.3)),\n                 ('tenon centre (0,10,17)',(0,10,17)), ('tenon corner (11.8,10,16.7)',(11.8,10,16.7)),\n                 ('tenon edge (0,10,33.7)',(0,10,33.7)), ('below tenon tip (0,-0.1,17)',(0,-0.1,17))]:\n    print(' ', name, bool(h.contains(np.array([pt], dtype=float))[0]))\nprint('POST socket probes (socket floor local 213.5):')\nfor name, pt in [('corner (10.5,15.5,220)',(10.5,15.5,220)), ('centre void (0,0,220)',(0,0,220)),\n                 ('edge inside (12.0,0,220)',(12.0,0,220)), ('edge wall (12.4,0,220)',(12.4,0,220)),\n                 ('below floor (0,0,213)',(0,0,213))]:\n    print(' ', name, bool(p.contains(np.array([pt], dtype=float))[0]))\n"
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 1.021,
+    "stdout": "HANGER crown probes (y=crown-0.3), material at z=[0.3,2,5,10,17,24,29,32,33.7]:\n  x=0 [np.False_, np.False_, np.True_, np.True_, np.True_, np.True_, np.True_, np.False_, np.False_]\n  x=30 [np.False_, np.False_, np.False_, np.False_, np.False_, np.False_, np.False_, np.False_, np.False_]\n  x=60 [np.True_, np.True_, np.True_, np.True_, np.True_, np.True_, np.True_, np.True_, np.True_]\nneck/tenon probes:\n  neck corner (11,21.5,16.9) True\n  neck corner (11,21.5,0.3) True\n  tenon centre (0,10,17) True\n  tenon corner (11.8,10,16.7) True\n  tenon edge (0,10,33.7) True\n  below tenon tip (0,-0.1,17) False\nPOST socket probes (socket floor local 213.5):\n  corner (10.5,15.5,220) False\n  centre void (0,0,220) False\n  edge inside (12.0,0,220) False\n  edge wall (12.4,0,220) True\n  below floor (0,0,213) True\n",
+    "stderr": "",
+    "stdout_bytes": 803,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 1.397,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "921d682e29453b50"
+}

@@ -1,0 +1,36 @@
+{
+  "seq": 19,
+  "iteration": 9,
+  "name": "run_shell",
+  "arguments": {
+    "cmd": "sed -n 1,120p /opt/venv/lib/python3.12/site-packages/cadverify/scad_source.py 2>/dev/null || find /opt/venv -name \"scad_source*\"; echo =====; grep -rn \"def customizer_options\" -A 40 /opt/venv/lib/python3.12/site-packages/cadverify/scad_source.py 2>/dev/null | head -60"
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.013,
+    "stdout": "\"\"\"Static inspection of OpenSCAD source text (no geometry evaluation).\"\"\"\n\nfrom __future__ import annotations\n\nimport re\n\n\ndef customizer_options(code: str, name: str) -> list[str]:\n    \"\"\"Options of a Customizer drop-down: `name = \"a\"; // [a, b, c]` -> [\"a\", \"b\", \"c\"].\n\n    Labeled options (`[a:Label A, b:Label B]`) keep only the value. Sliders (`[0:5:120]`) and\n    unannotated variables give [].\n    \"\"\"\n    match = re.search(\n        rf\"^\\s*{re.escape(name)}\\s*=\\s*[^;\\n]*;\\s*//\\s*\\[([^\\]]*,[^\\]]*)\\]\", code, re.M\n    )\n    if not match:\n        return []\n    return [option.split(\":\")[0].strip() for option in match.group(1).split(\",\")]\n=====\n8:def customizer_options(code: str, name: str) -> list[str]:\n9-    \"\"\"Options of a Customizer drop-down: `name = \"a\"; // [a, b, c]` -> [\"a\", \"b\", \"c\"].\n10-\n11-    Labeled options (`[a:Label A, b:Label B]`) keep only the value. Sliders (`[0:5:120]`) and\n12-    unannotated variables give [].\n13-    \"\"\"\n14-    match = re.search(\n15-        rf\"^\\s*{re.escape(name)}\\s*=\\s*[^;\\n]*;\\s*//\\s*\\[([^\\]]*,[^\\]]*)\\]\", code, re.M\n16-    )\n17-    if not match:\n18-        return []\n19-    return [option.split(\":\")[0].strip() for option in match.group(1).split(\",\")]\n",
+    "stderr": "",
+    "stdout_bytes": 1205,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 0.448,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "aa4a9e956d9c2dcd"
+}

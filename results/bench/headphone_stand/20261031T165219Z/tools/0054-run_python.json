@@ -1,0 +1,36 @@
+{
+  "seq": 54,
+  "iteration": 40,
+  "name": "run_python",
+  "arguments": {
+    "code": "import trimesh, numpy as np\nh = trimesh.load('exports/model.hanger.bb97b27d.stl')\ndef top_at(x, z):\n    o = np.array([[float(x), 60.0, float(z)]])\n    d = np.array([[0.0, -1.0, 0.0]])\n    loc, _, _ = h.ray.intersects_location(o, d, multiple_hits=True)\n    return max((p[1] for p in loc), default=-1.0)\nprint('crown profile along X at Z=17 (centre):')\nfor x in [0, 15, 30, 45, 60]:\n    print(f'  x={x}: y_top={top_at(x, 17):.2f}')\nprint('transverse section at x=30 (Z: y_top):')\nfor z in [0.5, 5, 10, 17, 24, 29, 33.5]:\n    print(f'  z={z}: y_top={top_at(30, z):.2f}')\nprint('transverse section at x=0:')\nfor z in [0.5, 2, 3, 5, 17, 29, 31, 33.5]:\n    print(f'  z={z}: y_top={top_at(0, z):.2f}')\n"
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 1.002,
+    "stdout": "crown profile along X at Z=17 (centre):\n  x=0: y_top=41.50\n  x=15: y_top=40.82\n  x=30: y_top=38.80\n  x=45: y_top=35.39\n  x=60: y_top=30.50\ntransverse section at x=30 (Z: y_top):\n  z=0.5: y_top=38.80\n  z=5: y_top=38.80\n  z=10: y_top=38.80\n  z=17: y_top=38.80\n  z=24: y_top=38.80\n  z=29: y_top=38.80\n  z=33.5: y_top=38.80\ntransverse section at x=0:\n  z=0.5: y_top=40.00\n  z=2: y_top=41.50\n  z=3: y_top=41.50\n  z=5: y_top=41.50\n  z=17: y_top=41.50\n  z=29: y_top=41.50\n  z=31: y_top=41.50\n  z=33.5: y_top=40.00\n",
+    "stderr": "",
+    "stdout_bytes": 507,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 1.477,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "1049fdd2b1544358"
+}

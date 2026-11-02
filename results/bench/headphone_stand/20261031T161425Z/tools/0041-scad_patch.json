@@ -1,0 +1,35 @@
+{
+  "seq": 41,
+  "iteration": 29,
+  "name": "scad_patch",
+  "arguments": {
+    "path": "model.scad",
+    "old": "function saddle_top(x) = 54 - hang_drop * pow(x / 55, 2);\nmodule saddle_slice(x) {\n    translate([x + 0.6, 0, 0]) rotate([0, -90, 0])\n        linear_extrude(1.2)\n            translate([hang_w/2, saddle_top(x) - hang_thk/2])\n                rounded_rect_2d(hang_w, hang_thk, 5);\n}\nmodule hanger() {\n    difference() {\n        union() {\n            for (i = [0 : 21])\n                hull() { saddle_slice(-55 + 5*i); saddle_slice(-50 + 5*i); }",
+    "new": "function saddle_top(x) = 54 - hang_drop * pow(x / 55, 2);\n// curved band profile (x-y plane) with half-thickness t about the centre curve;\n// tip corners chamfered. Lofted along print z (the width): full thickness at\n// z=0 gives a flat bed face, then it eases to the rounded-corner thickness.\nfunction band_points(t) = let(ch = min(2.5, max(t - 0.5, 0))) concat(\n    [for (x = [-52 : 4 : 52]) [x, saddle_top(x) - 6 + t]],\n    [[55, saddle_top(55) - 6 + t - ch], [55, saddle_top(55) - 6 - t + ch]],\n    [for (x = [52 : -4 : -52]) [x, saddle_top(x) - 6 - t]],\n    [[-55, saddle_top(-55) - 6 - t + ch], [-55, saddle_top(-55) - 6 + t - ch]]);\nmodule band_slice(z, t) {\n    translate([0, 0, z]) linear_extrude(0.8) polygon(points = band_points(t));\n}\nmodule saddle() {\n    zt = [[0, 6], [1.5, 4.6], [3, 5.6], [4.5, 6], [37.5, 6], [39, 5.6], [40.5, 4.6], [42, 1.2]];\n    for (i = [0 : len(zt) - 2])\n        hull() { band_slice(zt[i][0], zt[i][1]); band_slice(zt[i+1][0], zt[i+1][1]); }\n}\nmodule hanger() {\n    difference() {\n        union() {\n            saddle();"
+  },
+  "result": {
+    "ok": true,
+    "path": "model.scad",
+    "line": 131,
+    "lines_removed": 12,
+    "lines_added": 21,
+    "bytes": 7863,
+    "lines": 176,
+    "sha256": "ed29314a2b5c4a513a356d21d354678f1905a78254da1fce6c4249ff14effc0d"
+  },
+  "seconds": 0.395,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [
+      "model.scad"
+    ],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [
+    "model.scad"
+  ],
+  "rule": null,
+  "source": "0263985df4b91333"
+}

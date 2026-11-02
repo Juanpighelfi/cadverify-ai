@@ -1,0 +1,36 @@
+{
+  "seq": 35,
+  "iteration": 27,
+  "name": "run_shell",
+  "arguments": {
+    "cmd": "sed -n 84,200p /opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/details.py"
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.005,
+    "stdout": "def hole(solid, point, direction, expected: list[list[float]]) -> dict[str, Any]:\n    \"\"\"The hole whose axis passes through `point` along `direction`: where its mouth is, its\n    diameter (of the circle with the same area) at each expected depth, and a profile.\"\"\"\n    p = np.asarray(point, float)\n    basis = section.frame(direction)\n    local = solid.transform(np.hstack([basis, (-basis @ p)[:, None]]))  # axis -> +z, p -> 0\n    lo, hi = local.bounding_box()[2], local.bounding_box()[5]\n\n    def state(t: float) -> tuple[str, shapely.Polygon | None]:\n        if not lo <= t <= hi:\n            return \"outside\", None\n        origin = shapely.Point(0.0, 0.0)\n        for polygon in section._cross_section_polygons(local.slice(t)):\n            if polygon.contains(origin):\n                return \"material\", None\n            if shapely.Polygon(polygon.exterior).contains(origin):\n                ring = next(\n                    (r for r in polygon.interiors if shapely.Polygon(r).contains(origin)), None\n                )\n                return \"hole\", shapely.Polygon(ring) if ring is not None else None\n        return \"outside\", None\n\n    start, _ = state(0.0)\n    if start == \"material\":\n        return {\"ok\": False, \"error\": \"the point is inside the material: it goes outside the part\"}\n    step = SCAN_STEP_MM if start == \"outside\" else -SCAN_STEP_MM\n    # Forward, from just before the part; backward (the point is inside the hole), from it.\n    t = max(0.0, lo - SCAN_STEP_MM) if start == \"outside\" else 0.0\n    mouth = None\n    while min(lo, 0.0) - SCAN_STEP_MM <= t <= max(hi, 0.0) + SCAN_STEP_MM:\n        nxt = t + step\n        found, _ = state(nxt)\n        if start == \"outside\" and found == \"material\":\n            return {\n                \"ok\": False,\n                \"error\": f\"the axis enters material {nxt:.2f} mm from the point without going \"\n                \"through a hole: there is no hole on that axis\",\n            }\n        if (start == \"outside\") == (found == \"hole\"):\n            outside, inside = (t, nxt) if start == \"outside\" else (nxt, t)\n            for _ in range(10):  # bisection to 0.1 µm\n                middle = (outside + inside) / 2\n                if state(middle)[0] == \"hole\":\n                    inside = middle\n                else:\n                    outside = middle\n            mouth = inside\n            break\n        t = nxt\n    if mouth is None:\n        return {\"ok\": False, \"error\": \"there is no closed hole on that axis\"}\n\n    def diameter(depth: float) -> float | None:\n        kind, ring = state(mouth + max(depth, MOUTH_INSET_MM))\n        return round(2 * float(np.sqrt(ring.area / np.pi)), 3) if ring is not None else None\n\n    deepest = max(d for d, _ in expected)\n    depths = sorted({d for d in PROFILE_DEPTHS if d <= deepest + 2.0} | {d for d, _ in expected})\n    profile = [[d, diameter(d)] for d in depths[:MAX_PROFILE]]\n    checks, ok = [], True\n    for depth, want in expected:\n        got = diameter(depth)\n        tol = max(HOLE_TOLERANCE_MM, HOLE_TOLERANCE_REL * want)\n        good = got is not None and abs(got - want) <= tol\n        ok &= good\n        checks.append({\"depth_mm\": depth, \"expected_mm\": want, \"measured_mm\": got, \"ok\": good})\n    mouth_point = p + mouth * basis[2]\n    return {\n        \"ok\": ok,\n        \"mouth\": section._r(mouth_point),\n        \"mouth_from_point_mm\": round(mouth, 3),\n        \"diameters\": checks,\n        \"profile\": profile,\n        \"note\": \"Ø of the circle with the same area, at each depth from the mouth (the first \"\n        f\"closed section around the axis, coming from the point); 0 = {MOUTH_INSET_MM} mm\",\n    }\n\n\ndef thickness(mesh: trimesh.Trimesh, point, direction, expected: float) -> dict[str, Any]:\n    \"\"\"Material crossed along the ray from `point`: from where it enters to where it leaves.\"\"\"\n    p = np.asarray(point, float)\n    d = np.asarray(direction, float)\n    d = d / np.linalg.norm(d)\n    locations, _, faces = mesh.ray.intersects_location([p], [d], multiple_hits=True)\n    if len(locations) == 0:\n        return {\"ok\": False, \"error\": \"the ray does not hit the part\"}\n    t = (locations - p) @ d\n    order = np.argsort(t)\n    t, faces = t[order], faces[order]\n    entering = mesh.face_normals[faces] @ d < 0\n    keep = np.ones(len(t), bool)\n    keep[1:] = np.diff(t) > 1e-6  # an edge or a vertex hit twice\n    t, entering = t[keep], entering[keep]\n    if not entering[0]:\n        return {\"ok\": False, \"error\": \"the point is inside the material: it goes outside the part\"}\n    exits = np.flatnonzero(~entering)\n    if not len(exits):\n        return {\"ok\": False, \"error\": \"the ray enters the part and does not leave it\"}\n    measured = float(t[exits[0]] - t[0])\n    tol = max(THICKNESS_TOLERANCE_MM, THICKNESS_TOLERANCE_REL * expected)\n    return {\n        \"ok\": abs(measured - expected) <= tol,\n        \"expected_mm\": expected,\n        \"measured_mm\": round(measured, 3),\n        \"enters_at\": section._r(p + t[0] * d),\n        \"tolerance_mm\": round(tol, 3),\n    }\n",
+    "stderr": "",
+    "stdout_bytes": 4992,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 0.38,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "4b7c0e3ea6ee1ce7"
+}

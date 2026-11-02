@@ -1,0 +1,37 @@
+{
+  "seq": 128,
+  "iteration": 83,
+  "name": "run_python",
+  "arguments": {
+    "code": "p = \"/work/model.scad\"\ns = open(p).read()\ndef rep(old, new):\n    global s\n    assert s.count(old) == 1, \"NOT FOUND: \" + old[:100]\n    s = s.replace(old, new)\n\n# box back-wall top band: 3 segs avoiding lid knuckles k1/k3 with 0.6 clearance\nrep('''            // top band of back wall split into segs clearing lid knuckles axially (0.5 gap each side)\n            translate([-40, -30, 27.0]) cube([11.68, 2.4, 3.0]);\n            translate([-17.42, -30, 27.0]) cube([11.08, 2.4, 3.0]);\n            translate([6.74, -30, 27.0]) cube([11.08, 2.4, 3.0]);\n            translate([28.32, -30, 27.0]) cube([11.68, 2.4, 3.0]);''',\n'''            // top band of back wall split into segs clearing lid knuckles axially (0.6 gap each side)\n            translate([-40, -30, 27.0]) cube([21.48, 2.4, 3.0]);\n            translate([-5.64, -30, 27.0]) cube([11.28, 2.4, 3.0]);\n            translate([18.52, -30, 27.0]) cube([21.48, 2.4, 3.0]);''')\n\n# lid back skirt: 4 segs avoiding box knuckles k0/k2/k4 with 0.6 clearance\nrep('''            translate([-40, -30, 3]) cube([9.4, 2.4, 7.6]);\n            translate([-5.34, -30, 3]) cube([10.68, 2.4, 7.6]);\n            translate([18.82, -30, 3]) cube([10.68, 2.4, 7.6]);\n            translate([30.6, -30, 3]) cube([9.4, 2.4, 7.6]);''',\n'''            translate([-40, -30, 3]) cube([9.4, 2.4, 7.6]);\n            translate([-17.72, -30, 3]) cube([11.28, 2.4, 7.6]);\n            translate([6.44, -30, 3]) cube([11.28, 2.4, 7.6]);\n            translate([30.6, -30, 3]) cube([9.4, 2.4, 7.6]);''')\n\n# full-width pin channel through box back wall band (0.4 radial clearance)\nrep('''        xcyl(k0x0-0.06, k0x1+0.06, rbore, yh, zh);\n        xcyl(k2x0-0.06, k2x1+0.06, rbore, yh, zh);\n        xcyl(k4x0-0.06, k4x1+0.06, rbore, yh, zh);''',\n'''        xcyl(k0x0-0.06, k0x1+0.06, rbore, yh, zh);\n        xcyl(k2x0-0.06, k2x1+0.06, rbore, yh, zh);\n        xcyl(k4x0-0.06, k4x1+0.06, rbore, yh, zh);\n        xcyl(-40.1, 40.1, rbore, yh, zh);''')\n\n# full-width pin channel through lid back skirt (0.4 radial clearance)\nrep('''        xcyl(k1x0-0.06, k1x1+0.06, rbore, yh, lid_zh);\n        xcyl(k3x0-0.06, k3x1+0.06, rbore, yh, lid_zh);''',\n'''        xcyl(k1x0-0.06, k1x1+0.06, rbore, yh, lid_zh);\n        xcyl(k3x0-0.06, k3x1+0.06, rbore, yh, lid_zh);\n        xcyl(-40.1, 40.1, rbore, yh, lid_zh);''')\n\n# pin: heads outside the walls, shaft spans head to head\nrep('''        xcyl(-32.4, 32.4, 1.8, 0, 3);\n        xcyl(31.4, 32.4, 2.8, 0, 3);\n        xcyl(-32.4, -31.4, 2.8, 0, 3);''',\n'''        xcyl(-40.5, 40.5, 1.8, 0, 3);\n        xcyl(40.5, 42.5, 2.8, 0, 3);\n        xcyl(-42.5, -40.5, 2.8, 0, 3);''')\nrep('        [\"bounds\", [[-32.4, -2.8, 0.2], [32.4, 2.8, 5.8]]],',\n    '        [\"bounds\", [[-42.5, -2.8, 0.2], [42.5, 2.8, 5.8]]],')\nrep('[[31.4, -2.8, 0], [32.4, 2.8, 6.0]]', '[[40.5, -2.8, 0], [42.5, 2.8, 6.0]]')\nrep('[[\"pin shaft underside bridges with 0.3 gap\", [[-32.4, -1.9, 0], [32.4, 1.9, 1.6]]]]',\n    '[[\"pin shaft underside bridges with 0.4 gap\", [[-42.5, -2.8, 0], [42.5, 2.8, 1.6]]]]')\n\n# assembly: wider bounds + wider pin-bridge zone\nrep('        [\"bounds\", [[-40, -33.7, 0], [40, 30, 40.4]]],',\n    '        [\"bounds\", [[-42.5, -33.7, 0], [42.5, 30, 40.4]]],')\nrep('[[\"hinge undersides, pin bridge and cutouts in place\", [[-33, -34, 26.5], [33, -27, 34.8]]]',\n    '[[\"hinge undersides, pin bridge and cutouts in place\", [[-43, -34, 26.5], [43, -27, 34.8]]]')\nopen(p, \"w\").write(s)\nprint(\"patched ok\")\n",
+    "timeout_s": 30.0
+  },
+  "result": {
+    "ok": false,
+    "exit_code": 1,
+    "timed_out": false,
+    "seconds": 0.015,
+    "stdout": "",
+    "stderr": "Traceback (most recent call last):\n  File \"<string>\", line 9, in <module>\n  File \"<string>\", line 5, in rep\nAssertionError: NOT FOUND:             // top band of back wall split into segs clearing lid knuckles axially (0.5 gap each sid\n",
+    "stdout_bytes": 0,
+    "stderr_bytes": 236,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 0.381,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "2f3d49c266af3292"
+}

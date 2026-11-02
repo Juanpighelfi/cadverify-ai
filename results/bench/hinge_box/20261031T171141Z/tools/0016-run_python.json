@@ -1,0 +1,36 @@
+{
+  "seq": 16,
+  "iteration": 11,
+  "name": "run_python",
+  "arguments": {
+    "code": "import trimesh, numpy as np, glob\nprint(glob.glob('checks/assembly/*.stl'))\na=trimesh.load('checks/assembly/model.assembly.f07e2875.stl')\nb=trimesh.load('checks/assembly/model.assembly.07b3764e.stl')\n# sample points on b, query a\npts,_=trimesh.sample.sample_surface(b,200000)\nfrom trimesh.proximity import closest_point\ncp,dist,tri=closest_point(a,pts)\ni=np.argmin(dist)\nprint('min sampled',dist[i],pts[i],cp[i])\norder=np.argsort(dist)[:10]\nfor j in order: print(round(float(dist[j]),3),pts[j],cp[j])\n"
+  },
+  "result": {
+    "ok": false,
+    "exit_code": -9,
+    "timed_out": false,
+    "seconds": 31.773,
+    "stdout": "['checks/assembly/flex-open_lid-919f-lidbody-b464.stl', 'checks/assembly/model.assembly.f07e2875.stl', 'checks/assembly/model.assembly.07b3764e.stl', 'checks/assembly/model.lid.6029fe16.stl', 'checks/assembly/model.body.f9b3796c.stl']\n",
+    "stderr": "",
+    "stdout_bytes": 235,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 32.146,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "f37b217cdc9600fe"
+}

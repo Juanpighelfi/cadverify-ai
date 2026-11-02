@@ -1,0 +1,36 @@
+{
+  "seq": 29,
+  "iteration": 22,
+  "name": "run_python",
+  "arguments": {
+    "code": "import trimesh, numpy as np\nov = trimesh.load('checks/assembly/overlap-post-7223-hanger-d248.stl')\nprint('overlap bounds', ov.bounds, 'vol', ov.volume)\n# cross-sections at several z: width in x and y\nfor z in [217,220,225,229,229.9]:\n    s = ov.section([0,0,z],[0,0,1])\n    if s is None:\n        print(z,'none'); continue\n    m = s.to_3D if hasattr(s,'to_3D') else None\n    print(z, 'plane bounds', s.bounds)\n# same for socket: sections of hanger at z slices? Use ray test on hanger mesh at grid\nhg = trimesh.load('checks/assembly/model.assembly.c4305b67.stl')\nprint('hanger bounds', hg.bounds)\n# sample: at x=0, find material intervals along z for y=-8..12 by ray\n"
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 1.048,
+    "stdout": "overlap bounds [[-17. -12. 216.]\n [ 17.  12. 230.]] vol 374.10761030717185\n217 none\n220 none\n225 none\n229 none\n229.9 none\nhanger bounds [[-55.6 -21.  216. ]\n [ 55.6  21.  270. ]]\n",
+    "stderr": "",
+    "stdout_bytes": 179,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 1.477,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "a9bd1236506730eb"
+}

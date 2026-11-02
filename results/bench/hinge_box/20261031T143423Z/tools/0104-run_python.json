@@ -1,0 +1,37 @@
+{
+  "seq": 104,
+  "iteration": 66,
+  "name": "run_python",
+  "arguments": {
+    "code": "p = \"/work/model.scad\"\ns = open(p).read()\n# 1. part selector annotation must be on the SAME line as the assignment\ns = s.replace('part = \"box\";\\n// [box, lid, pin, assembly]', 'part = \"box\"; // [box, lid, pin, assembly]')\nassert s.count('part = \"box\"; // [box, lid, pin, assembly]') == 1\n\n# 2. box back wall: widen axial clearance slots to >= 0.5 per side\nold = '''            // top band of back wall split into segs clearing lid knuckles axially (0.4 gap each side)\n            translate([-40, -30, 27.0]) cube([11.88, 2.4, 3.0]);\n            translate([-17.52, -30, 27.0]) cube([11.28, 2.4, 3.0]);\n            translate([6.64, -30, 27.0]) cube([11.28, 2.4, 3.0]);\n            translate([28.12, -30, 27.0]) cube([11.88, 2.4, 3.0]);'''\nassert s.count(old) == 1\nnew = '''            // top band of back wall split into segs clearing lid knuckles axially (0.5 gap each side)\n            translate([-40, -30, 27.0]) cube([11.68, 2.4, 3.0]);\n            translate([-17.42, -30, 27.0]) cube([11.08, 2.4, 3.0]);\n            translate([6.74, -30, 27.0]) cube([11.08, 2.4, 3.0]);\n            translate([28.32, -30, 27.0]) cube([11.68, 2.4, 3.0]);'''\ns = s.replace(old, new)\n\n# 3. lid back skirt: widen axial clearance slots to >= 0.5 per side\nold = '''            translate([-40, -30, 3]) cube([9.6, 2.4, 7.6]);\n            translate([-5.44, -30, 3]) cube([10.88, 2.4, 7.6]);\n            translate([18.72, -30, 3]) cube([10.88, 2.4, 7.6]);\n            translate([30.4, -30, 3]) cube([9.6, 2.4, 7.6]);'''\nassert s.count(old) == 1\nnew = '''            translate([-40, -30, 3]) cube([9.4, 2.4, 7.6]);\n            translate([-5.34, -30, 3]) cube([10.68, 2.4, 7.6]);\n            translate([18.82, -30, 3]) cube([10.68, 2.4, 7.6]);\n            translate([30.6, -30, 3]) cube([9.4, 2.4, 7.6]);'''\ns = s.replace(old, new)\n\n# 4. box lug webs: narrow in X with 0.5 clearance to neighbouring lid knuckle faces\nold = '''            translate([k0x0, -31, 26.8]) cube([k0x1-k0x0, 3.4, 4.0]);\n            translate([k2x0, -31, 26.8]) cube([k2x1-k2x0, 3.4, 4.0]);\n            translate([k4x0, -31, 26.8]) cube([k4x1-k4x0, 3.4, 4.0]);'''\nassert s.count(old) == 1\nnew = '''            translate([k0x0 + 0.5, -31, 26.8]) cube([k0x1-k0x0 - 1.0, 3.4, 4.0]);\n            translate([k2x0 + 0.5, -31, 26.8]) cube([k2x1-k2x0 - 1.0, 3.4, 4.0]);\n            translate([k4x0 + 0.5, -31, 26.8]) cube([k4x1-k4x0 - 1.0, 3.4, 4.0]);'''\ns = s.replace(old, new)\n\n# 5. lid lug webs: narrow in X with 0.5 clearance to neighbouring box knuckle faces\nold = '''            translate([k1x0, -31, 0]) cube([k1x1-k1x0, 3.4, 5]);\n            translate([k3x0, -31, 0]) cube([k3x1-k3x0, 3.4, 5]);'''\nassert s.count(old) == 1\nnew = '''            translate([k1x0 + 0.5, -31, 0]) cube([k1x1-k1x0 - 1.0, 3.4, 5]);\n            translate([k3x0 + 0.5, -31, 0]) cube([k3x1-k3x0 - 1.0, 3.4, 5]);'''\ns = s.replace(old, new)\n\n# 6. knuckle cylinders: shorten boxes by 0.5/0.5 axial, bore still cuts through\ns = s.replace('xcyl(k0x0, k0x1, Rkn, yh, zh);', 'xcyl(k0x0 + 0.5, k0x1 - 0.5, Rkn, yh, zh);')\ns = s.replace('xcyl(k2x0, k2x1, Rkn, yh, zh);', 'xcyl(k2x0 + 0.5, k2x1 - 0.5, Rkn, yh, zh);')\ns = s.replace('xcyl(k4x0, k4x1, Rkn, yh, zh);', 'xcyl(k4x0 + 0.5, k4x1 - 0.5, Rkn, yh, zh);')\ns = s.replace('xcyl(k1x0, k1x1, Rkn, yh, lid_zh);', 'xcyl(k1x0 + 0.5, k1x1 - 0.5, Rkn, yh, lid_zh);')\ns = s.replace('xcyl(k3x0, k3x1, Rkn, yh, lid_zh);', 'xcyl(k3x0 + 0.5, k3x1 - 0.5, Rkn, yh, lid_zh);')\n\n# 7. pin: thinner shaft + shorter heads for radial clearance\nold = '''        xcyl(-32.4, 32.4, rpin, 0, 3);\n        xcyl(30.4, 32.4, 3, 0, 3);\n        xcyl(-32.4, -30.4, 3, 0, 3);'''\nassert s.count(old) == 1\nnew = '''        xcyl(-32.4, 32.4, 1.8, 0, 3);\n        xcyl(31.4, 32.4, 2.8, 0, 3);\n        xcyl(-32.4, -31.4, 2.8, 0, 3);'''\ns = s.replace(old, new)\ns = s.replace('[\\\"shaft\\\", \\\"thickness\\\", [0, 3, 3], [0, -1, 0], 3.8]', '[\\\"shaft\\\", \\\"thickness\\\", [0, 3, 3], [0, -1, 0], 3.6]')\ns = s.replace('[[30.4, -3, 0], [32.4, 3, 6]]', '[[31.4, -2.8, 0], [32.4, 2.8, 6]]')\n\n# 8. lid spec: declare the individual-print overhang zones\nold = '''        [\"overhangs_allowed\", [\n            [\"hinge knuckles and bores print in place\", [[-18.2, -33.9, 0.0], [18.2, -27.1, 4.2]]],\n            [\"lid top bridging over plug cavity\", [[-37.2, -24.9, 10.1], [37.2, 25.2, 11.1]]]\n        ]],'''\nassert s.count(old) == 1\nnew = '''        [\"overhangs_allowed\", [\n            [\"hinge knuckles and bores print in place\", [[-18.2, -33.9, 0.0], [18.2, -27.1, 4.2]]],\n            [\"lid top bridging over plug cavity\", [[-37.2, -24.9, 10.1], [37.2, 25.2, 11.1]]],\n            [\"lid skirt bottom band, flat 0.4-gap bridge when assembled\", [[-40.2, -30.2, 2.8], [40.2, 30.2, 3.2]]],\n            [\"lid skirt inner ledge over box rim, flat bridge\", [[-37.8, -30.2, 10.4], [37.8, 27.8, 10.8]]],\n            [\"hinge knuckle underside rounds, 0.4-gap print bridge\", [[-18.2, -33.9, 3.0], [18.2, -27.1, 6.6]]],\n            [\"lid back skirt gaps between knuckles, flat bridge\", [[-30.6, -30.2, 2.8], [30.6, -27.4, 3.4]]],\n            [\"notch top face over notch void, tiny bridge\", [[-3.5, 26.3, 1.8], [3.5, 28.0, 2.2]]]\n        ]],'''\ns = s.replace(old, new)\nopen(p, \"w\").write(s)\nprint(\"patched ok\")\n",
+    "timeout_s": 30.0
+  },
+  "result": {
+    "ok": false,
+    "exit_code": 1,
+    "timed_out": false,
+    "seconds": 0.015,
+    "stdout": "",
+    "stderr": "Traceback (most recent call last):\n  File \"<string>\", line 75, in <module>\nAssertionError\n",
+    "stdout_bytes": 0,
+    "stderr_bytes": 90,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 0.361,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "07cd2b76c79e438f"
+}

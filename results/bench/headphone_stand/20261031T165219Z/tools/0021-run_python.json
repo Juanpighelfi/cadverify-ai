@@ -1,0 +1,36 @@
+{
+  "seq": 21,
+  "iteration": 14,
+  "name": "run_python",
+  "arguments": {
+    "code": "import trimesh, numpy as np\nh = trimesh.load('exports/model.hanger.bb97b27d.stl')\np = trimesh.load('exports/model.post.2b1e5522.stl')\n\ndef row(mesh, inside):\n    print(' inside:', np.round(inside,1))\n\nprint('HANGER (print coords: x, y=height, z=width)')\n# scan z sections at crown x=0..60, y=crown-0.3: which z have material? (print z 0=bed side)\nfor x,ytop in [(0,41.5),(30,40.26),(60,30.06)]:\n    row(h, h.contains(np.array([[x, ytop-0.3, z] for z in [0.3,2,5,10,17,24,29,32,33.7]])))\n    print('  x=%d y=%.2f z=[0.3,2,5,10,17,24,29,32,33.7] -> material?'%(x,ytop-0.3))\nprint('neck tenon region probes:')\nprint(' neck corner (11,21.5,16.9):', h.contains(np.array([[11,21.5,16.9]]))[0], '(True = neck fills to 17)')\nprint(' neck corner (11,21.5,17.1):', h.contains(np.array([[11,21.5,0.3]]))[0])\nprint(' tenon (0,10,16.7):', h.contains(np.array([[0,10,16.7]]))[0], ' tenon (11.8,10,16.7):', h.contains(np.array([[11.8,10,16.7]]))[0])\nprint()\nprint('POST socket corner probe (z local, socket floor 213.5):')\nprint(' corner (10.5,15.5,220):', p.contains(np.array([[10.5,15.5,220]]))[0], '(True = solid corner wall, i.e. socket rounded)')\nprint(' centre (0,0,220):', p.contains(np.array([[0,0,220]]))[0])\nprint(' socket width at x: (12.0,0,220):', p.contains(np.array([[12.0,0,220]]))[0], ' (12.4,0,220):', p.contains(np.array([[12.4,0,220]]))[0])\n"
+  },
+  "result": {
+    "ok": false,
+    "exit_code": 1,
+    "timed_out": false,
+    "seconds": 0.893,
+    "stdout": "HANGER (print coords: x, y=height, z=width)\n",
+    "stderr": "Traceback (most recent call last):\n  File \"/opt/venv/lib/python3.12/site-packages/numpy/_core/fromnumeric.py\", line 54, in _wrapfunc\n    return bound(*args, **kwds)\n           ^^^^^^^^^^^^^^^^^^^^\nnumpy._core._exceptions._UFuncOutputCastingError: Cannot cast ufunc 'multiply' output from dtype('float64') to dtype('bool') with casting rule 'same_kind'\n\nDuring handling of the above exception, another exception occurred:\n\nTraceback (most recent call last):\n  File \"<string>\", line 11, in <module>\n  File \"<string>\", line 6, in row\n  File \"/opt/venv/lib/python3.12/site-packages/numpy/_core/fromnumeric.py\", line 3712, in round\n    return _wrapfunc(a, 'round', decimals=decimals, out=out)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/opt/venv/lib/python3.12/site-packages/numpy/_core/fromnumeric.py\", line 63, in _wrapfunc\n    return _wrapit(obj, method, *args, **kwds)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/opt/venv/lib/python3.12/site-packages/numpy/_core/fromnumeric.py\", line 43, in _wrapit\n    result = getattr(arr, method)(*args, **kwds)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nnumpy._core._exceptions._UFuncOutputCastingError: Cannot cast ufunc 'multiply' output from dtype('float64') to dtype('bool') with casting rule 'same_kind'\n",
+    "stdout_bytes": 44,
+    "stderr_bytes": 1290,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 1.294,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "921d682e29453b50"
+}

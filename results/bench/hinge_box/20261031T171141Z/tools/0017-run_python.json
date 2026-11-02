@@ -1,0 +1,36 @@
+{
+  "seq": 17,
+  "iteration": 12,
+  "name": "run_python",
+  "arguments": {
+    "code": "import trimesh, numpy as np\nfrom scipy.spatial import cKDTree\na=trimesh.load('checks/assembly/model.assembly.f07e2875.stl')\nb=trimesh.load('checks/assembly/model.assembly.07b3764e.stl')\nta=cKDTree(a.vertices); tb=cKDTree(b.vertices)\nd,i=tb.query(a.vertices); j=np.argmin(d); print('body vertex near lid',d[j],a.vertices[j],b.vertices[i[j]])\nd2,i2=ta.query(b.vertices); j2=np.argmin(d2); print('lid vertex near body',d2[j2],b.vertices[j2],a.vertices[i2[j2]])\n# print smallest few lid vertices\no=np.argsort(d2)[:12]\nfor k in o: print(round(float(d2[k]),3), b.vertices[k])\n"
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 1.302,
+    "stdout": "body vertex near lid 0.3999999999999986 [ 0.  0. 30.] [ 0.   0.  30.4]\nlid vertex near body 0.3999999999999986 [ 2.4  2.4 30.4] [ 2.4  2.4 30. ]\n0.4 [80.   0.  30.4]\n0.4 [ 6.  55.  30.4]\n0.4 [74.  55.  30.4]\n0.4 [80.  55.  30.4]\n0.4 [ 2.4 52.6 30.4]\n0.4 [77.6  2.4 30.4]\n0.4 [ 0.   0.  30.4]\n0.4 [ 2.4  2.4 30.4]\n0.4 [ 0.  55.  30.4]\n0.4 [77.6 52.6 30.4]\n0.433 [ 6.         53.78684639 30.4       ]\n0.433 [74.         53.78684639 30.4       ]\n",
+    "stderr": "",
+    "stdout_bytes": 443,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 1.682,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "f37b217cdc9600fe"
+}

@@ -1,0 +1,35 @@
+{
+  "seq": 61,
+  "iteration": 45,
+  "name": "scad_patch",
+  "arguments": {
+    "path": "model.scad",
+    "old": "module band_slice(z, t) {\n    translate([0, 0, max(z - 0.8, 0)]) linear_extrude(0.8) polygon(points = band_points(t));\n}\nmodule saddle() {\n    zt = [[0, 6], [1.5, 4.6], [3, 5.6], [4.5, 6], [37.5, 6], [39, 5.6], [40.5, 4.6], [42, 1.2]];\n    for (i = [0 : len(zt) - 2])\n        hull() { band_slice(zt[i][0], zt[i][1]); band_slice(zt[i+1][0], zt[i+1][1]); }\n}",
+    "new": "// true loft of the band profile along print z (no hull: the profile is\n// concave). Full thickness at z=0 (flat bed face), far edge rounded off.\nmodule saddle() {\n    zt = [[0, 6], [37.5, 6], [39, 5.6], [40.5, 4.6], [42, 1.2]];\n    n = len(band_points(6));\n    pts = [for (s = zt) for (p = band_points(s[1])) [p[0], p[1], s[0]]];\n    side = [for (i = [0 : len(zt) - 2]) for (j = [0 : n - 1])\n        [i*n + j, (i+1)*n + j, (i+1)*n + (j+1)%n, i*n + (j+1)%n]];\n    cap0 = [for (j = [n-1 : -1 : 0]) j];\n    cap1 = [for (j = [0 : n - 1]) (len(zt)-1)*n + j];\n    polyhedron(points = pts, faces = concat([cap0], side, [cap1]));\n}"
+  },
+  "result": {
+    "ok": true,
+    "path": "model.scad",
+    "line": 140,
+    "lines_removed": 8,
+    "lines_added": 12,
+    "bytes": 8143,
+    "lines": 180,
+    "sha256": "f9bec6d2ed62c9738cfc7e04fac7d42bfc68b95933b0902dfeef836cee76acfe"
+  },
+  "seconds": 0.288,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [
+      "model.scad"
+    ],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [
+    "model.scad"
+  ],
+  "rule": null,
+  "source": "cfcf253fe50ab1b2"
+}

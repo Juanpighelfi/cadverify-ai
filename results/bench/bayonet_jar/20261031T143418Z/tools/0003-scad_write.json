@@ -1,0 +1,32 @@
+{
+  "seq": 3,
+  "iteration": 3,
+  "name": "scad_write",
+  "arguments": {
+    "content": "// Desk jar with bayonet lid - PETG, Bambu A1, 0.4mm nozzle, no supports\n// Print orientation: +Z up, parts rest on min z. Jar upright, lid opening up (top plate on bed).\n\nR_out = 42; R_neck = 39; R_in = 35; R_lidin = 39.3;\nHj = 86; floor_t = 6; Lid_H = 25; top_t = 4;\nslot_bot = 71; slot_Rf = 37; slot_Ro = 39.1;\nentry_half = 5;\nZlid = 91;\n\npart = \"jar\"; // [jar, lid, assembly]\ncadverify_only = \"\";\n\nmodule instance(name, part, unit = 1) {\n    echo(cadverify_instance = [name, part, unit]);\n    if (cadverify_only == \"\" || cadverify_only == name) children();\n}\n\n$fn = 180;\n\nmodule jar_body() {\n    pts = [\n        [0,0],[40,0],[42,2],[42,63],[39,66],[39,85],[38,86],[36,86],[35,85],[35,9],\n        [34.12,7.76],[32.76,6.88],[31.12,6.12],[32-3+3*cos(-22.5),6+3+3*sin(-22.5)]\n    ];\n    // rebuild cleanly with fillet arc\n    p = concat(\n        [[0,0],[40,0],[42,2],[42,63],[39,66],[39,85],[38,86],[36,86],[35,85],[35,9]],\n        [ for (a=[-22.5,-45,-67.5]) [32+3*cos(a), 9+3*sin(a)] ],\n        [[32,6],[0,6]]\n    );\n    rotate_extrude(convexity=6) polygon(p);\n}\n\nmodule slot_cutter_one(slot_ang) {\n    rotate([0,0,slot_ang]) {\n        translate([slot_Rf, -entry_half, slot_bot]) cube([slot_Ro-slot_Rf, entry_half*2, 87-slot_bot]);\n        rotate([0,0,-7.5]) rotate_extrude(angle=45.5, convexity=6)\n            polygon([[slot_Rf,slot_bot],[slot_Ro,slot_bot],[slot_Ro,78],[slot_Rf,76]]);\n    }\n}\n\nmodule bump_one(slot_ang) {\n    rotate([0,0,slot_ang+20]) hull() {\n        translate([37, -1.5, 70.9]) cube([2, 3, 0.1]);\n        translate([37, -0.5, 72.3]) cube([2, 1, 0.1]);\n    }\n}\n\nmodule jar() {\n    difference() {\n        jar_body();\n        slot_cutter_one(0);\n        slot_cutter_one(120);\n        slot_cutter_one(240);\n    }\n    bump_one(0);\n    bump_one(120);\n    bump_one(240);\n}\n\nmodule lid_body() {\n    p = concat(\n        [[0,0],[40,0],[42,2],[42,24],[41,25],[39.3,25],[39.3,6]],\n        [ for (a=[-22.5,-45,-67.5]) [37.3+2*cos(a), 6+2*sin(a)] ],\n        [[37.3,4],[0,4]]\n    );\n    rotate_extrude(convexity=6) polygon(p);\n}\n\nmodule lug_one(ang) {\n    rotate([0,0,ang]) hull() {\n        translate([37.2,-4,19.4]) cube([2.3,8,0.1]);\n        translate([39.4,-4,13.4]) cube([0.1,8,0.1]);\n        translate([37.2,-4,15.4]) cube([0.1,8,0.1]);\n    }\n}\n\nmodule lid() {\n    lid_body();\n    lug_one(0);\n    lug_one(120);\n    lug_one(240);\n}\n\nmodule assembly() {\n    instance(\"jar\",\"jar\",1) jar();\n    instance(\"lid\",\"lid\",1) translate([0,0,Zlid]) rotate([0,0,30]) rotate([180,0,0]) lid();\n}\n\nif (part==\"jar\") {\n    echo(cadverify_spec = [\n        [\"bounds\", [[-42,-42,0],[42,42,86]]],\n        [\"bodies\", 1],\n        [\"through_holes\", 0],\n        [\"support_faces\", [[\"bed\",\"-z\",3000]]],\n        [\"overhangs_allowed\", []],\n        [\"copies\", 1],\n        [\"details\", [\n            [\"interior\",\"void\",[[-35,-35,6],[35,35,86]],0.7],\n            [\"wall\",\"thickness\",[50,0,35],[-1,0,0],5],\n            [\"floor\",\"thickness\",[0,0,-5],[0,0,1],6],\n            [\"slot_entry\",\"void\",[[37,-5,71],[39.1,5,87]],0.9],\n            [\"slot_lock\",\"void\",[[31.9,18,72],[33.9,20,74]],0.9],\n            [\"bump\",\"material\",[[34.5,12,71],[36.5,14,72.3]],0.4],\n            [\"soft_outer\",\"view\",[[40,-2,0],[42,2,2]]],\n            [\"rim\",\"view\",[[37,0,85],[39,2,86]]]\n        ]]\n    ]);\n    jar();\n} else if (part==\"lid\") {\n    echo(cadverify_spec = [\n        [\"bounds\", [[-42,-42,0],[42,42,25]]],\n        [\"bodies\", 1],\n        [\"through_holes\", 0],\n        [\"support_faces\", [[\"bed\",\"-z\",3000]]],\n        [\"overhangs_allowed\", []],\n        [\"copies\", 1],\n        [\"details\", [\n            [\"cavity\",\"void\",[[-39,-39,4],[39,39,25]],0.5],\n            [\"lug\",\"material\",[[37.2,-4,13.4],[39.5,4,19.5]],0.4],\n            [\"skirt_wall\",\"thickness\",[0,50,15],[0,-1,0],2.5],\n            [\"top\",\"thickness\",[0,0,-5],[0,0,1],4],\n            [\"soft_outer\",\"view\",[[40,-2,0],[42,2,2]]],\n            [\"rim_lead\",\"view\",[[39,-2,24],[42,2,25]]]\n        ]]\n    ]);\n    lid();\n} else if (part==\"assembly\") {\n    echo(cadverify_spec = [\n        [\"bounds\", [[-42,-42,0],[42,42,91]]],\n        [\"support_faces\", [[\"desk\",\"-z\",3000]]],\n        [\"allowed_interferences\", []],\n        [\"motions\", [\n            [\"lid_lock\", [\"lid\"], \"rotate\", [0,0,0], [0,0,1], [-30,0], [\"flex\", [[\"lid\",\"jar\",0.9,\"detent bump\"]]]]\n        ]],\n        [\"assembly_order\", [\n            [[\"jar\"], [0,0,0]],\n            [[\"lid\"], [0,0,100], [\"rotate\", [0,0,0], [0,0,1], 30]]\n        ]]\n    ]);\n    assembly();\n}\n",
+    "path": "model.scad"
+  },
+  "result": {
+    "ok": true,
+    "path": "model.scad",
+    "replaced": true,
+    "bytes": 4444,
+    "lines": 142,
+    "sha256": "6ad0034baa52218fe2a5c759741ff3efd993f394349868477d078c16929f4f21"
+  },
+  "seconds": 0.386,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [
+      "model.scad"
+    ],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [
+    "model.scad"
+  ],
+  "rule": null,
+  "source": "812a6ec20ec3759e"
+}

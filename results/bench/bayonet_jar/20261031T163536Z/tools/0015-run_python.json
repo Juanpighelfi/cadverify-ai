@@ -1,0 +1,36 @@
+{
+  "seq": 15,
+  "iteration": 8,
+  "name": "run_python",
+  "arguments": {
+    "code": "import math\ndef arc(cx,cy,r,a0,a1,n=8,skip=False):\n    return [[cx+r*math.cos(math.radians(a0+(a1-a0)*i/n)), cy+r*math.sin(math.radians(a0+(a1-a0)*i/n))] for i in range(1 if skip else 0, n+1)]\nprof=[[0,0],[36.5,0],[38.5,2],[38.5,65.4]]\nprof+=arc(36.5,65.4,2,0,90,skip=True)\nprof+=[[37.6,67.4]]\nprof+=arc(37.6,69.4,2,270,180,skip=True)\nprof+=[[35.6,80.9]]\nprof+=arc(34.1,80.9,1.5,0,90,skip=True)\nprof+=arc(34.5,80.9,1.5,90,180,skip=True)\nprof+=[[33,72],[35,70],[35,5.4]]\nprof+=arc(32,5.4,3,0,-90,skip=True)\nprof+=[[0,2.4]]\nfor p in prof: print([round(x,3) for x in p])\nfrom shapely.geometry import Polygon\npg=Polygon(prof)\nprint('valid', pg.is_valid, 'simple', pg.exterior.is_simple, pg.is_valid)\nimport shapely.validation as sv\nprint(sv.explain_validity(pg))\n"
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.186,
+    "stdout": "[0, 0]\n[36.5, 0]\n[38.5, 2]\n[38.5, 65.4]\n[38.462, 65.79]\n[38.348, 66.165]\n[38.163, 66.511]\n[37.914, 66.814]\n[37.611, 67.063]\n[37.265, 67.248]\n[36.89, 67.362]\n[36.5, 67.4]\n[37.6, 67.4]\n[37.21, 67.438]\n[36.835, 67.552]\n[36.489, 67.737]\n[36.186, 67.986]\n[35.937, 68.289]\n[35.752, 68.635]\n[35.638, 69.01]\n[35.6, 69.4]\n[35.6, 80.9]\n[35.571, 81.193]\n[35.486, 81.474]\n[35.347, 81.733]\n[35.161, 81.961]\n[34.933, 82.147]\n[34.674, 82.286]\n[34.393, 82.371]\n[34.1, 82.4]\n[34.207, 82.371]\n[33.926, 82.286]\n[33.667, 82.147]\n[33.439, 81.961]\n[33.253, 81.733]\n[33.114, 81.474]\n[33.029, 81.193]\n[33.0, 80.9]\n[33, 72]\n[35, 70]\n[35, 5.4]\n[34.942, 4.815]\n[34.772, 4.252]\n[34.494, 3.733]\n[34.121, 3.279]\n[33.667, 2.906]\n[33.148, 2.628]\n[32.585, 2.458]\n[32.0, 2.4]\n[0, 2.4]\nvalid True simple True True\nValid Geometry\n",
+    "stderr": "",
+    "stdout_bytes": 794,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 0.588,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "2ea9b00f2f9b978c"
+}

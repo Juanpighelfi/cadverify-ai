@@ -1,0 +1,36 @@
+{
+  "seq": 13,
+  "iteration": 11,
+  "name": "run_python",
+  "arguments": {
+    "code": "import trimesh\nov=trimesh.load('checks/assembly/overlap-jar-0163-lid-98fb.stl')\nprint('ov bounds',ov.bounds,'vol',ov.volume,'area',ov.area)\n# sample: where is overlap centroid\nprint('centroid',ov.centroid)\n# instances\njar=trimesh.load('checks/assembly/model.assembly.caabc630.stl')\nlid=trimesh.load('checks/assembly/model.assembly.07b3764e.stl')\nprint('jar bounds',jar.bounds,'lid bounds',lid.bounds)\n# overlap z histogram\nimport numpy as np\nv=ov.vertices\nprint('z min/max',v[:,2].min(),v[:,2].max())\nprint('r max',np.sqrt(v[:,0]**2+v[:,1]**2).max(), 'r min',np.sqrt(v[:,0]**2+v[:,1]**2).min())\n# angles of overlap verts\nang=np.degrees(np.arctan2(v[:,1],v[:,0]))\nprint('ang range',ang.min(),ang.max())\n# show quantiles\nfor q in [0,10,50,90,100]:\n    print(q, np.quantile(v[:,2],q/100))\n"
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.944,
+    "stdout": "ov bounds [[-37.5        -37.5         74.40000153]\n [ 37.5         37.45483017  86.        ]] vol 46.629386512460776 area 613.8881733863625\ncentroid [ 0.24884193 -1.30099156 84.33647384]\njar bounds [[-39. -39.   0.]\n [ 39.  39.  86.]] lid bounds [[-39. -39.  74.]\n [ 39.  39.  92.]]\nz min/max 74.4000015258789 86.0\nr max 37.500001400194186 r min 34.9904379665633\nang range -177.1874999880408 180.0\n0 74.4000015258789\n10 83.72000045776369\n50 86.0\n90 86.0\n100 86.0\n",
+    "stderr": "",
+    "stdout_bytes": 464,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 1.288,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "d24c9e95bea91cea"
+}

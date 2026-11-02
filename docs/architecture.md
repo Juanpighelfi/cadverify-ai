@@ -1,14 +1,15 @@
 # Architecture
 
-CADVerify is a design loop with two halves that do not trust each other. Muse Wonder
-(`muse-wonder-1.0`, Meta Model API) reads the request, writes OpenSCAD, looks at renders and
-decides what to change. A deterministic harness runs every tool, measures every mesh and owns
-the verdict: the model cannot end a session while a gate is red.
+CADVerify is a design loop with two halves that do not trust each other. A Meta model
+(`muse-wonder-1.0` by default, or `muse-spark-1.3`, through the Meta Model API) reads the
+request, writes OpenSCAD, looks at renders and decides what to change. A deterministic harness
+runs every tool, measures every mesh and owns the verdict: the model cannot end a session while
+a gate is red.
 
 ```mermaid
 flowchart LR
     request["request.md"] --> loop["orchestrator<br/>(host, agent/loop.py)"]
-    loop <-->|"Responses API, streamed:<br/>tool calls, images, reasoning"| api["Meta Model API<br/>muse-wonder-1.0"]
+    loop <-->|"Responses API, streamed:<br/>tool calls, images, reasoning"| api["Meta Model API<br/>muse-wonder-1.0 or<br/>muse-spark-1.3"]
     loop -->|"docker exec cadcheck"| session["session sandbox<br/>no network, /work in memory,<br/>the model's code runs here"]
     session -->|"JSON + images"| loop
     session -->|".scad files only"| verify["verification container<br/>new per source version"]
@@ -111,7 +112,24 @@ module instance(name, part, unit = 1) {
 
 Its spec declares `allowed_interferences` (press fits, up to 0.3 mm thick), `motions` (a
 `rotate` or `slide` swept through its range) and `assembly_order` (each step arrives from far
-away along a direction, and may turn, without crossing what is already placed).
+away along a direction, and may turn, without crossing what is already placed). Two more keys
+cover what a rigid sweep and a part-by-part print check cannot:
+
+- a motion's `flex` names a pair of instances that may overlap while it moves, and how deep (up
+  to 1 mm): an elastic detent or snap that bends and springs back. The harness measures the
+  depth as the farthest a point of the overlap's surface is from the other solid's surface,
+  sampled and refined until it is known to stay under the declared value (within 0.05 mm) or
+  to pass it, and refuses any overlap at either end of the range;
+- `print_in_place` says the product is printed already assembled, with the smallest clearance
+  between any two parts (0.2 to 1 mm). G5 then also checks every printed part together, in the
+  assembly pose, against the assembly's own `overhangs_allowed`, and every two of them at least
+  that far apart.
+
+```openscad
+["motions", [["lock", ["lid"], "rotate", [0, 0, 0], [0, 0, 1], [-90, 0],
+              ["flex", [["lid", "jar", 0.5, "the detent bump rides over the ramp"]]]]]],
+["print_in_place", 0.3]
+```
 
 ## Gates
 
@@ -123,13 +141,47 @@ tool results (`agent/gates.py`):
 | G1 | the source compiles and every part exports with no errors, failed asserts or warnings |
 | G2 | every part is a closed mesh with the declared number of bodies |
 | G3 | the assembly: each instance is its part moved (same volume, area and principal moments), every part present as many times as its `copies`, no overlaps beyond the allowed ones, one connected group, and the units the request chains |
-| G4 | every declared motion and the assembly order run without collisions |
-| G5 | overhangs only inside the allowed boxes (at most half of a part's surface), and every part fits the bed |
+| G4 | every declared motion and the assembly order run without collisions; a declared flex no deeper than declared and free at both ends of its range |
+| G5 | overhangs only inside the allowed boxes (at most half of a part's surface), and every part fits the bed; with `print_in_place`, the same on all the parts together as they print, and the declared clearance between any two |
 | G7 | the spec holds, details included, and the model saw the final version: the sheet of every part, a view of the whole assembly, a close view of every `view` detail |
-| G8 | the close: every `[[name]]` it cites is something the harness verified green, and an auditor (the same model, without tools) finds no claim presented as verified that nothing backs, and no untold spec adjustment |
+| G8 | the close: every `[[name]]` it cites is something the harness verified green, and an auditor (`muse-wonder-1.0` without tools, whatever model designed) finds no claim presented as verified that nothing backs, and no untold spec adjustment |
 
 G6 (fidelity to a reference model) is planned and not part of this build; the numbering keeps
 its slot.
+
+### Choosing the auditor
+
+The auditor was chosen by replaying audits, not by assumption
+([scripts/audit_replay.py](../scripts/audit_replay.py), records in
+[results/bench/](../results/bench/)). Twelve cases:
+
+- the six closes the demo sessions sent to the auditor, three of which it refused;
+- six copies of the accepted ones with a known error planted: a strength claim, two numbers
+  changed (a height of 86 mm said as 96, a width of 80 as 82), a "does not tip over" nobody
+  measured, and two closes with their spec adjustments taken out.
+
+Each case went three times to each model:
+
+| Auditor | Right verdicts | Planted errors caught | Accepted closes refused | USD per audit |
+|---|---|---|---|---|
+| first summary: `muse-wonder-1.0` | 29 of 36 | 18 of 18 | 7 of 9 | 0.075 |
+| first summary: `muse-spark-1.3` | 34 of 36 | 18 of 18 | 0 of 9 | 0.022 |
+| current summary: `muse-wonder-1.0` | 33 of 36 | 18 of 18 | 3 of 9 | 0.064 |
+| current summary: `muse-spark-1.3` | 36 of 36 | 18 of 18 | 0 of 9 | 0.022 |
+| current summary: `muse-spark-1.3-contributor` | 33 of 36 | 18 of 18 | 2 of 9 | 0.001 |
+
+Most of the first summary's refusals were the harness's fault: the auditor was not told what a
+green gate had verified, so "0 bad edges" (G2) and "seen up close" (G7) looked unsupported.
+The summary now says what each green gate verified, and carries the bad edges and the
+printability numbers a close quotes.
+
+With it, Wonder's three remaining refusals are one claim of the hinge box close, refused every
+time: "print the default `assembly` output as a single job with no supports". It was right:
+G5 did not check a print in place then, and `print_in_place` exists because of it. Spark
+accepted that claim every time. All the models caught every planted error, so the difference
+is in the subtle claims, and the auditor stays `muse-wonder-1.0` whatever model designs
+(`cadverify design --auditor` changes it). The verdicts on the recorded closes are the
+author's labels.
 
 ## Sandbox
 

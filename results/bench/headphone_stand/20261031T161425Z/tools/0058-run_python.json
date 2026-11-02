@@ -1,0 +1,36 @@
+{
+  "seq": 58,
+  "iteration": 42,
+  "name": "run_python",
+  "arguments": {
+    "code": "import trimesh, numpy as np\nh = trimesh.load('exports/model.hanger.bb97b27d.stl')\nv=h.vertices\nsel=v[(np.abs(v[:,0]-26)<0.6)]\nprint('verts near x=26: y range', sel[:,1].min(), sel[:,1].max(), 'count', len(sel))\nprint(sorted(set((round(float(y),1),round(float(z),1)) for y,z in sel[:,1:])))\n# faces crossing x=26 with low y centroid\nf=h.triangles\nc=f.mean(axis=1)\nsel2=f[(np.abs(c[:,0]-26)<3)&(c[:,1]<35)]\nprint('low-y tris near x26', len(sel2))\nfor t in sel2[:10]: print(np.round(t,1))\n"
+  },
+  "result": {
+    "ok": false,
+    "exit_code": 1,
+    "timed_out": false,
+    "seconds": 0.959,
+    "stdout": "",
+    "stderr": "Traceback (most recent call last):\n  File \"<string>\", line 5, in <module>\n  File \"/opt/venv/lib/python3.12/site-packages/numpy/_core/_methods.py\", line 45, in _amin\n    return umr_minimum(a, axis, None, out, keepdims, initial, where)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nValueError: zero-size array to reduction operation minimum which has no identity\n",
+    "stdout_bytes": 0,
+    "stderr_bytes": 384,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 1.412,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "fc9c43583b6cbdd4"
+}

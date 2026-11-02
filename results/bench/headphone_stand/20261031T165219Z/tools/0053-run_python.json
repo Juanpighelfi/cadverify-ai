@@ -1,0 +1,36 @@
+{
+  "seq": 53,
+  "iteration": 39,
+  "name": "run_python",
+  "arguments": {
+    "code": "import trimesh, numpy as np\nh = trimesh.load('exports/model.hanger.bb97b27d.stl')\nzs = np.linspace(0.05, 33.95, 680)\norigins = np.column_stack([np.zeros_like(zs), np.full_like(zs, 60.0), zs])\ndirs = np.tile([0.0, -1.0, 0.0], (len(zs), 1))\nloc, rid, tid = h.ray.intersects_location(origins, dirs, multiple_hits=True)\ntop_y = np.full(len(zs), -1.0)\nfor i, loc_i in enumerate(loc):\n    top_y[rid[i]] = max(top_y[rid[i]], loc_i[1])\ncrown = top_y.max()\nfor tol in [0.05, 0.25, 1.0]:\n    band = zs[top_y > crown - tol]\n    print(f'within {tol} mm of crown: z {band.min():.2f}..{band.max():.2f} -> {band.max()-band.min():.2f} mm wide')\n# crown arc height drop across +-30 mm along X at Z=17\nfor x in [0, 10, 20, 30, 40, 50, 60]:\n    hits = h.contains(np.array([[float(x), 41.6, 17.0]]))\n    # find top by binary search\n    lo, hi = 0.0, 45.0\n    for _ in range(40):\n        mid = (lo+hi)/2\n        if h.contains(np.array([[float(x), mid, 17.0]]))[0]: lo = mid\n        else: hi = mid\n    print(f'x={x}: crown y={lo:.2f}')\n"
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.953,
+    "stdout": "within 0.05 mm of crown: z 2.00..32.00 -> 30.01 mm wide\nwithin 0.25 mm of crown: z 1.80..32.20 -> 30.41 mm wide\nwithin 1.0 mm of crown: z 1.05..32.95 -> 31.90 mm wide\nx=0: crown y=41.50\nx=10: crown y=41.17\nx=20: crown y=0.00\nx=30: crown y=0.00\nx=40: crown y=0.00\nx=50: crown y=0.00\nx=60: crown y=30.50\n",
+    "stderr": "",
+    "stdout_bytes": 302,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 1.305,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "1049fdd2b1544358"
+}

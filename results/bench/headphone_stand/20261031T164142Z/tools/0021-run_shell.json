@@ -1,0 +1,36 @@
+{
+  "seq": 21,
+  "iteration": 12,
+  "name": "run_shell",
+  "arguments": {
+    "cmd": "head -n 20 model.scad; echo ...; grep -n 'module assembly_instances' -A 30 model.scad; echo ===; grep -n 'assembly_instances' model.scad; echo ===; tail -n 15 model.scad"
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.018,
+    "stdout": "// Headphone stand in three printed parts: base, post and hanger.\n// No glue and no screws. Rectangular (non-round) tenons prevent rotation.\n// Units: mm. Printed in PLA, 0.4 mm nozzle, no supports in the chosen\n// print orientations (except for the very short flat bridge forming the\n// roof of the hanger socket, which is declared in that part's spec).\n\npart = \"assembly\"; // [\"base\", \"post\", \"hanger\", \"assembly\"]\n\n$fn = 48;\n\n/* Design parameters */\nfit_clear = 0.3;          // clearance per side at both tenon joints\n\nbase_w = 204;             // left-right footprint\nbase_d = 164;             // front-back footprint\nbase_h = 16;\nbase_r = 18;\n\npocket_w = 28 + 2 * fit_clear;   // 28.6\npocket_d = 30 + 2 * fit_clear;   // 30.6\n...\n284:module assembly_instances() {\n285-  instance(\"base\", \"base\")\n286-    base_part();\n287-\n288-  // Inverse of the post print transform:\n289-  // Xa = Yp - 25, Ya = Zp - 15, Za = Xp + post_bottom\n290-  instance(\"post\", \"post\")\n291-    multmatrix(m = [\n292-      [0, 1, 0, -post_flange_w/2],\n293-      [0, 0, 1, -post_body_d/2],\n294-      [1, 0, 0, post_bottom],\n295-      [0, 0, 0, 1]\n296-    ]) post_part();\n297-\n298-  // Inverse of the hanger print transform:\n299-  // Xa = Xp, Ya = Zp - 21, Za = hang_top_z - Yp\n300-  instance(\"hanger\", \"hanger\")\n301-    multmatrix(m = [\n302-      [1, 0, 0, 0],\n303-      [0, 0, 1, -hang_w/2],\n304-      [0, -1, 0, hang_top_z],\n305-      [0, 0, 0, 1]\n306-    ]) hanger_part();\n307-}\n308-\n309-cadverify_only = \"\";\n310-module instance(name, part_name, unit = 1) {\n311-  echo(cadverify_instance = [name, part_name, unit]);\n312-  if (cadverify_only == \"\" || cadverify_only == name) children();\n313-}\n===\n281:  assembly_instances();\n284:module assembly_instances() {\n===\n  // Xa = Xp, Ya = Zp - 21, Za = hang_top_z - Yp\n  instance(\"hanger\", \"hanger\")\n    multmatrix(m = [\n      [1, 0, 0, 0],\n      [0, 0, 1, -hang_w/2],\n      [0, -1, 0, hang_top_z],\n      [0, 0, 0, 1]\n    ]) hanger_part();\n}\n\ncadverify_only = \"\";\nmodule instance(name, part_name, unit = 1) {\n  echo(cadverify_instance = [name, part_name, unit]);\n  if (cadverify_only == \"\" || cadverify_only == name) children();\n}\n",
+    "stderr": "",
+    "stdout_bytes": 2150,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 0.48,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "95ef3dca425e919f"
+}

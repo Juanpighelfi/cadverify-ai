@@ -1,0 +1,36 @@
+{
+  "seq": 52,
+  "iteration": 36,
+  "name": "run_python",
+  "arguments": {
+    "code": "import trimesh, numpy as np\nh = trimesh.load('exports/model.hanger.bb97b27d.stl')\nfor x in [0,15,26,40]:\n    ys=np.arange(20,56,0.5)\n    ins=h.contains(np.array([[x,y,21] for y in ys],float))\n    runs=[]\n    start=None\n    for y,i in zip(ys,ins):\n        if i and start is None: start=y\n        if (not i) and start is not None: runs.append((start,prev)); start=None\n        prev=y\n    if start is not None: runs.append((start,prev))\n    print('x',x,'runs y',runs)\n# check polygon logic mentally: saddle_top(26)\nimport math\nfor x in [0,26]:\n    print(x, 54-14*(x/55)**2)\n"
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.839,
+    "stdout": "x 0 runs y [(np.float64(20.0), np.float64(53.5))]\nx 15 runs y [(np.float64(20.0), np.float64(52.5))]\nx 26 runs y [(np.float64(29.5), np.float64(50.5))]\nx 40 runs y [(np.float64(29.5), np.float64(46.5))]\n0 54.0\n26 50.87140495867769\n",
+    "stderr": "",
+    "stdout_bytes": 231,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 1.188,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "fc9c43583b6cbdd4"
+}

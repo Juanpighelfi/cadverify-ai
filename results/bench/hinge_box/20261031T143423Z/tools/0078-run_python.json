@@ -1,0 +1,53 @@
+{
+  "seq": 78,
+  "iteration": 52,
+  "name": "run_python",
+  "arguments": {
+    "code": "p=\"/work/model.scad\"\ns=open(p).read()\n# 1. fix part selector line for Customizer detection\ns=s.replace('part = \"box\";', 'part = \"box\"; // [box, lid, pin, assembly]', 1)\n# 2. remove bridge webs (4 cubes)\ns=s.replace('            // two bridge webs filling wall-to-knuckle band gaps (support-free cover)\\n            translate([-18.32, -30.2, 29.6]) cube([0.4, 2.0, 1.2]);\\n            translate([17.92, -30.2, 29.6]) cube([0.4, 2.0, 1.2]);\\n', '')\ns=s.replace('            // filler webs closing lid-knuckle band overlap with box lugs\\n            translate([-6.24, -30.2, 0]) cube([0.4, 2.0, 1.2]);\\n            translate([5.84, -30.2, 0]) cube([0.4, 2.0, 1.2]);\\n', '')\nopen(p,\"w\").write(s)\nprint(\"patched selector+webs\")\nprint([l for l in open(p).read().splitlines()[:5]])\n",
+    "timeout_s": 30.0
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.015,
+    "stdout": "patched selector+webs\n['// Box with print-in-place hinge (v4: bridge webs to kill band overhangs)', 'part = \"box\"; // [box, lid, pin, assembly]', 'cadverify_only = \"\";', 'module instance(name, part, unit = 1) {', '    echo(cadverify_instance = [name, part, unit]);']\n",
+    "stderr": "",
+    "stdout_bytes": 267,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "scad_edited": [
+      "model.scad"
+    ],
+    "files": {
+      "created": [],
+      "modified": [
+        "model.scad"
+      ],
+      "deleted": []
+    }
+  },
+  "seconds": 0.429,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [
+      "model.scad"
+    ],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [
+    "model.scad"
+  ],
+  "rule": {
+    "seq": 78,
+    "tool": "run_python",
+    "scad": [
+      "model.scad"
+    ],
+    "edit": "allowed"
+  },
+  "source": "f1203d1be580084c"
+}

@@ -1,0 +1,36 @@
+{
+  "seq": 57,
+  "iteration": 41,
+  "name": "run_shell",
+  "arguments": {
+    "cmd": "openscad -o /tmp/test_band.stl --export-format binstl -D 'part=\"hanger\"' model.scad 2>&1 | head; python3 - <<'PY'\n# minimal reproduction via openscad? Instead evaluate band_points in scad echo\nPY\ncat > /tmp/t.scad <<'EOF'\nfunction saddle_top(x) = 54 - 14 * pow(x / 55, 2);\nfunction band_points(t) = let(ch = min(2.5, max(t - 0.5, 0))) concat(\n    [for (x = [-52 : 4 : 52]) [x, saddle_top(x) - 6 + t]],\n    [[55, saddle_top(55) - 6 + t - ch], [55, saddle_top(55) - 6 - t + ch]],\n    [for (x = [52 : -4 : -52]) [x, saddle_top(x) - 6 - t]],\n    [[-55, saddle_top(-55) - 6 - t + ch], [-55, saddle_top(-55) - 6 + t - ch]]);\necho(band_points(6));\nEOF\nopenscad -o /tmp/t.csg /tmp/t.scad 2>&1 | head -c 2000"
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.143,
+    "stdout": "ECHO: cadverify_spec = [[\"bounds\", [[-55, 0, 0], [55, 54, 42]]], [\"bodies\", 1], [\"through_holes\", 0], [\"copies\", 1], [\"support_faces\", [[\"bed\", \"-z\", 2000]]], [\"overhangs_allowed\", [[\"socket roof bridges 21 mm across in PLA\", [[-11, -1, 29], [11, 16, 32.5]]]]], [\"details\", [[\"saddle_contact\", \"material\", [[-15, 47, 3], [15, 52, 39]], 0.95], [\"saddle_thickness\", \"thickness\", [0, 56, 21], [0, -1, 0], 12], [\"boss\", \"material\", [[-22, 2, 2], [22, 20, 6]], 0.95], [\"hanger_socket\", \"void\", [[-8, 1, 12], [8, 13, 30]], 0.98], [\"boss_wall\", \"thickness\", [0, 7, 39], [0, 0, -1], 6.4], [\"saddle_curve\", \"view\", [[-55, 26, 0], [55, 55, 42]]]]]]\nGeometries in cache: 47\nGeometry cache size in bytes: 308832\nCGAL Polyhedrons in cache: 16\nCGAL cache size in bytes: 1426000\nTotal rendering time: 0:00:00.021\n   Top level object is a 3D object (manifold):\n   Status:     NoError\n   Genus:      0\n   Vertices:      624\nECHO: [[-52, 41.4856], [-48, 43.3369], [-44, 45.04], [-40, 46.595], [-36, 48.002], [-32, 49.2608], [-28, 50.3716], [-24, 51.3342], [-20, 52.1488], [-16, 52.8152], [-12, 53.3336], [-8, 53.7038], [-4, 53.926], [0, 54], [4, 53.926], [8, 53.7038], [12, 53.3336], [16, 52.8152], [20, 52.1488], [24, 51.3342], [28, 50.3716], [32, 49.2608], [36, 48.002], [40, 46.595], [44, 45.04], [48, 43.3369], [52, 41.4856], [55, 37.5], [55, 30.5], [52, 29.4856], [48, 31.3369], [44, 33.04], [40, 34.595], [36, 36.002], [32, 37.2608], [28, 38.3716], [24, 39.3342], [20, 40.1488], [16, 40.8152], [12, 41.3336], [8, 41.7038], [4, 41.926], [0, 42], [-4, 41.926], [-8, 41.7038], [-12, 41.3336], [-16, 40.8152], [-20, 40.1488], [-24, 39.3342], [-28, 38.3716], [-32, 37.2608], [-36, 36.002], [-40, 34.595], [-44, 33.04], [-48, 31.3369], [-52, 29.4856], [-55, 30.5], [-55, 37.5]]\n",
+    "stderr": "",
+    "stdout_bytes": 1760,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 0.488,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "fc9c43583b6cbdd4"
+}

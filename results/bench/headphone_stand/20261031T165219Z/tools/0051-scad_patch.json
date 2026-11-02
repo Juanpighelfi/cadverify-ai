@@ -1,0 +1,35 @@
+{
+  "seq": 51,
+  "iteration": 37,
+  "name": "scad_patch",
+  "arguments": {
+    "path": "model.scad",
+    "old": "        // 45 deg chamfers on the two crown side edges, limited to the central\n        // contact zone |x| <= 36. Each box is the half-space beyond its\n        // chamfer plane, rotated -45 deg about X from an origin on the plane:\n        //   far side keeps Y + Z <= hang_top_z(36) + hang_width\n        //   bed side keeps Y - Z <= hang_top_z(36)\n        // At |x| = 36 the crown meets the plane, so beyond it the plate keeps\n        // its full 34 mm width; at the centre the chamfers leave a ~30.7 mm\n        // flat crown. The bed-side chamfer face itself is exactly 45 deg.\n        translate([0, hang_top_z(36), hang_width]) rotate([-45, 0, 0])\n            translate([-36, 0, 0]) cube([72, 40, 40]);\n        translate([0, hang_top_z(36), 0]) rotate([-45, 0, 0])\n            translate([-36, 0, 0]) cube([72, 40, 40]);",
+    "new": "        // 45 deg chamfers on the two crown side edges, tangent to the crown\n        // arc at |x| = 26 (hang_top_z(26) = crown - 2.0 mm). Each box is the\n        // half-space beyond its chamfer plane, rotated -45 deg about X from\n        // an origin on the plane:\n        //   far side keeps Y + Z <= hang_top_z(26) + hang_width\n        //   bed side keeps Y - Z <= hang_top_z(26)\n        // Beyond |x| = 26 the plate keeps its full 34 mm width; at the crown\n        // the two 45 deg breaks leave a 30.0 mm wide flat top (>= 30 mm for\n        // the headband), and the arc gives the rounded profile. The bed-side\n        // chamfer face itself is exactly 45 deg, so no supports are needed.\n        translate([0, hang_top_z(26), hang_width]) rotate([-45, 0, 0])\n            translate([-26, 0, 0]) cube([52, 40, 40]);\n        translate([0, hang_top_z(26), 0]) rotate([-45, 0, 0])\n            translate([-26, 0, 0]) cube([52, 40, 40]);"
+  },
+  "result": {
+    "ok": true,
+    "path": "model.scad",
+    "line": 141,
+    "lines_removed": 12,
+    "lines_added": 14,
+    "bytes": 10596,
+    "lines": 237,
+    "sha256": "f3a0480a2d0f28c6a35d441caceda0f8cfda6b3c89f62144e6e162a9619d97c9"
+  },
+  "seconds": 0.349,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [
+      "model.scad"
+    ],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [
+    "model.scad"
+  ],
+  "rule": null,
+  "source": "1049fdd2b1544358"
+}
