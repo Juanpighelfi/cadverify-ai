@@ -153,8 +153,12 @@ def run_hostile() -> int:
     run_dir = ledger.new_run_dir(PROJECT_ROOT / "results", "hostile")
     print(run_dir)
     results = hostile.run_all(run_dir, os.environ.get("MODEL_API_KEY") or None)
-    print(json.dumps({c["case"]: c["passed"] for c in results}, indent=2))
-    return 0 if all(c["passed"] for c in results) else 1
+    for case in results:
+        verdict = "contained" if case["passed"] else f"NOT CONTAINED {case['error'] or ''}"
+        print(f"{case['case']:26} {verdict} ({case['seconds']} s)")
+    held = sum(c["passed"] for c in results)
+    print(f"{held} of {len(results)} attacks contained; each one in {run_dir}/<attack>/case.json")
+    return 0 if held == len(results) else 1
 
 
 def main(argv: list[str] | None = None) -> int:

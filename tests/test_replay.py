@@ -109,3 +109,62 @@ def test_the_command_writes_the_page_into_the_run(tmp_path, capsys):
     assert cli.main(["replay", str(run)]) == 0
     assert capsys.readouterr().out.strip() == str(run / "replay.html")
     assert (run / "replay.html").read_text(encoding="utf-8").startswith("<!doctype html>")
+
+
+def test_the_markdown_the_model_writes_is_rendered_and_escaped():
+    text = (
+        "**Verified**\n\n"
+        "- walls 2.4 mm [[body_wall]], in `model.scad`\n"
+        "  and a line that goes on\n"
+        "  - a nested *point*\n"
+        "- <b>not bold</b> **2 × 3**\n\n"
+        "1. first\n2. second\n\n"
+        "## Not verified\nstrength"
+    )
+    html = replay._markdown(text)
+    assert "<p><strong>Verified</strong></p>" in html
+    assert (
+        '<ul><li>walls 2.4 mm <span class="cite">body_wall</span>, in <code>model.scad</code> '
+        "and a line that goes on<ul><li>a nested <em>point</em></li></ul></li>"
+    ) in html
+    assert "<li>&lt;b&gt;not bold&lt;/b&gt; <strong>2 × 3</strong></li></ul>" in html
+    assert "<ol><li>first</li><li>second</li></ol>" in html
+    assert '<p class="h">Not verified</p><p>strength</p>' in html
+    assert replay._inline("diameters [[0.0, 4.6]]") == "diameters [[0.0, 4.6]]"
+
+
+def test_a_numbered_list_keeps_its_first_number():
+    assert (
+        replay._markdown("3. third\n4. fourth")
+        == '<ol start="3"><li>third</li><li>fourth</li></ol>'
+    )
+
+
+def test_a_tool_call_shows_the_problems_it_found_and_the_spec_moves(tmp_path):
+    run = _run(tmp_path)
+    problems = [f"printed in place: a and b are 0.0{i} mm apart" for i in range(7)]
+    check = {
+        "seq": 3,
+        "name": "interference_check",
+        "image": None,
+        "result": {
+            "problems": {"G3": [], "G5": problems},
+            "spec_notes": ["assembly: the spec moved toward what the mesh already measured"],
+        },
+    }
+    (run / "tools" / "0003-interference_check.json").write_text(json.dumps(check))
+    session = json.loads((run / "session.json").read_text())
+    session["iterations"][0]["tool_calls"].append(
+        {"seq": 3, "name": "interference_check", "summary": "G5 7"}
+    )
+    (run / "session.json").write_text(json.dumps(session))
+    page = replay.html_page(run)
+    assert "<li><b>G5</b>printed in place: a and b are 0.00 mm apart</li>" in page
+    assert "0.05 mm apart" in page and "0.06 mm apart" not in page
+    assert '<li class="more">and 1 more</li>' in page
+    assert '<ul class="found note"><li><b>spec moved</b>assembly: the spec moved' in page
+
+
+def test_the_request_does_not_repeat_the_title(tmp_path):
+    page = replay.html_page(_run(tmp_path))
+    assert '<div class="panel md"><p>A 10 mm cube.</p></div>' in page

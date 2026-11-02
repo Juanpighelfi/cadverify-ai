@@ -103,3 +103,18 @@ def test_table_puts_the_sessions_of_each_model_side_by_side(tmp_path, capsys):
     assert lines[2] == "| jar | muse-spark-1.3-contributor | 1 of 2 | 15 | 7.50 | 83.75 | 15 | 1 |"
     assert lines[3] == "| jar | muse-wonder-1.0 | 1 of 1 | 4 | 2.00 | 100.00 | 4 | 1 |"
     assert len(lines) == 4
+
+
+def test_hostile_says_which_attacks_were_contained(tmp_path, monkeypatch, capsys):
+    cases = [
+        {"case": "fork_bomb", "passed": True, "error": None, "seconds": 3.1},
+        {"case": "network", "passed": False, "error": "RuntimeError: boom", "seconds": 1.0},
+    ]
+    monkeypatch.setattr(cli, "PROJECT_ROOT", tmp_path)
+    monkeypatch.setattr(cli, "load_env", lambda: None)  # the test needs no key
+    monkeypatch.setattr(cli.hostile, "run_all", lambda run_dir, key: cases)
+    assert cli.main(["hostile"]) == 1
+    out = capsys.readouterr().out.splitlines()
+    assert out[1] == f"{'fork_bomb':26} contained (3.1 s)"
+    assert out[2] == f"{'network':26} NOT CONTAINED RuntimeError: boom (1.0 s)"
+    assert out[3].startswith("1 of 2 attacks contained; each one in ")

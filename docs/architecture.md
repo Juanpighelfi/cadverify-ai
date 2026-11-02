@@ -7,10 +7,10 @@ runs every tool, measures every mesh and owns the verdict: the model cannot end 
 a gate is red.
 
 ```mermaid
-flowchart LR
+flowchart TD
     request["request.md"] --> loop["orchestrator<br/>(host, agent/loop.py)"]
-    loop <-->|"Responses API, streamed:<br/>tool calls, images, reasoning"| api["Meta Model API<br/>muse-wonder-1.0 or<br/>muse-spark-1.3"]
-    loop -->|"docker exec cadcheck"| session["session sandbox<br/>no network, /work in memory,<br/>the model's code runs here"]
+    loop <-->|"Responses API, streamed:<br/>tool calls, images, reasoning"| api["Meta Model API<br/>muse-wonder-1.0<br/>muse-spark-1.3"]
+    loop -->|"docker exec cadcheck"| session["session sandbox<br/>no network<br/>/work in memory<br/>runs the model's code"]
     session -->|"JSON + images"| loop
     session -->|".scad files only"| verify["verification container<br/>new per source version"]
     verify -->|"measurements"| gates{"gates<br/>G1..G8"}

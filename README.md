@@ -31,7 +31,7 @@ vision on the renders the model asks for:
 ## How it works
 
 ```mermaid
-flowchart LR
+flowchart TD
     request["request.md"] --> model["Muse Wonder<br/>or Muse Spark"]
     model -- "tool calls" --> sandbox["sandbox: OpenSCAD,<br/>measurements, renders"]
     sandbox -- "JSON + images" --> model
@@ -82,16 +82,16 @@ After the demo, each request ran three more times on each designer, on the harne
 now (flex in motions and `print_in_place` included), with every close audited by
 `muse-wonder-1.0`. Spark ran as `muse-spark-1.3-contributor`, since the requests are public;
 "USD Standard" prices the same tokens at the Standard price. Medians per request and model,
-from `uv run cadverify table results/bench`:
+from `uv run cadverify table results/bench` (which names the models in full):
 
 | Request | Model | Green | Requests | USD | USD Standard | Minutes | Closes refused |
 |---|---|---|---|---|---|---|---|
-| bayonet_jar | muse-spark-1.3-contributor | 3 of 3 | 42 | 0.32 | 1.38 | 33 | 2 |
-| bayonet_jar | muse-wonder-1.0 | 3 of 3 | 30 | 2.26 | 2.26 | 15 | 1 |
-| headphone_stand | muse-spark-1.3-contributor | 3 of 3 | 41 | 0.28 | 1.07 | 22 | 1 |
-| headphone_stand | muse-wonder-1.0 | 3 of 3 | 51 | 3.14 | 3.14 | 19 | 1 |
-| hinge_box | muse-spark-1.3-contributor | 2 of 3 | 54 | 0.33 | 2.16 | 46 | 3 |
-| hinge_box | muse-wonder-1.0 | 3 of 3 | 17 | 3.05 | 3.05 | 17 | 0 |
+| bayonet_jar | Spark | 3 of 3 | 42 | 0.32 | 1.38 | 33 | 2 |
+| bayonet_jar | Wonder | 3 of 3 | 30 | 2.26 | 2.26 | 15 | 1 |
+| headphone_stand | Spark | 3 of 3 | 41 | 0.28 | 1.07 | 22 | 1 |
+| headphone_stand | Wonder | 3 of 3 | 51 | 3.14 | 3.14 | 19 | 1 |
+| hinge_box | Spark | 2 of 3 | 54 | 0.33 | 2.16 | 46 | 3 |
+| hinge_box | Wonder | 3 of 3 | 17 | 3.05 | 3.05 | 17 | 0 |
 
 - Wonder closed 9 of 9 green, Spark 8 of 9. The ninth, a hinge box, ran out of its hour with
   the lid and the pin still overlapping the box at the hinge (G3), after nine attempts to close
@@ -100,11 +100,13 @@ from `uv run cadverify table results/bench`:
   requests and more time: at the Standard price its nine would have cost USD 16.55.
 - G8 refused 24 closes, in 14 of the 18 sessions (15 in Spark's, 9 in Wonder's). The harness
   refused 14 more because gates were red, 13 of them Spark's.
-- Four of the six jars kept their detent as a `flex`, measured 0 to 0.8 mm deep. Every hinge
-  box declared `print_in_place`, and G5 refused it at least once in each: parts 0.01 to
-  0.25 mm apart that would fuse, and the lid printed closed over the box, an undeclared
-  overhang of about 4,350 mm². Each green box then declared it as a bridge across the box,
-  about 55 mm long, which G5 accepts with a reason and does not judge (see Limitations).
+- Four of the six jars declared their detent as a `flex`. In two it bends 0.2 and 0.8 mm into the
+  jar during the turn, as measured; in the other two it never touches the jar, so it holds nothing,
+  and G4 lets a flex that never bends pass (see Limitations). Every hinge box declared
+  `print_in_place`, and G5 refused it at least once in each: parts 0.01 to 0.25 mm apart that would
+  fuse, and the lid printed closed over the box, an undeclared overhang of about 4,350 mm². Each
+  green box then declared the lid's ceiling, a zone 48 to 58 mm across, as an allowed overhang (a
+  bridge), which G5 accepts with a reason and does not judge (see Limitations).
 
 The sessions are under [results/bench/](results/bench/), with `replay.html` in each. The same
 directory holds what the round spent before them, all counted by `uv run cadverify spent
@@ -114,28 +116,34 @@ flex, and three sessions cut when a slow flex measure was fixed (`aborted/`).
 
 ## Quick start
 
-Requirements: Python 3.12, [uv](https://docs.astral.sh/uv/), Docker with BuildKit, and a Meta
-Model API key.
+Requirements: Python 3.12, [uv](https://docs.astral.sh/uv/) and Docker with BuildKit. Only
+`cadverify design` needs a Meta Model API key; everything else here runs offline.
 
 ```sh
 uv sync
-cp .env.example .env              # set MODEL_API_KEY; .env is git-ignored
-docker build -t cadverify-sandbox .
+docker build -t cadverify-sandbox .    # about 1.2 GB, OpenSCAD included
+uv run cadverify hostile               # attacks on the real sandbox: each must be contained
+uv run cadverify table results/bench   # the bench sessions side by side, per request and model
+uv run cadverify summary results/design/bayonet_jar/20261031T003026Z   # one session, per iteration
+uv run cadverify replay results/design/bayonet_jar/20261031T003026Z    # rebuilds its replay.html
+```
+
+Open `results/design/bayonet_jar/20261031T003026Z/replay.html` in a browser to step through
+that session: the gates at every iteration, each tool call and what it found, the renders the
+model saw, and every close, refused or accepted.
+
+With a key, a new session:
+
+```sh
+cp .env.example .env    # set MODEL_API_KEY; .env is git-ignored
 uv run cadverify design requests/bayonet_jar.md --max-usd 5
 uv run cadverify design requests/bayonet_jar.md --model muse-spark-1.3 --max-usd 2
+uv run cadverify spent  # USD spent under results/design against the budget
 ```
 
 The session prints its run directory. If the model asks questions before it starts designing,
 they appear in `<run>/questions/NN.md`; write the answer to another file and rename it to
 `<run>/questions/NN.answer.md`.
-
-```sh
-uv run cadverify replay results/design/bayonet_jar/<UTC>   # the session as a static page
-uv run cadverify summary results/design/bayonet_jar/<UTC>  # the session as a Markdown table
-uv run cadverify table results/bench   # sessions side by side, per request and model
-uv run cadverify spent      # USD spent against the budget
-uv run cadverify hostile    # attacks on the real sandbox, no API
-```
 
 Inside the image, `cadcheck` runs every tool from a shell (`docker run --rm -v "$PWD:/work"
 cadverify-sandbox cadcheck --help`).
@@ -143,13 +151,14 @@ cadverify-sandbox cadcheck --help`).
 ## Limitations
 
 - A flex is measured for depth, not for strength: whether a detent or a snap can bend that far
-  without breaking or creeping is not verified. The assembly order is still swept with rigid
-  parts, so a part that snaps into place on assembly cannot pass G4 yet. (Before flex existed,
-  the bayonet jar of the demo traded its detent bump for a pocket.)
-- G5 checks that every overhang is declared with a reason, not that a declared bridge prints
-  well: every green hinge box of the bench prints its lid closed over a bridge about 55 mm
-  long, declared and accepted. A print in place is checked as it prints only when the assembly
-  declares `print_in_place`.
+  without breaking or creeping is not verified, and a declared flex that never touches passes. The
+  assembly order is still swept with rigid parts, so a part that snaps into place on assembly cannot
+  pass G4 yet. (Before flex existed, the bayonet jar of the demo traded its detent bump for a
+  pocket.)
+- G5 checks that every overhang is declared with a reason, not that a declared bridge prints well:
+  every green hinge box of the bench prints its lid closed over a ceiling 48 to 58 mm across,
+  declared and accepted. A print in place is checked as it prints only when the assembly declares
+  `print_in_place`.
 - Strength, stability, feel and fit on a particular printer are not measured. The close must
   list them as not verified, and G8 refuses a close that presents them as verified.
 - The renders and the spec checks are deterministic, but the design is not: two sessions on the

@@ -715,7 +715,7 @@ def test_the_summary_of_a_session(tmp_path):
     model = FakeModel(script, cost_tokens=10_000)
     run_session(model, _seeded(tmp_path), "r", Limits(max_requests=4), tmp_path)
     text = summary.markdown(tmp_path)
-    assert "4 requests, 5 tool calls" in text and "USD 0.96" in text
+    assert "4 requests, 5 tool calls, images: none, USD 0.96" in text
     assert "| 1 | run_python | - | G7 | 10,000 (0) | 10,000 (0) | 0.2400 | 1.0 s |" in text
     assert "| 4 | close: rejected | - | G7 |" in text
     assert "| 1 | 1 | run_python | measurements | 0 |" in text

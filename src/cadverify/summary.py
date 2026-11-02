@@ -102,11 +102,13 @@ def markdown(run_dir: Path) -> str:
             f"| {num(req['cost_usd'], 4)} | {num(req['latency_s'], 1)} s |"
         )
     totals = session["totals"]
+    images = totals.get("images") or {}
+    seen = ", ".join(f"{n} {tool}" for tool, n in images.items() if n) or "none"
     lines = [
         f"## {run_dir.name}: {session['status']}",
         "",
-        f"{totals['requests']} requests, {totals['tool_calls']} tool calls, images "
-        f"{totals.get('images')}, USD {num(totals['cost_usd'], 2)}, "
+        f"{totals['requests']} requests, {totals['tool_calls']} tool calls, images: {seen}, "
+        f"USD {num(totals['cost_usd'], 2)}, "
         f"{num(totals['wall_s'] / 60, 1)} min ({num(totals['model_latency_s'] / 60, 1)} min in "
         "the model)"
         + (
