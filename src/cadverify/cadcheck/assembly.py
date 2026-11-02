@@ -28,12 +28,24 @@ What is measured (G3, assembly):
 
 And G4, motion:
 - each `motions` entry sweeps its instances through the whole range (from 0, the assembled
-  pose), at most 0.25 mm of travel or 2° per step, measuring the overlap at each step;
+  pose), at most 0.25 mm of travel or 2° per step, measuring the overlap at each step. The
+  parts are rigid: an elastic feature (a detent bump, a snap) is declared in the motion's
+  `flex`, a pair of instances and how deep they may overlap. There, an overlap is a flex and
+  not a collision when it is no deeper than declared (the farthest a vertex of the overlap is
+  from the surface of the other solid) and the parts are free at both ends of the range: a
+  feature that stays deflected at rest is a press fit (allowed_interferences). The bayonet jar
+  of the demo had to trade its detent bump for a pocket before this existed;
 - `assembly_order` lists every instance once, in order: each step's instances arrive from far away
   moving along its direction (and then turn, if the step says so) without crossing what the
   steps before placed. The straight approach is checked whole with two depth maps along the
   direction (the farthest point of the moving parts against the nearest of the placed ones, on a
   grid of 0.05 mm or finer than 1/3000 of the size); the turn, by steps like a movement.
+
+And G5, for an assembly that declares `print_in_place` (printed as it stands, all its parts at
+once): the instances of unit 1 that are printed, together in the assembly pose (+z up, the
+lowest faces on the bed), go through the printability of a part with the assembly's
+`overhangs_allowed` (gates.print_problems judges it), and every two of them are at least the
+declared clearance apart: closer, or a press fit, and they print fused.
 """
 
 from __future__ import annotations
@@ -53,6 +65,7 @@ from scipy.ndimage import binary_erosion
 
 from cadverify.cadcheck import section
 from cadverify.cadcheck.mesh import load_exact
+from cadverify.cadcheck.printability import mesh_printability
 from cadverify.cadcheck.scad import ASSEMBLY, scad_export
 
 SOLO = "cadverify_only"
@@ -71,6 +84,10 @@ DEPTH_PX_MM = 0.05
 DEPTH_MAX_SIDE = 3000
 DEPTH_EPS_MM = 0.02
 EXPORT_WORKERS = 2  # the sandbox has 2 CPUs
+FLEX_SAMPLE_MM = 0.5  # the triangles of the overlap whose centers measure a flex's depth
+FLEX_TOLERANCE_MM = 0.05  # how far past its declared depth a flex is not refused
+FLEX_MAX_TRIANGLES = 20_000
+FLEX_ROUNDS = 8  # splits of the triangles that might pass the declared depth
 AXES = {
     "+x": (1, 0, 0),
     "-x": (-1, 0, 0),
@@ -98,7 +115,8 @@ def assembly_report(
     requirements = requirements or {}
     g3: list[str] = []
     g4: list[str] = []
-    report: dict[str, Any] = {"ok": False, "problems": {"G3": g3, "G4": g4}}
+    g5: list[str] = []
+    report: dict[str, Any] = {"ok": False, "problems": {"G3": g3, "G4": g4, "G5": g5}}
 
     outside = scad_export(path, ASSEMBLY, {SOLO: OUTSIDE}, out_dir=out_dir, timeout_s=timeout_s)
     report["errors"] = outside.get("errors", []) + [
@@ -160,11 +178,13 @@ def assembly_report(
     before = len(g4)
     report["assembly_steps"] = _assembly_order(steps, instances, names, skip, out_dir, g4)
     report["assembly_order_ok"] = len(g4) == before
+    if spec.get("print_in_place"):
+        report["print_in_place"] = _print_in_place(good, spec, report["pairs"], g5)
     return _done(report, t0)
 
 
 def _done(report: dict[str, Any], t0: float) -> dict[str, Any]:
-    report["ok"] = not report["problems"]["G3"] and not report["problems"]["G4"]
+    report["ok"] = not any(report["problems"].values())
     report["seconds"] = round(time.perf_counter() - t0, 2)
     return report
 
@@ -409,6 +429,36 @@ def _own_spec(instances: list[dict], spec: dict[str, Any], problems: list[str]) 
     return check
 
 
+def _print_in_place(
+    instances: list[dict], spec: dict[str, Any], pairs: list[dict], problems: list[str]
+) -> dict[str, Any]:
+    """G5 of an assembly printed as it stands (module docstring)."""
+    need = spec["print_in_place"]["min_gap_mm"]
+    printed = [i for i in instances if i["part"] != EXTERNAL and i["unit"] == 1]
+    names = {i["name"] for i in printed}
+    gaps = []
+    for pair in pairs:
+        if not {pair["a"], pair["b"]} <= names or pair.get("interference"):
+            continue  # an overlap G3 reports is not repeated here
+        row = {"a": pair["a"], "b": pair["b"], "gap_mm": pair["gap_mm"], "ok": True}
+        if pair.get("permitted") is not None:
+            row["ok"] = False
+            problems.append(
+                f"{pair['a']} and {pair['b']} are a press fit ({pair['permitted']}): printed "
+                "in place, they print as one piece"
+            )
+        elif pair["gap_mm"] < need - 1e-6:
+            row["ok"] = False
+            problems.append(
+                f"{pair['a']} and {pair['b']} are {pair['gap_mm']} mm apart: printed in place "
+                f"they fuse (print_in_place asks for {need} mm or more)"
+            )
+        gaps.append(row)
+    whole = trimesh.util.concatenate([i["_mesh"] for i in printed]) if printed else None
+    report = mesh_printability(whole, spec["overhangs_allowed"]) if whole else None
+    return {"min_gap_mm": need, "instances": sorted(names), "gaps": gaps, "printability": report}
+
+
 # ---- G4 -----------------------------------------------------------------------------------
 
 
@@ -446,6 +496,7 @@ def _sweep(
                             "moving": inst["name"],
                             "with": other["name"],
                             **hit,
+                            "_matrix": matrix,
                         }
                     )
     return hits
@@ -474,8 +525,12 @@ def _motion(motion: dict, names: dict, permitted: set, out_dir: Path, problems: 
     values = np.linspace(lo, hi, count + 1)
     poses = [(float(v), _pose(motion, float(v))) for v in values]
     hits = _sweep(moving, others, poses)
-    row.update(ok=not hits, steps=count + 1, step=round((hi - lo) / count, 4))
     unit = "°" if motion["kind"] == "rotate" else " mm"
+    flexes = motion.get("flex") or []
+    if flexes:
+        row["flex"], hits = _flexes(motion, flexes, hits, names, (lo, hi), out_dir, problems)
+    flexed = any(not f["ok"] for f in row.get("flex", []))
+    row.update(ok=not hits and not flexed, steps=count + 1, step=round((hi - lo) / count, 4))
     if hits:
         worst = max(hits, key=lambda h: h["volume_mm3"])
         first = min(hits, key=lambda h: abs(h["pose"]))
@@ -498,6 +553,171 @@ def _motion(motion: dict, names: dict, permitted: set, out_dir: Path, problems: 
             f"({worst['thickness_mm']} mm thick)"
         )
     return row
+
+
+def _flexes(
+    motion: dict,
+    flexes: list[dict],
+    hits: list[dict],
+    names: dict,
+    ends: tuple[float, float],
+    out_dir: Path,
+    problems: list[str],
+) -> tuple[list[dict], list[dict]]:
+    """The motion's flex pairs measured on its overlaps, and the overlaps left: collisions."""
+    unit = "°" if motion["kind"] == "rotate" else " mm"
+    moving = set(motion["instances"])
+    rows, left = [], list(hits)
+    for flex in flexes:
+        pair = {flex["a"], flex["b"]}
+        row: dict[str, Any] = {**flex, "ok": True, "poses": None, "depth_mm": 0.0}
+        rows.append(row)
+        if not pair <= set(names) or len(pair & moving) != 1:
+            row["ok"] = False
+            problems.append(
+                f"motion {motion['name']}: the flex {flex['a']} / {flex['b']} needs one "
+                "instance that moves in it and one that does not"
+            )
+            continue
+        mine = [h for h in left if {h["moving"], h["with"]} == pair]
+        left = [h for h in left if h not in mine]
+        if not mine:
+            continue
+        a = next(n for n in pair if n in moving)
+        b = next(n for n in pair if n != a)
+        fixed = names[b]["_mesh"].triangles
+        measured = []
+        # The largest overlaps first: one deeper than declared is enough to refuse the flex.
+        for hit in sorted(mine, key=lambda h: -h["volume_mm3"]):
+            posed = trimesh.transform_points(
+                names[a]["_mesh"].triangles.reshape(-1, 3), hit["_matrix"]
+            ).reshape(-1, 3, 3)
+            hit["depth_mm"], hit["depth_is"] = _flex_depth(hit, posed, fixed, flex["max_mm"])
+            measured.append(hit)
+            if hit["depth_mm"] > flex["max_mm"]:
+                break
+        deepest = max(measured, key=lambda h: h["depth_mm"])
+        poses = sorted({h["pose"] for h in mine})
+        stl = out_dir / f"flex-{_slug(motion['name'])}-{_slug(a + b)}.stl"
+        _write_stl(deepest["_solid"], stl)
+        row.update(
+            poses=[poses[0], poses[-1]],
+            depth_mm=deepest["depth_mm"],
+            at=deepest["pose"],
+            overlap_stl=str(stl),
+        )
+        at_rest = [p for p in poses if any(abs(p - e) <= 1e-3 for e in ends)]  # poses: 3 decimals
+        if at_rest:
+            row["ok"] = False
+            problems.append(
+                f"motion {motion['name']}: {a} and {b} still overlap at {at_rest[0]:g}{unit}, "
+                "an end of its range: a flex springs back at rest; a fit that stays loaded is "
+                "an allowed_interference"
+            )
+        if deepest["depth_mm"] > flex["max_mm"]:
+            row["ok"] = False
+            goes = {"measured": "goes", "at least": "goes more than", "at most": "may go"}
+            bound = " (a bound: the overlap is large)" if deepest["depth_is"] == "at most" else ""
+            problems.append(
+                f"motion {motion['name']}: {a} {goes[deepest['depth_is']]} {deepest['depth_mm']} "
+                f"mm deep into {b} at {deepest['pose']:g}{unit}, deeper than the "
+                f"{flex['max_mm']} mm of its flex{bound}"
+            )
+    return rows, left
+
+
+def _flex_depth(
+    hit: dict, moving: np.ndarray, other: np.ndarray, limit: float
+) -> tuple[float, str]:
+    """How deep two solids go into each other: the farthest a point of their overlap's surface
+    is from the surface of the other solid (each point of it lies on one of the two; `moving`
+    and `other` are their triangles), and whether that is "measured", or past the limit and
+    only "at least" or "at most" that.
+
+    The deepest point can be inside a face (a ridge as wide as the slider over it has every
+    vertex of the overlap on both surfaces), so the surface is sampled at the centers of
+    triangles FLEX_SAMPLE_MM wide (wider on a large overlap). The distance changes no faster
+    than the point moves, so a triangle whose center plus its radius stays under the limit
+    (plus FLEX_TOLERANCE_MM) cannot pass it; the others are split until they do or one center
+    passes. When that needs more than FLEX_MAX_TRIANGLES, the answer is the bound: at most.
+
+    Each piece of the overlap is measured against the surface within the limit plus
+    FLEX_SAMPLE_MM of it only (the three detents of a jar make one overlap as wide as the
+    jar): a point farther than that from it is at least that deep."""
+    deepest = 0.0
+    for piece in hit["_solid"].decompose():
+        mesh = piece.to_mesh()
+        vertices = np.asarray(mesh.vert_properties)[:, :3]
+        faces = np.asarray(mesh.tri_verts)
+        if not len(faces):
+            continue
+        # Only the surface near the piece can be nearer than the limit to it.
+        margin = limit + FLEX_SAMPLE_MM
+        lo, hi = vertices.min(axis=0) - margin, vertices.max(axis=0) + margin
+        near = [
+            t[np.all(t.max(axis=1) >= lo, axis=1) & np.all(t.min(axis=1) <= hi, axis=1)]
+            for t in (moving, other)
+        ]
+        size = max(FLEX_SAMPLE_MM, math.sqrt(8 * piece.surface_area() / FLEX_MAX_TRIANGLES))
+        vertices, faces = trimesh.remesh.subdivide_to_size(vertices, faces, size, 20)
+        depth, kind = _piece_depth(vertices[faces], near, limit, margin)
+        if depth > limit:
+            return round(depth, 3), kind
+        deepest = max(deepest, depth)
+    return round(deepest, 3), "measured"
+
+
+def _piece_depth(
+    triangles: np.ndarray, near: list, limit: float, margin: float
+) -> tuple[float, str]:
+    """_flex_depth of one piece of the overlap, sampled on `triangles`; `near` holds the
+    surface within `margin` of it."""
+    deepest = 0.0
+    for _ in range(FLEX_ROUNDS):
+        centers = triangles.mean(axis=1)
+        radius = np.linalg.norm(triangles - centers[:, None], axis=2).max(axis=1)
+        depth = np.maximum(*(_distance(centers, t) for t in near))
+        if depth.max() >= margin:
+            return margin, "at least"
+        deepest = max(deepest, float(depth.max()))
+        open_ = depth + radius > limit + FLEX_TOLERANCE_MM
+        if deepest > limit or not open_.any():
+            return deepest, "measured"
+        if 4 * int(open_.sum()) > FLEX_MAX_TRIANGLES:
+            break
+        triangles = _split(triangles[open_])
+    return float((depth + radius)[open_].max()), "at most"
+
+
+def _distance(points: np.ndarray, triangles: np.ndarray) -> np.ndarray:
+    """The distance from each point to the nearest of the triangles (inf without any). Only
+    the triangles whose bounding sphere comes nearer to the point than the far side of the
+    nearest sphere are measured."""
+    out = np.full(len(points), np.inf)
+    if not len(triangles):
+        return out
+    centers = triangles.mean(axis=1)
+    radius = np.linalg.norm(triangles - centers[:, None], axis=2).max(axis=1)
+    step = max(1, 1_000_000 // len(triangles))
+    for i in range(0, len(points), step):
+        chunk = points[i : i + step]
+        to_center = np.linalg.norm(chunk[:, None] - centers[None], axis=2)
+        bound = (to_center + radius).min(axis=1)
+        rows, cols = np.nonzero(to_center - radius <= bound[:, None])
+        closest = trimesh.triangles.closest_point(triangles[cols], chunk[rows])
+        best = np.full(len(chunk), np.inf)
+        np.minimum.at(best, rows, np.linalg.norm(closest - chunk[rows], axis=1))
+        out[i : i + step] = best
+    return out
+
+
+def _split(triangles: np.ndarray) -> np.ndarray:
+    """Each triangle as four, through the midpoints of its edges."""
+    a, b, c = triangles[:, 0], triangles[:, 1], triangles[:, 2]
+    ab, bc, ca = (a + b) / 2, (b + c) / 2, (c + a) / 2
+    return np.concatenate(
+        [np.stack(t, axis=1) for t in ((a, ab, ca), (ab, b, bc), (ca, bc, c), (ab, bc, ca))]
+    )
 
 
 def _pose(motion: dict, value: float) -> np.ndarray:

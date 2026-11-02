@@ -1,10 +1,12 @@
-"""CADVerify: a verified OpenSCAD design agent on Muse Wonder (Meta Model API).
+"""CADVerify: a verified OpenSCAD design agent on the Meta Model API.
 
 uv run cadverify design requests/bayonet_jar.md          # one design session (uses the API)
 uv run cadverify design request.md --add "One more requirement."  # one more paragraph
 uv run cadverify design request.md --units 2 --max-usd 4  # two chained units, USD 4 at most
+uv run cadverify design request.md --model muse-spark-1.3 --auditor muse-wonder-1.0
 uv run cadverify summary results/design/<request>/<UTC>   # a session in Markdown
 uv run cadverify replay results/design/<request>/<UTC>    # the session as a static page
+uv run cadverify table results/bench                        # sessions side by side, per model
 uv run cadverify spent                                     # USD spent under the results dir
 uv run cadverify hostile                                   # hostile cases in the real sandbox
 
@@ -18,6 +20,10 @@ tools/ (every tool call and its result), workspace/ (the .scad, the meshes and t
 session.json. Before it starts, the ledger checks what the requests under <results> cost against
 --budget-usd; the session stops at --max-usd, --max-requests or --max-minutes, and is told when
 about 10 requests are left.
+
+--model designs and --auditor audits the close (G8), both muse-wonder-1.0 by default. A
+"-contributor" model lets Meta train on what it is sent: only the public requests of requests/
+may go to one.
 
 Questions: before its first edit, a reply without tools goes to the user (cadverify.agent.loop).
 The session writes it to <run>/questions/NN.md, prints that path, and waits for the answer in
@@ -39,8 +45,10 @@ from cadverify.agent.loop import Limits, run_session
 from cadverify.agent.sandbox import Sandbox
 from cadverify.agent.tools import ToolBox
 from cadverify.config import PROJECT_ROOT, load_env, make_client
+from cadverify.meta_api import MODEL, PRICE_PER_MTOK
 
 RESULTS = PROJECT_ROOT / "results" / "design"
+PUBLIC_REQUESTS = PROJECT_ROOT / "requests"
 BUDGET_USD = 20.0  # set by the user for the demo pieces (2026-10-30)
 # One session: 64k of output per response (reasoning included), told 10 requests before the end.
 LIMITS = Limits(
@@ -86,7 +94,18 @@ class FileAsker:
         return answer.read_text(encoding="utf-8").strip()
 
 
+def check_contributor(request: Path, models: list[str]) -> None:
+    """A contributor model only gets the public requests: Meta trains on what it is sent."""
+    contributors = [m for m in models if m.endswith("-contributor")]
+    if contributors and not request.resolve().is_relative_to(PUBLIC_REQUESTS):
+        raise SystemExit(
+            f"{contributors[0]} lets Meta train on what it is sent: only the public requests "
+            f"in {PUBLIC_REQUESTS} may go to it."
+        )
+
+
 def design(args: argparse.Namespace) -> int:
+    check_contributor(args.request, [args.model, args.auditor])
     request, seed = split_request(args.request.read_text(encoding="utf-8"), args.add)
     if args.units < 1:
         raise SystemExit("--units starts at 1.")
@@ -111,7 +130,16 @@ def design(args: argparse.Namespace) -> int:
                 box.restore({"model.scad": seed})
             toolbox = ToolBox(box, run_dir / "tools", requirements={"units": args.units})
             asker = FileAsker(run_dir / "questions")
-            session = run_session(client, toolbox, request, limits, run_dir, asker=asker)
+            session = run_session(
+                client,
+                toolbox,
+                request,
+                limits,
+                run_dir,
+                asker=asker,
+                model=args.model,
+                auditor=args.auditor,
+            )
     finally:
         client.close()
     print(session["status"], json.dumps(session["totals"]), flush=True)
@@ -139,6 +167,8 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--max-usd", type=float, default=LIMITS.max_cost_usd)
     run.add_argument("--max-requests", type=int, default=LIMITS.max_requests)
     run.add_argument("--max-minutes", type=float, default=LIMITS.max_wall_s / 60)
+    run.add_argument("--model", choices=sorted(PRICE_PER_MTOK), default=MODEL)
+    run.add_argument("--auditor", choices=sorted(PRICE_PER_MTOK), default=MODEL)
     spent = sub.add_parser("spent", help="USD spent under the results directory")
     for command in (run, spent):
         command.add_argument("--results", type=Path, default=RESULTS)
@@ -146,6 +176,9 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("summary", help="a session in Markdown").add_argument("run_dir", type=Path)
     sub.add_parser("replay", help="a session as <run>/replay.html").add_argument(
         "run_dir", type=Path
+    )
+    sub.add_parser("table", help="the sessions of a results dir, per model").add_argument(
+        "results", type=Path
     )
     sub.add_parser("hostile", help="hostile cases against the real sandbox")
     args = parser.parse_args(argv)
@@ -158,6 +191,9 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.command == "replay":
         print(replay.write(args.run_dir))
+        return 0
+    if args.command == "table":
+        print(summary.table(args.results))
         return 0
     if args.command == "hostile":
         return run_hostile()

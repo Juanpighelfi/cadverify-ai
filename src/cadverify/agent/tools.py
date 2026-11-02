@@ -39,7 +39,14 @@ import time
 from pathlib import Path
 from typing import Any
 
-from cadverify.agent.gates import DEFAULT_OUTPUT, GATES, PENDING, evaluate, part_ok
+from cadverify.agent.gates import (
+    DEFAULT_OUTPUT,
+    GATES,
+    PENDING,
+    evaluate,
+    part_ok,
+    print_in_place_problems,
+)
 from cadverify.agent.sandbox import SOURCE_MAX_BYTES, WORKDIR
 from cadverify.agent.spec_history import SpecHistory, notes
 from cadverify.cadcheck.render import VIEWS
@@ -239,8 +246,10 @@ SCHEMAS = [
         "inertia); copies and units; overlaps between instances (volume, mean thickness and "
         "where) and the gap between the ones that touch; whether everything forms one group; "
         "bounds and support faces of the assembly; each motion swept through its whole range, "
-        f"and the assembly order. Leaves in {ASSEMBLY_DIR}/ the STL of each instance, each "
-        "overlap and each pose that collides, to look at with render_view.",
+        "with how deep each declared flex goes, and the assembly order; with print_in_place, "
+        "the clearances and the print of all the parts together (G5). Leaves in "
+        f"{ASSEMBLY_DIR}/ the STL of each instance, each overlap, each pose that collides and "
+        "the deepest overlap of each flex, to look at with render_view.",
         {"path": {"type": "string"}},
         ["path"],
     ),
@@ -583,9 +592,14 @@ class ToolBox:
             hit = motion.get("collisions") or {}
             register(hit.get("overlap_stl"), "collision", f"collision of {motion['name']}")
             register(hit.get("posed_stl"), "collision", f"pose of {motion['name']}")
+            for flex in motion.get("flex") or []:
+                label = f"flex {flex['a']} / {flex['b']} of {motion['name']}"
+                register(flex.get("overlap_stl"), "collision", label)
         report.pop("spec", None)  # the model wrote it
         report["ok"] = True  # the measurement ran; its findings are in problems
-        report["green"] = not report["problems"]["G3"] and not report["problems"]["G4"]
+        # As G5 judges it: the clearances, and the print of all the parts together.
+        report["problems"]["G5"] = print_in_place_problems(report)
+        report["green"] = not any(report["problems"].values())
         if self._rel(path) == MAIN_SOURCE:
             found = self.history.observe_assembly(report, self.seq)
             if found:
@@ -921,7 +935,24 @@ def _capped(paths: list[str]) -> list[str]:
 
 
 def _short_printability(report: dict | None) -> dict | None:
+    """The printability of a part for the close's auditor: the numbers a close may quote."""
     if not report or not report.get("ok"):
         return report
-    keys = ("fits_bed", "size", "zones_total", "zones_undeclared", "undeclared_area_mm2")
-    return {k: report[k] for k in keys}
+    keys = (
+        "fits_bed",
+        "bed_mm",
+        "size",
+        "bed_margin_mm",
+        "base_area_mm2",
+        "overhang_area_mm2",
+        "zones_total",
+        "zones_undeclared",
+        "undeclared_area_mm2",
+    )
+    short = {k: report[k] for k in keys if k in report}
+    if "allowed_coverage" in report:
+        short["allowed_share_of_surface"] = report["allowed_coverage"]["share"]
+    if "zones" in report:
+        fields = ("id", "area_mm2", "max_angle_deg", "declared_as")
+        short["zones"] = [{k: z.get(k) for k in fields} for z in report["zones"]]
+    return short

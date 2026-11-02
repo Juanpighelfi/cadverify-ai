@@ -102,12 +102,28 @@ def test_output_accessors_and_cost():
             "output_tokens_details": {"reasoning_tokens": 10},
         },
     }
-    call = ApiCall(label="t", status_code=200, body=body, latency_s=1.0)
+    call = ApiCall(label="t", status_code=200, body=body, latency_s=1.0, model="muse-wonder-1.0")
     assert call.output_text == "Hola"
     assert [fc["call_id"] for fc in call.function_calls] == ["c1"]
     # 0.5M uncached * $4 + 0.5M cached * $0.20 + 1M output * $20
     assert call.cost_usd == pytest.approx(2.0 + 0.1 + 20.0)
-    assert cost_usd({}) == 0
+    assert cost_usd({}, "muse-wonder-1.0") == 0
+
+
+def test_each_model_has_its_price_and_an_unknown_one_costs_the_most():
+    usage = {"input_tokens": 1_000_000, "cached_tokens": 500_000, "output_tokens": 1_000_000}
+    assert cost_usd(usage, "muse-spark-1.3") == pytest.approx(0.625 + 0.075 + 4.25)
+    assert cost_usd(usage, "muse-spark-1.3-contributor") == pytest.approx(0.05 + 0.001 + 0.2)
+    assert cost_usd(usage, "muse-new-9") == cost_usd(usage, "muse-wonder-1.0")
+    assert cost_usd(usage, None) == cost_usd(usage, "muse-wonder-1.0")
+
+
+def test_a_call_is_priced_by_the_model_it_asked_for(tmp_path, monkeypatch):
+    body = {"id": "r", "status": "completed", "output": [], "usage": {"output_tokens": 1000}}
+    client = _client(tmp_path, lambda request: httpx.Response(200, json=body), monkeypatch)
+    call = client.responses("t", model="muse-spark-1.3", input="x")
+    assert call.model == "muse-spark-1.3" and call.metrics()["model"] == "muse-spark-1.3"
+    assert call.cost_usd == pytest.approx(1000 * 4.25 / 1e6)
 
 
 # ---- streaming --------------------------------------------------------------------------------
@@ -150,7 +166,7 @@ def test_a_streamed_response_is_recorded_like_one_without_streaming(tmp_path, mo
     assert (
         call.ok
         and call.body == final
-        and call.cost_usd == cost_usd({"input_tokens": 10, "output_tokens": 5})
+        and call.cost_usd == cost_usd({"input_tokens": 10, "output_tokens": 5}, "m")
     )
     assert call.attempts[0]["stream"] == {"events": 3, "terminal": "response.completed"}
     (record,) = _raw_records(tmp_path)

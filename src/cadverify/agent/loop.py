@@ -1,4 +1,4 @@
-"""The agent loop: Muse Wonder proposes, the harness verifies.
+"""The agent loop: the model proposes, the harness verifies.
 
 Each iteration is one model request: the orchestrator runs the requested tools in the sandbox,
 returns their JSON (and the sheet image), then verifies the gates on the current source. The
@@ -31,7 +31,10 @@ acceptance run the server lost a stored response (404 on GET /v1/responses/<id> 
 later), and the only way on is to resend the whole history without it.
 
 G8 is judged at the close, when every other gate is green (agent/closing.py: the close's
-references and the auditor, whose requests count against the session's cost).
+references and the auditor, whose requests count against the session's cost). The auditor is
+muse-wonder-1.0 whatever the designer: replaying the recorded audits, plus copies of them with
+a claim planted, it was the one that caught the subtle unsupported claims, and it was as strict
+with its own closes as with any.
 
 With `max_live_images`, old images leave the context: when more than that many are live, the
   history is resent without the previous response, keeping the last `keep_images` images and
@@ -88,14 +91,18 @@ def run_session(
     limits: Limits,
     out: Path,
     asker: Callable[[str, int], str] | None = None,
+    model: str = MODEL,
+    auditor: str = MODEL,
 ) -> dict:
-    """Run one session and write `session.json` in `out` after every iteration.
-    `asker(questions, iteration)` answers the model's questions and returns the user's answer."""
+    """Run one session of `model` and write `session.json` in `out` after every iteration.
+    `asker(questions, iteration)` answers the model's questions and returns the user's answer;
+    `auditor` is the model that audits the close (G8)."""
     started = time.perf_counter()
     system = instructions(questions=asker is not None, requirements=toolbox.requirements)
     initial_source = toolbox.source_hash()
     session: dict[str, Any] = {
-        "model": MODEL,
+        "model": model,
+        "auditor": auditor,
         "limits": asdict(limits),
         "request": task,
         "instructions": system,
@@ -130,7 +137,7 @@ def run_session(
             )
             payload = {"input": list(history)}  # stateless: the stored context had them
         request = dict(
-            model=MODEL,
+            model=model,
             instructions=system,  # not carried over by previous_response_id
             tools=toolbox.schemas,
             reasoning={"effort": limits.effort},
@@ -140,7 +147,7 @@ def run_session(
             # The session that reached G7 paid USD 7.48 of its 12.49 in requests that missed the
             # cache (dev.meta.ai/docs/prompt-caching: one stable key per application routes
             # requests to the backend that holds the prefix; "24h" outlasts a user's answer).
-            prompt_cache_key=PROMPT_CACHE_KEY,
+            prompt_cache_key=f"{PROMPT_CACHE_KEY}-{model}",
             prompt_cache_retention="24h",
         )
         call = client.responses(label=f"it{i:02d}", **request, **payload)
@@ -226,7 +233,12 @@ def run_session(
             current = state["gates"]
             if green_but(current, "G8"):
                 g8, calls = closing.judge(
-                    client, call.output_text, state, toolbox.history.adjustments, f"it{i:02d}"
+                    client,
+                    call.output_text,
+                    state,
+                    toolbox.history.adjustments,
+                    f"it{i:02d}",
+                    model=auditor,
                 )
                 spent += sum(c.cost_usd for c in calls)
                 session["audits"].append(
@@ -421,6 +433,7 @@ def summarize(call: dict[str, Any], result: dict[str, Any]) -> str:
             f"{len(result.get('instances') or [])} instances, "
             f"{sum(1 for p in result.get('pairs') or [] if p.get('interference'))} overlaps, "
             f"G3 {len(problems.get('G3', []))} problems, G4 {len(problems.get('G4', []))}, "
+            f"G5 {len(problems.get('G5', []))}, "
             f"{result.get('seconds')} s"
         )
     if name == "render_view":

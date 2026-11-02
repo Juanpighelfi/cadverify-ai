@@ -20,14 +20,15 @@ def spent_usd(root: Path) -> float:
     """Cost of every request recorded under `root` (the raw/ records of meta_api)."""
     total = 0.0
     for raw in root.glob("**/raw/*.json"):
-        response = json.loads(raw.read_text(encoding="utf-8")).get("response") or {}
-        usage = response.get("usage") or {}
+        record = json.loads(raw.read_text(encoding="utf-8"))
+        usage = (record.get("response") or {}).get("usage") or {}
         total += cost_usd(
             {
                 "input_tokens": usage.get("input_tokens", 0),
                 "cached_tokens": (usage.get("input_tokens_details") or {}).get("cached_tokens", 0),
                 "output_tokens": usage.get("output_tokens", 0),
-            }
+            },
+            (record.get("request") or {}).get("model"),
         )
     return total
 

@@ -4,12 +4,14 @@ Two checks, in order:
 - deterministic: every [[name]] the close cites names something the final verification
   measured and it is green: a part, a detail or a support face of a part's spec ([[part/name]],
   or the bare name when only one part has it), the assembly ([[assembly]]), one of its support
-  faces or motions, its assembly order ([[assembly_order]]) or a gate ([[G2]]);
-- the auditor, only when the rest is green: the same model, without tools, reads the close
-  against a summary of what was verified and the spec adjustments the harness flagged
-  (agent/spec_history.py), and lists the claims presented as verified that nothing verified
-  backs, and the adjustments the close does not tell. One retry when its answer is not the JSON
-  asked for; after that the close passes, marked as not audited.
+  faces or motions, its assembly order ([[assembly_order]]), its print in place
+  ([[print_in_place]]) or a gate ([[G2]]);
+- the auditor, only when the rest is green: a model without tools (muse-wonder-1.0 unless the
+  session names another one) reads the close against a summary of what was verified and
+  the spec adjustments the harness flagged (agent/spec_history.py), and lists the claims
+  presented as verified that nothing verified backs, and the adjustments the close does not
+  tell. One retry when its answer is not the JSON asked for; after that the close passes,
+  marked as not audited.
 """
 
 from __future__ import annotations
@@ -18,7 +20,7 @@ import json
 import re
 from typing import Any
 
-from cadverify.agent.gates import DEFAULT_OUTPUT
+from cadverify.agent.gates import DEFAULT_OUTPUT, GREEN_MEANS
 from cadverify.meta_api import MODEL
 
 REFERENCE = re.compile(r"\[\[([^\[\]\n]{1,120})\]\]")
@@ -85,6 +87,8 @@ def registry(state: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
             add(motion["name"], motion.get("ok", False), f"the motion {motion['name']}")
         if assembly.get("assembly_steps") is not None:
             add("assembly_order", assembly.get("assembly_order_ok", False), "the assembly order")
+        if assembly.get("print_in_place"):
+            add("print_in_place", state["gates"]["G5"]["ok"] is True, "the print in place")
     return names
 
 
@@ -108,7 +112,8 @@ def reference_problems(text: str, state: dict[str, Any]) -> list[str]:
 
 
 def summary(state: dict[str, Any]) -> dict[str, Any]:
-    """What the final verification measured, for the auditor."""
+    """What the final verification measured, for the auditor, with what each green gate
+    verified: without it, replayed audits refused "0 bad edges" (G2) and "seen up close" (G7)."""
     parts = []
     for part in state.get("parts") or []:
         check = part.get("spec_check") or {}
@@ -121,7 +126,14 @@ def summary(state: dict[str, Any]) -> dict[str, Any]:
                 "ok": part.get("ok"),
                 "mesh": {
                     k: (part.get("mesh") or {}).get(k)
-                    for k in ("watertight", "bodies", "volume_mm3", "bounds", "through_holes")
+                    for k in (
+                        "watertight",
+                        "bad_edges",
+                        "bodies",
+                        "volume_mm3",
+                        "bounds",
+                        "through_holes",
+                    )
                 },
                 "spec": part.get("spec"),
                 "spec_check": {k: v for k, v in check.items() if k != "details"},
@@ -129,8 +141,10 @@ def summary(state: dict[str, Any]) -> dict[str, Any]:
                 "printability": part.get("printability"),
             }
         )
+    gates = {g: v["ok"] for g, v in state["gates"].items() if g != "G8"}
     out: dict[str, Any] = {
-        "gates": {g: v["ok"] for g, v in state["gates"].items() if g != "G8"},
+        "gates": gates,
+        "green_means": {g: GREEN_MEANS[g] for g, ok in gates.items() if ok is True},
         "parts": parts,
     }
     assembly = state.get("assembly") or {}
@@ -149,6 +163,7 @@ def summary(state: dict[str, Any]) -> dict[str, Any]:
             "spec_check": assembly.get("spec_check"),
             "motions": assembly.get("motions"),
             "assembly_steps": assembly.get("assembly_steps"),
+            "print_in_place": assembly.get("print_in_place"),
             "problems": assembly.get("problems"),
         }
     elif assembly:
@@ -193,8 +208,9 @@ def judge(
     state: dict[str, Any],
     adjustments: list[dict[str, Any]],
     label: str,
+    model: str = MODEL,
 ) -> tuple[dict[str, Any], list]:
-    """G8 of a close, and the auditor's API calls (to count their cost)."""
+    """G8 of a close, and the auditor's API calls (to count their cost); `model` audits."""
     problems = reference_problems(text, state)
     if problems:
         return {"ok": False, "detail": problems}, []
@@ -206,7 +222,7 @@ def judge(
         for part in dict.fromkeys(a["part"] for a in adjustments)
     ] or ["(none)"]
     request = dict(
-        model=MODEL,
+        model=model,
         instructions=AUDIT_INSTRUCTIONS,
         input=AUDIT_REQUEST.format(
             verified=verified, adjustments="\n".join(f"- {a}" for a in flagged), close=text

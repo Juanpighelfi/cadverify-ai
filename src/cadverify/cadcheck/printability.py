@@ -30,6 +30,16 @@ def printability_report(
     printer: str = "bambu_a1",
     max_overhang_deg: float = MAX_OVERHANG_DEG,
 ) -> dict[str, Any]:
+    """The printability of the STL at `path` (mesh_printability)."""
+    return mesh_printability(load_exact(path), allowed, printer, max_overhang_deg)
+
+
+def mesh_printability(
+    mesh: trimesh.Trimesh,
+    allowed: list[dict[str, Any]] | None = None,
+    printer: str = "bambu_a1",
+    max_overhang_deg: float = MAX_OVERHANG_DEG,
+) -> dict[str, Any]:
     """Overhang zones steeper than `max_overhang_deg` from vertical, and whether the part fits.
 
     - The overhang angle of a downward face is measured from vertical: a wall is 0°, a flat
@@ -41,7 +51,6 @@ def printability_report(
       center is in one, with the same slack), in all and per box. A box that covers almost the
       whole part exempts every overhang it may have: one session declared 91 % and 100 %.
     """
-    mesh = load_exact(path)
     bed = PRINTERS[printer]
     if len(mesh.faces) == 0:
         return {"ok": False, "error": "empty mesh"}

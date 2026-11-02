@@ -217,6 +217,11 @@ def html_page(run_dir: Path) -> str:
     meta = [
         f'<span class="badge {STATUS.get(status, "red")}">{escape(status)}</span>',
         f"<span>{escape(session['model'])}</span>",
+        *(
+            [f"<span>audited by {escape(session['auditor'])}</span>"]
+            if session.get("auditor", session["model"]) != session["model"]
+            else []
+        ),
         f"<span>{totals.get('requests', len(iterations))} requests</span>",
         f"<span>{totals.get('tool_calls', 0)} tool calls</span>",
         f"<span>USD {totals.get('cost_usd', 0):.2f}</span>",

@@ -5,7 +5,7 @@ test_agent.py."""
 import json
 
 from cadverify import summary
-from cadverify.agent import closing, gates, prompts
+from cadverify.agent import closing, gates, prompts, tools
 from cadverify.agent.loop import Limits, run_session
 from cadverify.agent.spec_history import MAX_NOTE_ITEMS, SpecHistory, notes
 from cadverify.agent.tools import ToolBox
@@ -118,6 +118,30 @@ LOOK = [
 def test_an_assembly_seen_and_measured_leaves_only_the_close():
     result = evaluate(verify_two_parts())
     assert gates.green_but(result, "G8") and result["G8"]["ok"] is None
+
+
+def test_g5_judges_an_assembly_printed_in_place():
+    gap = "base and lid are 0.15 mm apart: printed in place they fuse (print_in_place asks ...)"
+    zone = {"declared": False, "max_angle_deg": 90.0, "area_mm2": 113.1, "bounds": [[0, 0, 5]]}
+    printed = {"ok": True, "fits_bed": True, "zones": [zone], "zones_undeclared": 1}
+    in_place = {"min_gap_mm": 0.3, "instances": list(PARTS), "gaps": [], "printability": printed}
+    report = assembly_report(print_in_place=in_place)
+    report["problems"]["G5"] = [gap]
+    detail = evaluate(verify_two_parts(report))["G5"]["detail"]
+    assert detail == [
+        f"printed in place: {gap}",
+        "assembly as printed in place: undeclared 90.0° overhang (113.1 mm², bounds [[0, 0, 5]])",
+    ]
+    clean = dict(printed, zones=[], zones_undeclared=0)
+    report = assembly_report(print_in_place=dict(in_place, printability=clean))
+    report["problems"]["G5"] = []
+    result = evaluate(verify_two_parts(report))
+    assert gates.green_but(result, "G8")
+    state = {"gates": result, "parts": [], "assembly": report}
+    assert closing.reference_problems("[[print_in_place]]", state) == []
+    assert closing.reference_problems("[[print_in_place]]", _state(True))[0].startswith(
+        "[[print_in_place]] names nothing"
+    )
 
 
 def test_g7_needs_the_instances_of_the_final_assembly_seen_together():
@@ -306,6 +330,37 @@ def test_assembly_adjustments_an_allowed_overlap_and_a_shorter_motion():
     assert all(f["part"] == "assembly" for f in found)
 
 
+def test_assembly_adjustments_a_collision_declared_as_flex_and_a_clearance_moved():
+    history = SpecHistory()
+    worst = {"moving": "lid", "with": "base", "volume_mm3": 2.1, "thickness_mm": 0.2}
+    collided = {"from_to": [80, 88], "worst": worst}
+    motion = {"name": "lock", "range": [0, 90], "ok": False, "collisions": collided}
+    gap = {"a": "base", "b": "lid", "gap_mm": 0.2}
+    in_place = {"min_gap_mm": 0.3, "gaps": [{**gap, "ok": False}]}
+    history.observe_assembly(assembly_report(motions=[motion], print_in_place=in_place))
+    flex = {"a": "lid", "b": "base", "max_mm": 0.5, "depth_mm": 0.42, "ok": True, "at": 84}
+    found = history.observe_assembly(
+        assembly_report(
+            motions=[{"name": "lock", "range": [0, 90], "ok": True, "flex": [flex]}],
+            print_in_place={"min_gap_mm": 0.2, "gaps": [{**gap, "ok": True}]},
+        )
+    )
+    assert [(f["item"], f["to"]) for f in found] == [
+        ("print_in_place base / lid", 0.2),
+        ("motion lock", "flex base / lid"),
+    ]
+    assert found[1]["why"] == "the collision is declared as a flex, with the parts unchanged"
+
+    deeper = dict(flex, max_mm=0.3, ok=False)
+    history.observe_assembly(
+        assembly_report(motions=[{"name": "m", "range": [0, 9], "ok": False, "flex": [deeper]}])
+    )
+    (raised,) = history.observe_assembly(
+        assembly_report(motions=[{"name": "m", "range": [0, 9], "ok": True, "flex": [flex]}])
+    )
+    assert raised["item"] == "motion m flex lid / base" and raised["measured"] == 0.42
+
+
 # ---- the close ----------------------------------------------------------------------------
 
 
@@ -342,6 +397,47 @@ def test_a_close_may_cite_the_assemblys_own_support_faces():
     assert closing.reference_problems("[[desk]] [[assembly/desk]]", state) == []
     (problem,) = closing.reference_problems("[[tray]]", state)
     assert problem == "[[tray]] cites the support face tray of the assembly, which is red"
+
+
+def test_the_auditor_reads_what_each_green_gate_verified():
+    state = _state(True)
+    state["gates"]["G4"] = {"ok": False, "detail": ["collides"]}
+    mesh = {"watertight": True, "bad_edges": 0, "bodies": 1, "triangles": 12}
+    state["parts"][0]["mesh"] = mesh
+    verified = closing.summary(state)
+    assert verified["gates"]["G4"] is False and "G8" not in verified["gates"]
+    assert set(verified["green_means"]) == {"G1", "G2", "G3", "G5", "G7"}
+    assert "0 bad edges" in verified["green_means"]["G2"]
+    assert "close view of every detail of kind view" in verified["green_means"]["G7"]
+    assert verified["parts"][0]["mesh"]["bad_edges"] == 0
+    assert "triangles" not in verified["parts"][0]["mesh"]
+
+
+def test_the_auditor_gets_the_printability_numbers_a_close_may_quote():
+    zone = {"id": "v1", "area_mm2": 4.1, "max_angle_deg": 90.0, "bounds": [], "faces": 8}
+    report = {
+        "ok": True,
+        "printer": "bambu_a1",
+        "bed_mm": [256, 256, 256],
+        "size": [80, 60, 40],
+        "fits_bed": True,
+        "bed_margin_mm": [88.0, 98.0, 216.0],
+        "z_min": 0.0,
+        "base_area_mm2": 4800.0,
+        "overhang_area_mm2": 4.1,
+        "zones_total": 1,
+        "zones_undeclared": 0,
+        "undeclared_area_mm2": 0,
+        "zones": [{**zone, "declared": True, "declared_as": "pocket roofs"}],
+        "allowed_coverage": {"share": 0.012, "per_box": [{"name": "pocket roofs"}]},
+    }
+    short = tools._short_printability(report)
+    assert short["bed_margin_mm"] == [88.0, 98.0, 216.0] and short["overhang_area_mm2"] == 4.1
+    assert short["allowed_share_of_surface"] == 0.012 and "printer" not in short
+    assert short["zones"] == [
+        {"id": "v1", "area_mm2": 4.1, "max_angle_deg": 90.0, "declared_as": "pocket roofs"}
+    ]
+    assert tools._short_printability({"ok": False, "error": "x"}) == {"ok": False, "error": "x"}
 
 
 def test_the_auditor_judges_a_close_whose_references_pass():

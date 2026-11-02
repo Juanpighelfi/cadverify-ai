@@ -32,8 +32,15 @@ import httpx
 BASE_URL = "https://api.meta.ai/v1"
 MODEL = "muse-wonder-1.0"
 
-# USD per 1M tokens for muse-wonder-1.0, Standard mode (dev.meta.ai/docs/pricing-rate-limits).
-PRICE_PER_MTOK = {"input": 4.00, "cached_input": 0.20, "output": 20.00}
+# USD per 1M tokens (dev.meta.ai/docs/pricing-rate-limits, read 2026-10-31). A "-contributor"
+# model is the same model at a discount, in exchange for Meta training on what it is sent.
+PRICE_PER_MTOK = {
+    "muse-wonder-1.0": {"input": 4.00, "cached_input": 0.20, "output": 20.00},
+    "muse-spark-1.3": {"input": 1.25, "cached_input": 0.15, "output": 4.25},
+    "muse-spark-1.3-contributor": {"input": 0.10, "cached_input": 0.002, "output": 0.20},
+}
+# A model without a price here is counted at the highest one, so a budget is never underestimated.
+UNKNOWN_PRICE = {k: max(p[k] for p in PRICE_PER_MTOK.values()) for k in PRICE_PER_MTOK[MODEL]}
 
 # Statuses the docs say are worth retrying with backoff. 400/401/402/403/404/413/504 are not.
 RETRYABLE_STATUS = {429, 500, 503}
@@ -71,6 +78,7 @@ class ApiCall:
     latency_s: float
     attempts: list[dict[str, Any]] = field(default_factory=list)
     error: str | None = None
+    model: str | None = None  # the model asked for, which sets the price
 
     @property
     def ok(self) -> bool:
@@ -122,7 +130,7 @@ class ApiCall:
 
     @property
     def cost_usd(self) -> float:
-        return cost_usd(self.usage)
+        return cost_usd(self.usage, self.model)
 
     def error_summary(self) -> dict[str, Any] | None:
         if self.ok:
@@ -138,6 +146,7 @@ class ApiCall:
     def metrics(self) -> dict[str, Any]:
         return {
             "label": self.label,
+            "model": self.model,
             "ok": self.ok,
             "status_code": self.status_code,
             "response_status": self.response_status,
@@ -149,13 +158,14 @@ class ApiCall:
         }
 
 
-def cost_usd(usage: dict[str, int]) -> float:
+def cost_usd(usage: dict[str, int], model: str | None) -> float:
+    price = PRICE_PER_MTOK.get(model or "", UNKNOWN_PRICE)
     cached = usage.get("cached_tokens", 0)
     uncached = max(usage.get("input_tokens", 0) - cached, 0)
     return (
-        uncached * PRICE_PER_MTOK["input"]
-        + cached * PRICE_PER_MTOK["cached_input"]
-        + usage.get("output_tokens", 0) * PRICE_PER_MTOK["output"]
+        uncached * price["input"]
+        + cached * price["cached_input"]
+        + usage.get("output_tokens", 0) * price["output"]
     ) / 1_000_000
 
 
@@ -283,6 +293,7 @@ class MetaClient:
             latency_s=attempts[-1]["latency_s"],
             attempts=attempts,
             error=error,
+            model=payload.get("model"),
         )
         call_total = round(time.perf_counter() - started, 3)
         self._write_raw(call, payload, headers, call_total)

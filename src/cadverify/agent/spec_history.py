@@ -13,7 +13,9 @@ An adjustment is a check that failed at the part's previous observation and pass
   bodies, the through holes, the area of a support face, a detail measured at the same place).
 A failing check taken out of the spec with the mesh unchanged is one too. For the assembly: an
 overlap the assembly already had, declared now as a permitted interference; a motion that
-collided, now with a shorter range that leaves the collision out, or removed. A bounds
+collided, now with a shorter range that leaves the collision out, or removed, or passing with
+the parts unchanged because its collision is declared as a flex; a flex or a print_in_place
+clearance moved past what was measured. A bounds
 coordinate counts when the spec was more than BOUNDS_FLAG_MM off the mesh: less is the rounding
 of a spec formula (one early session flagged 61 adjustments, 18 of them of 0.2 to 1 mm).
 
@@ -107,6 +109,23 @@ class SpecHistory:
                             "why": "a motion that collided left the spec, with the parts unchanged",
                         }
                     )
+                continue
+            worst = old["collisions"].get("worst") or {}
+            pair = {worst.get("moving"), worst.get("with")}
+            if (
+                new.get("ok")
+                and same
+                and any({f["a"], f["b"]} == pair for f in new.get("flex", []))
+            ):
+                found.append(
+                    {
+                        "item": f"motion {name}",
+                        "from": "no flex",
+                        "to": f"flex {' / '.join(sorted(pair))}",
+                        "measured": f"collided between {hits[0]:g} and {hits[1]:g}",
+                        "why": "the collision is declared as a flex, with the parts unchanged",
+                    }
+                )
                 continue
             lo, hi = new["range"]
             shorter = lo > old["range"][0] or hi < old["range"][1]
@@ -259,6 +278,16 @@ def _assembly_items(report: dict[str, Any]) -> dict[str, dict[str, Any]]:
             face["ok"],
             "area",
             face["direction"],
+        )
+    for motion in report.get("motions") or []:
+        for flex in motion.get("flex") or []:
+            items[f"motion {motion['name']} flex {flex['a']} / {flex['b']}"] = _item(
+                flex["max_mm"], flex["depth_mm"], flex["ok"], "mm", flex.get("at")
+            )
+    in_place = report.get("print_in_place") or {}
+    for gap in in_place.get("gaps") or []:
+        items[f"print_in_place {gap['a']} / {gap['b']}"] = _item(
+            in_place["min_gap_mm"], gap["gap_mm"], gap["ok"], "mm"
         )
     return items
 

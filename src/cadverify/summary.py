@@ -1,5 +1,6 @@
 """A session in Markdown: one row per iteration (tools, images, gates, tokens, cost, latency) and
-the model's own code grouped by what it did.
+the model's own code grouped by what it did. And the sessions of a results directory side by
+side, one row per request and model (table).
 
 The groups come from an automatic pass over the code (what it calls and writes): a first sort,
 not a judgment.
@@ -9,8 +10,12 @@ from __future__ import annotations
 
 import json
 import re
+from collections import defaultdict
 from pathlib import Path
+from statistics import median
 from typing import Any
+
+from cadverify.meta_api import cost_usd
 
 GROUPS = (
     ("edit", None),
@@ -154,4 +159,48 @@ def markdown(run_dir: Path) -> str:
     if "final" in session:
         gates = {k: v["ok"] for k, v in session["final"]["gates"].items()}
         lines.append(f"Final gates: {gates}")
+    return "\n".join(lines)
+
+
+def table(results: Path) -> str:
+    """The sessions under `results` (<request>/<UTC>/session.json), one row per request and
+    model: how many closed green, and the median session's requests, USD, minutes and closes
+    refused. "USD Standard" prices each request at its model's Standard price: what a session
+    on a "-contributor" model would have cost without the discount."""
+    rows: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
+    for path in sorted(results.glob("*/*/session.json")):
+        session = json.loads(path.read_text(encoding="utf-8"))
+        if session["status"] == "running":
+            continue
+        requests = [(it["request"], session["model"]) for it in session["iterations"]]
+        auditor = session.get("auditor") or session["model"]
+        requests += [(r, auditor) for a in session.get("audits") or [] for r in a["requests"]]
+        standard = sum(
+            cost_usd(r["usage"], (r.get("model") or model).removesuffix("-contributor"))
+            for r, model in requests
+        )
+        rows[(path.parent.parent.name, session["model"])].append(
+            {
+                "green": session["status"] == "green",
+                "requests": session["totals"]["requests"],
+                "usd": session["totals"]["cost_usd"],
+                "standard": standard,
+                "minutes": session["totals"]["wall_s"] / 60,
+                "refused": sum(it.get("close") == "rejected" for it in session["iterations"]),
+            }
+        )
+    lines = [
+        "| Request | Model | Green | Requests | USD | USD Standard | Minutes | Closes refused |",
+        "|---|---|---|---|---|---|---|---|",
+    ]
+    for (request, model), runs in sorted(rows.items()):
+
+        def mid(key: str, runs=runs) -> float:
+            return median(r[key] for r in runs)
+
+        lines.append(
+            f"| {request} | {model} | {sum(r['green'] for r in runs)} of {len(runs)} "
+            f"| {mid('requests'):g} | {mid('usd'):.2f} | {mid('standard'):.2f} "
+            f"| {mid('minutes'):.0f} | {mid('refused'):g} |"
+        )
     return "\n".join(lines)

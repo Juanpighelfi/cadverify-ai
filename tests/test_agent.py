@@ -635,6 +635,23 @@ def test_loop_rejects_a_close_with_red_gates_then_accepts(toolbox, tmp_path):
     assert saved["final"]["gates"]["G8"]["ok"] is True
 
 
+def test_a_session_designs_with_its_model_and_audits_with_another(toolbox, tmp_path):
+    model = FakeModel([WRITE, EXPORT, "Done, verified: [[G2]]."])
+    session = run_session(
+        model, toolbox, "request", Limits(), tmp_path, model="muse-spark-1.3", auditor="m2"
+    )
+    assert session["status"] == "green"
+    assert session["model"] == "muse-spark-1.3" and session["auditor"] == "m2"
+    assert {p["model"] for p in model.payloads} == {"muse-spark-1.3"}
+    assert {p["prompt_cache_key"] for p in model.payloads} == {"cadverify-agent-muse-spark-1.3"}
+    assert [p["model"] for p in model.audit_payloads] == ["m2"]
+
+    model = FakeModel([WRITE, EXPORT, "Done, verified: [[G2]]."])
+    session = run_session(model, toolbox, "request", Limits(), tmp_path, model="muse-spark-1.3")
+    assert session["auditor"] == "muse-wonder-1.0"
+    assert [p["model"] for p in model.audit_payloads] == ["muse-wonder-1.0"]
+
+
 def test_loop_stops_at_the_request_limit_and_the_budget(toolbox, tmp_path):
     model = FakeModel(["Done."] * 5)
     session = run_session(model, toolbox, "p", Limits(max_requests=3), tmp_path)
@@ -787,7 +804,10 @@ def test_a_session_is_told_when_its_end_is_in_sight(toolbox, tmp_path):
     assert model.payloads[3]["input"][-1] == {"role": "user", "content": notices[2]}
     assert session["status"] == "green"
     for payload in model.payloads:  # streamed, and routed to the backend with the cache
-        assert payload["stream"] is True and payload["prompt_cache_key"] == "cadverify-agent"
+        assert (
+            payload["stream"] is True
+            and payload["prompt_cache_key"] == "cadverify-agent-muse-wonder-1.0"
+        )
         assert payload["prompt_cache_retention"] == "24h"
 
 

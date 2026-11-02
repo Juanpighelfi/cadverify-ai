@@ -30,14 +30,23 @@ The assembly (`part = "assembly"`) declares instead, in assembly coordinates
 
     ["allowed_interferences", [["pin_right", "arm_top", "press fit"]]],
     ["motions", [["hinge", ["lid"], "rotate", [x, y, z], [ax, ay, az], [0, 90]],
-                 ["drawer", ["tray"], "slide", [dx, dy, dz], [0, 30]]]],
+                 ["drawer", ["tray"], "slide", [dx, dy, dz], [0, 30],
+                  ["flex", [["tray", "body", 0.5, "the detent bump rides over the stop"]]]]]],
     ["assembly_order", [[["base"], [0, 0, 0]],
                         [["insert"], [0, 0, -1]],
-                        [["lid"], [0, 0, 1], ["rotate", [x, y, z], [ax, ay, az], 90]]]]
+                        [["lid"], [0, 0, 1], ["rotate", [x, y, z], [ax, ay, az], 90]]]],
+    ["print_in_place", 0.3],
+    ["overhangs_allowed", [["pin underside", [[x, y, z], [x, y, z]]]]]
+
+A motion's `flex` lets two instances overlap while it moves, up to that many mm deep: an elastic
+feature (a detent, a snap) that deflects and springs back. `print_in_place` says the assembly is
+printed as it stands, every part at once, with that clearance or more between any two of them;
+only then does the assembly have `overhangs_allowed`, for the print of the whole.
 
 The assembly's own `bounds` (optional) and `support_faces` are measured on its instances
-together. Bodies, through holes, overhangs, copies and details belong to each part: the assembly
-is not printed, and its count of bodies or holes says nothing a part's spec does not.
+together. Bodies, through holes, copies and details belong to each part, and so do overhangs
+unless the assembly prints in place: its count of bodies or holes says nothing a part's spec
+does not.
 """
 
 from __future__ import annotations
@@ -59,8 +68,20 @@ DIRECTIONS = {"+x": (0, 1), "-x": (0, -1), "+y": (1, 1), "-y": (1, -1), "+z": (2
 _AXES = "xyz"
 _KEYS = {"bounds", "bodies", "through_holes", "support_faces", "overhangs_allowed"}
 PART_KEYS = _KEYS | {"copies", "details"}
-ASSEMBLY_KEYS = {"bounds", "support_faces", "allowed_interferences", "motions", "assembly_order"}
+ASSEMBLY_KEYS = {
+    "bounds",
+    "support_faces",
+    "allowed_interferences",
+    "motions",
+    "assembly_order",
+    "print_in_place",
+    "overhangs_allowed",
+}
 MOTIONS = ("rotate", "slide")
+# An undercut deeper than this on a printed part is a crash more often than a snap.
+FLEX_MAX_MM = 1.0
+# Closer than this, two parts printed together fuse on a common FDM printer (0.4 mm nozzle).
+PRINT_IN_PLACE_GAP_MM = (0.2, 1.0)
 
 
 class SpecError(ValueError):
@@ -136,6 +157,11 @@ def parse_spec(text: str, assembly: bool = False) -> dict[str, Any]:
         )
     if assembly:
         spec.update(_assembly_keys(pairs))
+        if spec["overhangs_allowed"] and spec["print_in_place"] is None:
+            raise SpecError(
+                "overhangs_allowed of the assembly is for print_in_place: an assembly printed "
+                "part by part has them in the spec of each part"
+            )
     else:
         spec["copies"] = _count(pairs.get("copies", 1), "copies", minimum=1)
         spec["details"] = _details(pairs.get("details", []))
@@ -212,22 +238,26 @@ def _assembly_keys(pairs: dict[str, Any]) -> dict[str, Any]:
     for item in _list(pairs.get("motions", []), "motions"):
         usage = (
             'motions: ["name", ["instance", ...], "rotate", point, axis, [from, to]] (degrees) '
-            'or ["name", ["instance", ...], "slide", direction, [from, to]] (mm)'
+            'or ["name", ["instance", ...], "slide", direction, [from, to]] (mm), each with '
+            'an optional ["flex", [["instance", "instance", mm, "reason"], ...]] at the end'
         )
         if not (isinstance(item, list) and len(item) >= 5 and isinstance(item[0], str)):
             raise SpecError(f"{usage}; got {item!r}")
         name, moving, kind = item[0], _names(item[1], f"motions {item[0]!r}"), item[2]
         where = f"motions {name!r}"
-        if kind == "rotate" and len(item) == 6:
+        if kind == "rotate" and len(item) in (6, 7):
             motion = {
                 "point": _vector(item[3], where),
                 "axis": _direction(item[4], where),
                 "range": _range(item[5], where),
             }
-        elif kind == "slide" and len(item) == 5:
+            extra = item[6:]
+        elif kind == "slide" and len(item) in (5, 6):
             motion = {"axis": _direction(item[3], where), "range": _range(item[4], where)}
+            extra = item[5:]
         else:
             raise SpecError(f"{usage}; got {item!r}")
+        motion["flex"] = _flex(extra[0], where) if extra else []
         motions.append({"name": name, "instances": moving, "kind": kind, **motion})
     steps = []
     for item in _list(pairs.get("assembly_order", []), "assembly_order"):
@@ -252,7 +282,44 @@ def _assembly_keys(pairs: dict[str, Any]) -> dict[str, Any]:
                 "degrees": float(turn[3]),
             }
         steps.append(step)
-    return {"allowed_interferences": allowed, "motions": motions, "assembly_order": steps}
+    in_place = pairs.get("print_in_place")
+    if in_place is not None:
+        lo, hi = PRINT_IN_PLACE_GAP_MM
+        if not (_number(in_place) and lo <= in_place <= hi):
+            raise SpecError(
+                f"print_in_place is the smallest clearance between two parts printed together, "
+                f"from {lo} to {hi} mm (closer, they fuse); got {in_place!r}"
+            )
+        in_place = {"min_gap_mm": float(in_place)}
+    return {
+        "allowed_interferences": allowed,
+        "motions": motions,
+        "assembly_order": steps,
+        "print_in_place": in_place,
+    }
+
+
+def _flex(value: Any, where: str) -> list[dict[str, Any]]:
+    """The overlaps a motion allows while it moves: an elastic feature that deflects."""
+    usage = (
+        f'{where}: the flex is ["flex", [["instance", "instance", mm, "reason"], ...]], with mm '
+        f"the deepest the two may overlap while it moves (up to {FLEX_MAX_MM})"
+    )
+    if not (isinstance(value, list) and len(value) == 2 and value[0] == "flex"):
+        raise SpecError(f"{usage}; got {value!r}")
+    out = []
+    for item in _list(value[1], where):
+        if not (
+            isinstance(item, list)
+            and len(item) == 4
+            and all(isinstance(x, str) for x in (item[0], item[1], item[3]))
+            and item[0] != item[1]
+            and _number(item[2])
+            and 0 < item[2] <= FLEX_MAX_MM
+        ):
+            raise SpecError(f"{usage}; got {item!r}")
+        out.append({"a": item[0], "b": item[1], "max_mm": float(item[2]), "reason": item[3]})
+    return out
 
 
 def _names(value: Any, where: str) -> list[str]:

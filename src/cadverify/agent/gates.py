@@ -9,7 +9,8 @@ model has seen.
   group, the units the request chains (cadcheck.assembly);
 - G4, motion: the declared motions and the assembly order, without collisions;
 - G5, overhangs only inside the allowed boxes, which cover at most half of a part's surface, and
-  every part fits the bed;
+  every part fits the bed; for an assembly printed in place, the same on all its parts together
+  as they stand, and the clearance it declares between any two (cadcheck.assembly);
 - G7, the spec, details included, and what the model saw of the final version: the sheet of
   every part, a view of the assembly with all its instances, and a close view of every "view"
   detail (cadcheck.view, details_in_view);
@@ -22,6 +23,31 @@ from __future__ import annotations
 from typing import Any
 
 GATES = ("G1", "G2", "G3", "G4", "G5", "G7", "G8")
+# What a green gate verified, in the words the auditor of the close reads (agent/closing.py).
+GREEN_MEANS = {
+    "G1": "the source compiles and every part exports with the default parameters, with no "
+    "errors, failed asserts, timeouts or warnings",
+    "G2": "every part is a closed mesh: watertight, 0 bad edges, no inverted shells, a positive "
+    "volume and the declared number of bodies",
+    "G3": "the assembly: each instance is its part moved (same volume, area and principal "
+    "moments), every part placed as many times as its copies, no overlap between instances "
+    "beyond the allowed_interferences, all of them one connected group, and the units the "
+    "request chains (nothing to check for one part without an assembly)",
+    "G4": "every declared motion swept through its whole range, and every assembly_order step "
+    "brought in from far away along its direction (turning, when it turns), without a collision "
+    "with what is already placed. The parts are swept as rigid bodies; a pair a motion declares "
+    "as flex may overlap while it moves, no deeper than declared and never at an end of the "
+    "range: how deep is measured, not whether the feature can bend that far",
+    "G5": "each part alone, in the orientation it is exported in: no overhang steeper than 45° "
+    "outside its declared overhangs_allowed boxes (which cover at most half of its surface), "
+    "and it fits the bed (Bambu Lab A1, 256 mm cube). Only an assembly that declares "
+    "print_in_place is checked as printed whole: the same checks on all its parts together as "
+    "they stand, and every two of them at least the declared clearance apart",
+    "G7": "every spec check holds (bounds, bodies, through holes, support faces, details), and "
+    "the designer saw the final version: the multi-view sheet of every part, all the "
+    "instances of the assembly together in one view, and a close view of every detail of kind "
+    "view",
+}
 MAX_WARNINGS = 10  # per stage in the gate report; scad_compile lists them all
 MAX_ALLOWED_COVERAGE = 0.5  # of a part's surface inside its overhangs_allowed boxes
 PENDING = "judged when you close"
@@ -75,6 +101,7 @@ def evaluate(
     assembly = verify.get("assembly") or {}
     gates["G3"] += assembly_problems(assembly)
     gates["G4"] += list((assembly.get("problems") or {}).get("G4", []))
+    gates["G5"] += print_in_place_problems(assembly)
     gates["G7"] += assembly_view_problems(assembly, view_groups or [])
     result = {name: {"ok": not reasons, "detail": reasons} for name, reasons in gates.items()}
     result["G8"] = {"ok": None, "detail": [PENDING]}
@@ -101,6 +128,19 @@ def assembly_problems(assembly: dict[str, Any]) -> list[str]:
             "each overlap as an STL to look at with render_view"
         )
     return problems
+
+
+def print_in_place_problems(assembly: dict[str, Any]) -> list[str]:
+    """G5 of an assembly printed as it stands: its clearances, and the print of all its parts."""
+    in_place = assembly.get("print_in_place")
+    if not in_place:
+        return []
+    problems = [f"printed in place: {p}" for p in assembly["problems"].get("G5", [])]
+    if in_place["printability"] is None:
+        return problems + ["printed in place: there is no printed part in unit 1"]
+    return problems + [
+        f"assembly as printed in place: {p}" for p in print_problems(in_place["printability"])
+    ]
 
 
 def assembly_view_problems(assembly: dict[str, Any], view_groups: list[set[str]]) -> list[str]:

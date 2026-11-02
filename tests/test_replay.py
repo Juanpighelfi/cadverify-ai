@@ -77,6 +77,16 @@ def test_the_page_shows_the_session(tmp_path):
     assert '<span class="badge red">close refused</span>' in page
     assert '<span class="badge ok">accepted</span>' in page
     assert "unsupported claim: &lt;script&gt;it is strong&lt;/script&gt;" in page
+    assert "audited by" not in page
+
+
+def test_the_page_names_an_auditor_that_is_not_the_designer(tmp_path):
+    run = _run(tmp_path)
+    session = json.loads((run / "session.json").read_text())
+    session.update(model="muse-spark-1.3", auditor="muse-wonder-1.0")
+    (run / "session.json").write_text(json.dumps(session))
+    page = replay.html_page(run)
+    assert "<span>muse-spark-1.3</span><span>audited by muse-wonder-1.0</span>" in page
 
 
 def test_the_gate_grid_has_one_cell_per_gate_and_iteration(tmp_path):

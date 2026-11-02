@@ -1,5 +1,6 @@
 """The details of a spec (cadcheck.details), the allowed coverage of printability and the
-assembly (cadcheck.assembly: inside the sandbox image only, it needs OpenSCAD and EGL).
+assembly (cadcheck.assembly: its reports inside the sandbox image only, they need OpenSCAD
+and EGL).
 
 The three details are defects a model left in its own parts, rebuilt as small synthetic ones: a
 rib that is not there, a rope flare sunk under a lip, and a pin entry chamfered the wrong way.
@@ -154,6 +155,32 @@ def test_the_spec_declares_details_and_the_assembly_keys():
         )
 
 
+def test_a_motion_may_flex_and_an_assembly_may_print_in_place():
+    flex = '["flex", [["lid", "jar", 0.5, "the detent bump rides over the ramp"]]]'
+    assembly = parse_spec(
+        f'[["motions", [["lock", ["lid"], "rotate", [0, 0, 0], [0, 0, 1], [0, 90], {flex}], '
+        '["drawer", ["tray"], "slide", [1, 0, 0], [0, 30]]]], ["print_in_place", 0.3], '
+        '["overhangs_allowed", [["pin underside", [[0, 0, 5], [10, 10, 6]]]]]]',
+        assembly=True,
+    )
+    lock, drawer = assembly["motions"]
+    assert lock["flex"] == [
+        {"a": "lid", "b": "jar", "max_mm": 0.5, "reason": "the detent bump rides over the ramp"}
+    ]
+    assert drawer["flex"] == [] and assembly["print_in_place"] == {"min_gap_mm": 0.3}
+    assert assembly["overhangs_allowed"][0]["name"] == "pin underside"
+    assert parse_spec("[]", assembly=True)["print_in_place"] is None
+
+    slide = '["s", ["tray"], "slide", [1, 0, 0], [0, 30], ["flex", [{}]]]'
+    for bad in ('["tray", "body", 1.5, "deep"]', '["tray", "tray", 0.5, "self"]', '["tray"]'):
+        with pytest.raises(SpecError, match="the flex is"):
+            parse_spec(f'[["motions", [{slide.format(bad)}]]]', assembly=True)
+    with pytest.raises(SpecError, match="from 0.2 to 1.0 mm"):
+        parse_spec('[["print_in_place", 0.1]]', assembly=True)
+    with pytest.raises(SpecError, match="overhangs_allowed of the assembly is for print_in_place"):
+        parse_spec('[["overhangs_allowed", [["a", [[0, 0, 0], [1, 1, 1]]]]]]', assembly=True)
+
+
 def test_allowed_coverage_is_the_share_of_the_surface_in_the_boxes():
     box = trimesh.creation.box((10, 10, 10))
     box.apply_translation((5, 5, 5))
@@ -178,6 +205,9 @@ pin_x = 20;
 pin_scale = 1;
 entry = [0, 0, -1];
 turn_axis = [0, 0, 1];
+hole = 8.4;
+in_place = 0;
+head_allowed = false;
 no_pin = false;
 loose = false;
 two_units = false;
@@ -188,7 +218,7 @@ module instance(name, part, unit = 1) {
 }
 module base() difference() {
     cube([40, 40, 10]);
-    translate([20, 20, -1]) cylinder(d = 8.4, h = 12, $fn = 48);
+    translate([20, 20, -1]) cylinder(d = hole, h = 12, $fn = 48);
 }
 module pin() union() {
     cylinder(d = pin_diameter, h = 14, $fn = 48);
@@ -207,7 +237,10 @@ if (part == "assembly") {
     echo(cadverify_spec = [
         ["motions", [["pin turn", ["pin1"], "rotate", [20, 20, 0], turn_axis, [0, 90]]]],
         ["assembly_order", concat([[["base1"], [0, 0, 0]], [["pin1"], entry]],
-            two_units ? [[["base2"], [-1, 0, 0]], [["pin2"], [0, 0, -1]]] : [])]
+            two_units ? [[["base2"], [-1, 0, 0]], [["pin2"], [0, 0, -1]]] : [])],
+        each (in_place > 0 ? [["print_in_place", in_place]] : []),
+        each (head_allowed ? [["overhangs_allowed", [["pin head", [[14, 14, 13.5],
+            [26, 26, 14.5]]]]]] : [])
     ]);
 } else if (part == "base") {
     base();
@@ -236,6 +269,42 @@ if (part == "assembly") {
 } else {
     ring();
     echo(cadverify_spec = [["bounds", [[-17.5, -17.5, -2.5], [17.5, 17.5, 2.5]]], ["copies", 2]]);
+}
+"""
+
+
+# A slider that rides over a ridge on its base: an elastic catch when the motion declares it.
+SLIDER = """\
+part = "assembly"; // [assembly, base, slider]
+ridge = 0.6;
+travel = 40;
+flex_mm = 0.5;
+with_flex = true;
+cadverify_only = "";
+module instance(name, part, unit = 1) {
+    echo(cadverify_instance = [name, part, unit]);
+    if (cadverify_only == "" || cadverify_only == name) children();
+}
+module base() union() {
+    cube([60, 8, 10]);
+    translate([29, 0, 10]) cube([2, 8, ridge]);
+}
+module slider() cube([4, 8, 5]);
+if (part == "assembly") {
+    instance("base1", "base") base();
+    instance("slider1", "slider") translate([0, 0, 10.2]) slider();
+    flex = [["flex", [["slider1", "base1", flex_mm, "the catch rides over the ridge"]]]];
+    echo(cadverify_spec = [
+        ["motions", [concat(["slide", ["slider1"], "slide", [1, 0, 0], [0, travel]],
+            with_flex ? flex : [])]],
+        ["assembly_order", [[["base1"], [0, 0, 0]], [["slider1"], [0, 0, -1]]]]
+    ]);
+} else if (part == "base") {
+    base();
+    echo(cadverify_spec = [["bounds", [[0, 0, 0], [60, 8, 10 + ridge]]]]);
+} else {
+    slider();
+    echo(cadverify_spec = [["bounds", [[0, 0, 0], [4, 8, 5]]]]);
 }
 """
 
@@ -305,3 +374,64 @@ def test_a_closed_ring_does_not_go_into_another(tmp_path):
     (problem,) = report["problems"]["G4"]
     assert "it goes in along no axis direction" in problem
     assert report["copies"] == [{"part": "ring", "expected": 2, "placed": 2, "ok": True}]
+
+
+@in_sandbox
+def test_a_catch_that_flexes_over_a_ridge(tmp_path):
+    rigid = _report(tmp_path / "a", SLIDER, with_flex=False)
+    (problem,) = rigid["problems"]["G4"]
+    assert problem.startswith("motion slide: collides between")
+    report = _report(tmp_path / "b", SLIDER)
+    assert report["ok"], report["problems"]
+    (flex,) = report["motions"][0]["flex"]
+    assert flex["ok"] and flex["depth_mm"] == pytest.approx(0.4, abs=0.01)
+    assert flex["poses"][0] > 24 and flex["poses"][1] < 32 and Path(flex["overlap_stl"]).exists()
+    shallow = _report(tmp_path / "c", SLIDER, flex_mm=0.3)
+    (problem,) = shallow["problems"]["G4"]
+    assert "slider1 goes 0.4 mm deep into base1" in problem and "than the 0.3 mm" in problem
+    stuck = _report(tmp_path / "d", SLIDER, travel=28)
+    (problem,) = stuck["problems"]["G4"]
+    assert "still overlap at 28 mm, an end of its range" in problem
+
+
+def test_how_deep_a_flex_goes():
+    from cadverify.cadcheck.assembly import _flex_depth
+
+    def triangles(solid):
+        mesh = solid.to_mesh()
+        return np.asarray(mesh.vert_properties)[:, :3][np.asarray(mesh.tri_verts)]
+
+    block = manifold3d.Manifold.cube((40, 40, 40), True)
+    for z, limit, expected in [
+        (21.7, 0.5, (0.3, "measured")),  # a pin 0.3 mm into the block's top
+        (21.7, 0.2, (0.3, "measured")),
+        (0.0, 0.5, (1.0, "at least")),  # a pin buried in it, its faces 18 mm away
+    ]:
+        pin = manifold3d.Manifold.cube((4, 4, 4), True).translate((0, 0, z))
+        hit = {"_solid": pin ^ block}
+        depth, kind = _flex_depth(hit, triangles(pin), triangles(block), limit)
+        assert (depth, kind) == (pytest.approx(expected[0], abs=0.01), expected[1])
+    # Two pins, one deeper: each is measured near itself, the deeper one counts.
+    pins = [
+        manifold3d.Manifold.cube((4, 4, 4), True).translate((x, 0, z))
+        for x, z in [(-10, 21.7), (10, 21.4)]
+    ]
+    both = manifold3d.Manifold.batch_boolean(pins, manifold3d.OpType.Add)
+    hit = {"_solid": both ^ block}
+    depth, kind = _flex_depth(hit, triangles(both), triangles(block), 0.8)
+    assert (depth, kind) == (pytest.approx(0.6, abs=0.01), "measured")
+
+
+@in_sandbox
+def test_an_assembly_printed_in_place(tmp_path):
+    report = _report(tmp_path / "a", hole=8.8, in_place=0.3)
+    assert report["problems"]["G5"] == [], report["problems"]
+    printed = report["print_in_place"]
+    assert printed["instances"] == ["base1", "pin1"]
+    assert [g["gap_mm"] for g in printed["gaps"]] == [pytest.approx(0.39, abs=0.01)]
+    (zone,) = printed["printability"]["zones"]  # the underside of the pin's head
+    assert not zone["declared"] and zone["max_angle_deg"] == 90.0
+    declared = _report(tmp_path / "b", hole=8.8, in_place=0.3, head_allowed=True)
+    assert declared["print_in_place"]["printability"]["zones"][0]["declared_as"] == "pin head"
+    (tight,) = _report(tmp_path / "c", in_place=0.3)["problems"]["G5"]
+    assert "base1 and pin1 are 0.2 mm apart: printed in place they fuse" in tight

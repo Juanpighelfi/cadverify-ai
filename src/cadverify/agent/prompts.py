@@ -84,19 +84,32 @@ echo(cadverify_spec = [
     ["allowed_interferences", [["instance_a", "instance_b", "reason"]]],
     ["motions", [
         ["name", ["instance", ...], "rotate", [x, y, z], [ax, ay, az], [from, to]],
-        ["name", ["instance", ...], "slide", [dx, dy, dz], [from, to]]
+        ["name", ["instance", ...], "slide", [dx, dy, dz], [from, to]],
+        ["name", ["instance", ...], "rotate", [x, y, z], [ax, ay, az], [from, to],
+            ["flex", [["moving_instance", "other_instance", mm, "reason"]]]]
     ]],
     ["assembly_order", [
         [["instance", ...], [0, 0, 0]],
         [["instance", ...], [dx, dy, dz]],
         [["instance", ...], [dx, dy, dz], ["rotate", [x, y, z], [ax, ay, az], degrees]]
-    ]]
+    ]],
+    ["print_in_place", clearance_mm],
+    ["overhangs_allowed", [["reason", [[xmin, ymin, zmin], [xmax, ymax, zmax]]]]]
 ]);
   - bounds and support_faces of the assembled product (optional), measured on all the instances.
   - allowed_interferences: press fits up to 0.3 mm thick. Any other overlap between instances \
 is an error.
   - motions: what moves in use (a hinge, a link, a lid), from the pose of the assembly (0) \
-through its whole range, in degrees or in mm. It is swept looking for collisions.
+through its whole range, in degrees or in mm. It is swept looking for collisions, with rigid \
+parts. An elastic feature that bends while it moves (a detent bump, a snap) goes in the \
+motion's flex: the instance that moves, the one it presses on and how deep they may overlap, \
+up to 1 mm. The harness measures how deep they go, and they have to be free at both ends of \
+the range: a flex springs back.
+  - print_in_place: only if the product is printed already assembled, all its parts in one \
+print as the assembly places them (+z up, the lowest faces on the bed): the smallest clearance \
+between any two parts, from 0.2 to 1 mm. The harness checks the overhangs of all the parts \
+together, with the assembly's own overhangs_allowed (only then does the assembly have them), \
+the bed, and the clearances.
   - assembly_order: the order it is put together in, with every instance once. Each step comes \
 in from far away moving along its direction (the first one does not need it) and, if it says \
 "rotate", then turns those degrees to land in its place, without passing through what is \
@@ -151,11 +164,12 @@ The close says what you designed and how it is printed and assembled, in two par
 - Verified: what the harness measured, with numbers. Each claim carries in double brackets the \
 name of what backs it: a part ([[lid]]), a detail or a support face of its spec ([[lid/rib]], \
 or [[rib]] if only one part has it), the assembly ([[assembly]]) or a support face of its spec \
-([[assembly/name]]), a motion by its name, the assembly order ([[assembly_order]]) or a gate \
-([[G5]]). Each name has to exist in the final version and be green.
+([[assembly/name]]), a motion by its name, the assembly order ([[assembly_order]]), the print \
+in place ([[print_in_place]]) or a gate ([[G5]]). Each name has to exist in the final version \
+and be green.
 - Not verified: what nobody measured (strength, looks, what depends on the printer or the \
-material), and each adjustment of the spec you made so it matches what was measured, with the \
-reason.
+material, whether a flex bends that far without breaking), and each adjustment of the spec you \
+made so it matches what was measured, with the reason.
 An auditor compares the close with what was verified: a claim presented as verified without \
 backing, or a spec adjustment you did not tell, leaves G8 red.
 
@@ -169,10 +183,11 @@ positive volume.
 nothing overlaps except the declared fits, everything forms one group (parts 1 mm apart or \
 less), the units the request asks for are there, and so are its bounds and support faces, if it \
 declares them.
-- G4: every motion runs its whole range without colliding, and the assembly can be put together \
-in its order.
+- G4: every motion runs its whole range without colliding (a declared flex no deeper than \
+declared, and free at the ends), and the assembly can be put together in its order.
 - G5: overhangs of more than 45° only inside overhangs_allowed zones, which cover at most half \
-of the part's surface, and the part fits the bed (Bambu Lab A1, 256 × 256 × 256 mm).
+of the part's surface, and the part fits the bed (Bambu Lab A1, 256 × 256 × 256 mm). With \
+print_in_place, also all the parts together as they print, and the clearances between them.
 - G7: the spec exists and the mesh meets it, details included; and you saw, of the final \
 version, the sheet of each part (the one scad_export brings, or render_sheet), one render_view \
 with all the instances of the assembly together (the STLs interference_check leaves) and each \
