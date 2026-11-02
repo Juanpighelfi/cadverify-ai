@@ -3,14 +3,17 @@ and did, what each tool found, the images it saw, and how it closed.
 
 `cadverify replay <run>` writes <run>/replay.html. The page has no scripts and loads nothing:
 the images are the run's own files (workspace/renders/...), linked by relative path, so the page
-works opened from disk or served with the run directory.
+works opened from disk or served with the run directory. `cadverify index <results dirs>` writes
+one page that links every replay under them.
 """
 
 from __future__ import annotations
 
 import json
+import os
 import re
 from html import escape
+from importlib.metadata import PackageNotFoundError, metadata
 from pathlib import Path
 from typing import Any
 
@@ -142,6 +145,19 @@ ul.found.note b { color: var(--info); }
 .legend i:first-child { margin-left: 0; }
 .legend .ok { background: var(--ok); } .legend .red { background: var(--red); }
 .legend .pend { background: var(--pend); }
+a { color: var(--info); }
+.lead { color: var(--muted); max-width: 780px; margin: 0; }
+.runs { overflow-x: auto; padding: 6px 8px; }
+.runs table { border-collapse: collapse; width: 100%; min-width: 960px; table-layout: fixed;
+  font-size: 14px; }
+.runs col.request { width: 23%; } .runs col.model { width: 19%; }
+.runs col.status { width: 14%; } .runs col.n { width: 7%; } .runs col.when { width: 16%; }
+.runs th { font-weight: 500; color: var(--muted); font-size: 13px; text-align: left; }
+.runs th, .runs td { padding: 6px 8px; }
+.runs th { vertical-align: bottom; }
+.runs td { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.runs tr + tr td { border-top: 1px solid var(--line); }
+.runs .n { text-align: right; font-variant-numeric: tabular-nums; }
 """
 
 
@@ -388,6 +404,16 @@ def html_page(run_dir: Path) -> str:
             '<h2>Source</h2><details class="panel"><summary>model.scad</summary>'
             f'<pre class="code">{escape(source.read_text(encoding="utf-8"))}</pre></details>'
         )
+    return _page(title, body)
+
+
+def write(run_dir: Path) -> Path:
+    out = run_dir / "replay.html"
+    out.write_text(html_page(run_dir), encoding="utf-8")
+    return out
+
+
+def _page(title: str, body: list[str]) -> str:
     return (
         '<!doctype html>\n<html lang="en"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width, initial-scale=1">'
@@ -396,7 +422,70 @@ def html_page(run_dir: Path) -> str:
     )
 
 
-def write(run_dir: Path) -> Path:
-    out = run_dir / "replay.html"
-    out.write_text(html_page(run_dir), encoding="utf-8")
+def _repository() -> str | None:
+    try:
+        urls = metadata("cadverify").get_all("Project-URL") or []
+    except PackageNotFoundError:
+        return None
+    return next((u.split(",", 1)[1].strip() for u in urls if u.startswith("Repository,")), None)
+
+
+def _started(name: str) -> str:
+    """A run directory's UTC name (20261031T003026Z) as 2026-10-31 00:30."""
+    m = re.fullmatch(r"(\d{4})(\d\d)(\d\d)T(\d\d)(\d\d)\d\dZ", name)
+    return f"{m[1]}-{m[2]}-{m[3]} {m[4]}:{m[5]}" if m else name
+
+
+def index_page(results: list[Path], out: Path) -> str:
+    """One table per results directory: every session with a replay.html under it
+    (<request>/<UTC>/), linked by its path relative to `out`'s directory."""
+    sections = []
+    for directory in results:
+        rows = []
+        for path in sorted(directory.glob("*/*/session.json")):
+            session = json.loads(path.read_text(encoding="utf-8"))
+            page = path.parent / "replay.html"
+            if session["status"] == "running" or not page.exists():
+                continue
+            totals = session["totals"]
+            refused = sum(it.get("close") == "rejected" for it in session["iterations"])
+            status = session["status"]
+            href = escape(Path(os.path.relpath(page, out.parent)).as_posix())
+            rows.append(
+                f'<tr><td><a href="{href}">{escape(_title(session["request"]))}</a></td>'
+                f"<td>{escape(session['model'])}</td>"
+                f'<td><span class="badge {STATUS.get(status, "red")}">{escape(status)}</span></td>'
+                f'<td class="n">{totals["requests"]}</td>'
+                f'<td class="n">{totals["cost_usd"]:.2f}</td>'
+                f'<td class="n">{totals["wall_s"] / 60:.0f}</td><td class="n">{refused}</td>'
+                f"<td>{escape(_started(path.parent.name))}</td></tr>"
+            )
+        if not rows:
+            continue
+        name = Path(os.path.relpath(directory.resolve(), out.parent.resolve())).as_posix()
+        sections.append(
+            f"<h2>{escape(name)}</h2>"
+            '<div class="panel runs"><table><colgroup><col class="request"><col class="model">'
+            '<col class="status">' + '<col class="n">' * 4 + '<col class="when"></colgroup>'
+            "<tr><th>Request</th><th>Model</th><th>Status</th>"
+            '<th class="n">Requests</th><th class="n">USD</th><th class="n">Minutes</th>'
+            '<th class="n">Closes refused</th><th>Started (UTC)</th></tr>'
+            f"{''.join(rows)}</table></div>"
+        )
+    repository = _repository()
+    about = (
+        "Every recorded design session, as its replay: the request, the gates at every "
+        "iteration, each tool call and what it found, the images the model saw, and every close."
+    )
+    if repository:
+        about += f' The code and how each set of sessions was run: <a href="{escape(repository)}">'
+        about += f"{escape(repository.removeprefix('https://'))}</a>."
+    return _page(
+        "CADVerify AI replays",
+        ["<h1>CADVerify AI replays</h1>", f'<p class="lead">{about}</p>', *sections],
+    )
+
+
+def write_index(results: list[Path], out: Path) -> Path:
+    out.write_text(index_page(results, out), encoding="utf-8")
     return out

@@ -168,3 +168,29 @@ def test_a_tool_call_shows_the_problems_it_found_and_the_spec_moves(tmp_path):
 def test_the_request_does_not_repeat_the_title(tmp_path):
     page = replay.html_page(_run(tmp_path))
     assert '<div class="panel md"><p>A 10 mm cube.</p></div>' in page
+
+
+def test_the_index_links_every_replay_of_each_results_dir(tmp_path):
+    requests = tmp_path / "results" / "design" / "cube"
+    requests.mkdir(parents=True)
+    for name, status, page in [
+        ("20261031T003026Z", "green", True),
+        ("20261031T010000Z", "running", True),
+        ("20261031T020000Z", "green", False),
+    ]:
+        run = _run(tmp_path)
+        session = json.loads((run / "session.json").read_text())
+        session["status"] = status
+        (run / "session.json").write_text(json.dumps(session))
+        if page:
+            replay.write(run)
+        run.rename(requests / name)
+    out = tmp_path / "index.html"
+    dirs = [str(requests.parent), str(tmp_path / "results" / "bench")]
+    assert cli.main(["index", *dirs, "--out", str(out)]) == 0
+    page = out.read_text(encoding="utf-8")
+    assert page.count("<tr><td>") == 1  # running, and without replay.html: left out
+    assert '<a href="results/design/cube/20261031T003026Z/replay.html">A cube</a>' in page
+    assert "<h2>results/design</h2>" in page and "results/bench" not in page
+    numbers = '<td class="n">3</td><td class="n">0.30</td><td class="n">2</td><td class="n">1</td>'
+    assert numbers in page and "<td>2026-10-31 00:30</td>" in page

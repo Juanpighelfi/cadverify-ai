@@ -14,6 +14,10 @@ did not verify.
 Built during the [Meta AI Developer Hackathon](https://cerebralvalley.ai/e/meta-ai-developer-hackathon)
 (October 27 to November 4, 2026), Indie track.
 
+Every recorded session can be stepped through online, in the
+[replay pages](https://juanpighelfi.github.io/cadverify-ai/): the gates at every iteration, each
+tool call and what it found, the renders the model saw, and every close, refused or accepted.
+
 ## Meta models
 
 All through the Meta Model API Responses endpoint, streamed, with tool calling, reasoning and
@@ -67,14 +71,15 @@ with `muse-wonder-1.0`. All three closed with every gate green:
 
 | Request | Requests | USD | Minutes | What the harness caught on the way |
 |---|---|---|---|---|
-| [Bayonet jar](requests/bayonet_jar.md): a jar and a lid with a quarter-turn lock | 27 | 2.60 | 19 | G4: the detent bump collided with the jar during the quarter turn (an overlap 0.022 mm thick); the model replaced it with a drop-in pocket and told the user why. G8 refused a close with 6 unsupported claims, such as "interior Ø70 × 80 mm", which nothing measured. |
-| [Headphone stand](requests/headphone_stand.md): three parts that assemble without glue | 17 | 1.31 | 8 | G8 refused a close with 2 unsupported claims (a count of bad edges and an overhang area nobody measured), and one that cited a support face the close check did not know yet (a harness bug, fixed after this session). |
-| [Hinge box](requests/hinge_box.md): a box whose hinge prints in place, already assembled | 40 | 3.10 | 18 | G4: the lid's rear lip hit the box partway through its swing; fixed with a notch. Five spec adjustments were flagged and told in the close. G8 refused a close with 6 unsupported claims, such as "the closed lid is retained at the front". |
+| [Bayonet jar](requests/bayonet_jar.md) ([replay](https://juanpighelfi.github.io/cadverify-ai/results/design/bayonet_jar/20261031T003026Z/replay.html)): a jar and a lid with a quarter-turn lock | 27 | 2.60 | 19 | G4: the detent bump collided with the jar during the quarter turn (an overlap 0.022 mm thick); the model replaced it with a drop-in pocket and told the user why. G8 refused a close with 6 unsupported claims, such as "interior Ø70 × 80 mm", which nothing measured. |
+| [Headphone stand](requests/headphone_stand.md) ([replay](https://juanpighelfi.github.io/cadverify-ai/results/design/headphone_stand/20261031T015150Z/replay.html)): three parts that assemble without glue | 17 | 1.31 | 8 | G8 refused a close with 2 unsupported claims (a count of bad edges and an overhang area nobody measured), and one that cited a support face the close check did not know yet (a harness bug, fixed after this session). |
+| [Hinge box](requests/hinge_box.md) ([replay](https://juanpighelfi.github.io/cadverify-ai/results/design/hinge_box/20261031T042110Z/replay.html)): a box whose hinge prints in place, already assembled | 40 | 3.10 | 18 | G4: the lid's rear lip hit the box partway through its swing; fixed with a notch. Five spec adjustments were flagged and told in the close. G8 refused a close with 6 unsupported claims, such as "the closed lid is retained at the front". |
 
 Each session is recorded under [results/design/](results/design/): every API request
 (`raw/`), every tool call (`tools/`), the sources, renders and images the model saw
-(`workspace/`), `session.json`, and `replay.html`, a static page of the whole session (open it
-from a local copy of the run directory; `uv run cadverify replay <run>` rebuilds it).
+(`workspace/`), `session.json`, and `replay.html`, a static page of the whole session, linked
+in the table above (it also opens from a local copy of the run directory; `uv run cadverify
+replay <run>` rebuilds it).
 
 ## Two designers, three runs each
 
@@ -108,11 +113,12 @@ from `uv run cadverify table results/bench` (which names the models in full):
   green box then declared the lid's ceiling, a zone 48 to 58 mm across, as an allowed overhang (a
   bridge), which G5 accepts with a reason and does not judge (see Limitations).
 
-The sessions are under [results/bench/](results/bench/), with `replay.html` in each. The same
-directory holds what the round spent before them, all counted by `uv run cadverify spent
---results results/bench`: the capability probe of Spark, the audit replays that chose the
-auditor (`scripts/audit_replay.py`), three exploratory Spark sessions on the harness before
-flex, and three sessions cut when a slow flex measure was fixed (`aborted/`).
+The sessions are under [results/bench/](results/bench/), with `replay.html` in each, all linked from
+the [replay pages](https://juanpighelfi.github.io/cadverify-ai/). The same directory holds what the
+round spent before them, all counted by `uv run cadverify spent --results results/bench`: the
+capability probe of Spark, the audit replays that chose the auditor (`scripts/audit_replay.py`),
+three exploratory Spark sessions on the harness before flex, and three sessions cut when a slow flex
+measure was fixed (`aborted/`).
 
 ## Quick start
 
@@ -126,6 +132,7 @@ uv run cadverify hostile               # attacks on the real sandbox: each must 
 uv run cadverify table results/bench   # the bench sessions side by side, per request and model
 uv run cadverify summary results/design/bayonet_jar/20261031T003026Z   # one session, per iteration
 uv run cadverify replay results/design/bayonet_jar/20261031T003026Z    # rebuilds its replay.html
+uv run cadverify index results/design results/bench   # index.html: every replay, linked
 ```
 
 Open `results/design/bayonet_jar/20261031T003026Z/replay.html` in a browser to step through

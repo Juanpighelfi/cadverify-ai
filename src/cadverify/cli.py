@@ -7,6 +7,7 @@ uv run cadverify design request.md --model muse-spark-1.3 --auditor muse-wonder-
 uv run cadverify summary results/design/<request>/<UTC>   # a session in Markdown
 uv run cadverify replay results/design/<request>/<UTC>    # the session as a static page
 uv run cadverify table results/bench                        # sessions side by side, per model
+uv run cadverify index results/design results/bench         # index.html linking every replay
 uv run cadverify spent                                     # USD spent under the results dir
 uv run cadverify hostile                                   # hostile cases in the real sandbox
 
@@ -184,6 +185,9 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("table", help="the sessions of a results dir, per model").add_argument(
         "results", type=Path
     )
+    index = sub.add_parser("index", help="one page linking the replays of results dirs")
+    index.add_argument("results", type=Path, nargs="+")
+    index.add_argument("--out", type=Path, default=Path("index.html"))
     sub.add_parser("hostile", help="hostile cases against the real sandbox")
     args = parser.parse_args(argv)
 
@@ -198,6 +202,9 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.command == "table":
         print(summary.table(args.results))
+        return 0
+    if args.command == "index":
+        print(replay.write_index(args.results, args.out))
         return 0
     if args.command == "hostile":
         return run_hostile()
