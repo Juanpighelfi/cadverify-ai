@@ -282,7 +282,9 @@ def _zones(mesh: trimesh.Trimesh, selected: np.ndarray) -> list[np.ndarray]:
         return []
     pairs = mesh.face_adjacency
     pairs = pairs[selected[pairs[:, 0]] & selected[pairs[:, 1]]]
-    return trimesh.graph.connected_components(pairs, nodes=index, min_len=1)
+    # Without a shared edge, trimesh returns each face as a list, not an array.
+    components = trimesh.graph.connected_components(pairs, nodes=index, min_len=1)
+    return [np.asarray(c, dtype=int) for c in components]
 
 
 def _inside(bounds: np.ndarray, box: list[list[float]]) -> bool:

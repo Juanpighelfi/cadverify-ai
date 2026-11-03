@@ -18,6 +18,12 @@ Every recorded session can be stepped through online, in the
 [replay pages](https://juanpighelfi.github.io/cadverify-ai/): the gates at every iteration, each
 tool call and what it found, the renders the model saw, and every close, refused or accepted.
 
+After the demo, each round of runs looked for where the harness itself was wrong, and each fix
+came with tests: [both designers](#two-designers-three-runs-each) three times on every request,
+[the bridges](#bridges-and-the-print-pose) the hinge boxes slipped past, and
+[fourteen hard requests](#the-stress-set) written the way a user would, which found five greens
+that were wrong.
+
 ## Meta models
 
 All through the Meta Model API Responses endpoint, streamed, with tool calling, reasoning and
@@ -111,8 +117,9 @@ from `uv run cadverify table results/bench` (which names the models in full):
 - G8 refused 24 closes, in 14 of the 18 sessions (15 in Spark's, 9 in Wonder's). The harness
   refused 14 more because gates were red, 13 of them Spark's.
 - Four of the six jars declared their detent as a `flex`. In two it bends 0.2 and 0.8 mm into the
-  jar during the turn, as measured; in the other two it never touches the jar, so it holds nothing,
-  and G4 lets a flex that never bends pass (see Limitations). Every hinge box declared
+  jar during the turn, as measured; in the other two it never touches the jar, so it holds nothing.
+  G4 let a flex that never bends pass then, and refuses it now ([the stress set](#the-stress-set)).
+  Every hinge box declared
   `print_in_place`, and G5 refused it at least once in each: parts 0.01 to 0.25 mm apart that would
   fuse, and the lid printed closed over the box, an undeclared overhang of about 4,350 mm². Each
   green box then declared the lid's ceiling, a zone 48 to 58 mm across, as an allowed overhang (a
@@ -143,10 +150,10 @@ declare a `print_pose`, a value for each motion it prints in, such as
 `["print_pose", [["hinge", 180]]]`. G5 checks the parts placed in that pose and the clearance
 between every two, and leaves them together in `print-in-place.stl`.
 
-Every final that closed green, demo and bench, checked again offline on the harness as it is now
-(G3 to G5; only G5 changes them):
+Every final that closed green, demo and bench, checked again offline on the harness of this round
+(G3 to G5; only G5 changed them; the [stress set](#the-stress-set) checks them again):
 
-| Request | Green when recorded | Green now | What fails |
+| Request | Green when recorded | Green on this G5 | What fails |
 |---|---|---|---|
 | bayonet_jar | 7 | 7 | |
 | headphone_stand | 7 | 2 | the ceiling of the hanger's socket, a bridge of 15 to 27 mm |
@@ -178,8 +185,10 @@ results/bridge`):
   Checking it found a hole in G4: the box's catch was declared a press fit, and G4 left
   press-fit pairs out of its sweeps, so it never measured the lid against the box. The declared
   assembly order brought the lid in moving up, through the floor of the box. G4 now sweeps a
-  press fit as a fit ([how](docs/architecture.md#the-verifiable-spec)), and on it this box fails
-  on that direction alone: reversed by hand, offline, it passes G3 to G5. Wonder's box passed G5
+  press fit as a fit ([how](docs/architecture.md#the-verifiable-spec)), and on it this box failed
+  on that direction alone: reversed by hand, offline, it passed G3 to G5 as they were then. The
+  [stress set](#the-stress-set) found two more: its pin is free to slide out along its axis, and
+  its catch never touches the box. Wonder's box passed G5
   from its twelfth iteration
   ([as it prints](results/bridge/hinge_box/20261102T153656Z/print-in-place.png)) and spent its
   USD 4 with the lid's assembly order red; the other two Spark sessions ran out of their hour,
@@ -189,6 +198,120 @@ Spark's last box as it prints, G5 green: the box and its lid open on the bed, ea
 on a web from the bed:
 
 ![The hinge box printed open: the box and its lid side by side on the bed, the hinge between them](results/bridge/hinge_box/20261102T163840Z/print-in-place.png)
+
+## The stress set
+
+To find where the harness was wrong, fourteen new requests went in the way a user would write
+them ([requests/](requests/)), each picked to be hard for it:
+
+- six it could already express: a print-in-place flexi bracelet, a pill box with a lid that
+  clicks at each day, a battery box with a sliding cover, desk drawers that stop, a spool holder
+  on a 608 bearing, a ratchet;
+- five it could not: a screw-top jar, a planetary gearbox, a ball joint, a gimbal, a bag clip with
+  a living hinge;
+- three that must fit a standard: a Gridfinity bin, a Raspberry Pi 4 case, an M3 knob.
+
+Each ran once on Spark (`muse-spark-1.3-contributor`, USD 1 cap) on the harness as it was then
+(61b0c46): 11 closed green and 3 ran out of their time, USD 2.76 in all. Five of the greens were
+wrong, and so was what stopped two of the others:
+
+| Request | What the session showed | What was wrong | What the harness checks now |
+|---|---|---|---|
+| gimbal | rings that swing 0-360° | the pivots lie in grooves open at the top: the rings lift out | each part printed in place must be held by the others |
+| flexi_bracelet | links that bend ±30° | the links hang in open hooks: they lift apart | the same |
+| living_hinge_clip | "closing slide 0-20 mm sweeps free" | the motion moved the whole clip: nothing moved against anything | a motion must move a part against another |
+| battery_box | a cover latch that flexes | the latch's flex measured 0.0 mm: it never touches | a flex must touch along its motion |
+| pi4_case | standoffs that line up with the board | the board was the model's own block: the standoffs sat 10 mm off a real Pi 4's holes | standard parts the harness draws itself |
+| planetary_gearbox | ran out of time | one motion turned sun, planets and ring together, the only way the spec had | a motion may drive other parts at a ratio |
+| screw_jar | ran out of time | the thread was declared as a turn and a slide, each with a flex | a screw motion |
+
+The other greens held up. Two of them, the ratchet and the drawers, claimed an end stop the
+harness could not measure, and the pill box ran out of time because each check of its 360° lid
+turn took over 15 minutes. What changed, each with tests
+([how](docs/architecture.md#the-verifiable-spec)):
+
+- **Held.** Each part of an assembly printed in place must be held by the others: G3 moves it
+  straight along the six axes and then the diagonals, and refuses one that comes off. An
+  assembly that is put together may list the parts that must stay on in `held`.
+- **Motions that move something.** A motion whose parts all move together is refused. A `screw`
+  motion turns and advances by its pitch; `drives` turns or slides other parts at a ratio (a
+  gear train); `stops` names the ends where something must be in the way, and G4 moves on past
+  each end, 2 mm for its fastest point, to find it.
+- **Flex that bends.** A flex must overlap what it rides over somewhere along its motion, and the
+  assembly order may declare one, for a part that snaps in as it comes in. Its depth is measured
+  about 50 times faster.
+- **Standard parts.** `standard:pi4_board` (and `bearing_608`, `aa_cell`, `m3_nut`) is a part the
+  harness draws from its datasheet, in `cadverify_parts.scad`; an instance of it must be that
+  part, moved, so a case has to fit the real board.
+
+Then each request ran again on Spark, and the five that taught most also on Wonder (USD 4 cap),
+on the harness as it changed, USD 13.18 for 18 sessions:
+
+| Request | Spark, USD | Wonder, USD | What it showed |
+|---|---|---|---|
+| planetary_gearbox | API&nbsp;error | green,&nbsp;2.08 | the carrier turns the planets about the sun and drives the sun at 4 and each planet at -3 on its own axis, for a fixed 45-tooth ring |
+| screw_jar | green,&nbsp;0.32 | green,&nbsp;1.28 | a `screw` motion and the lid `held`; Wonder's stops at closed, against its thread |
+| gimbal | green,&nbsp;0.23 | green,&nbsp;1.63 | pins in closed sockets, every part held; Wonder's prints standing on a plinth |
+| ball_joint | green,&nbsp;0.24 | | the socket snaps over the ball as it goes in (0.49 mm of its 1 mm flex) |
+| flexi_bracelet | green,&nbsp;0.36 | | pins capped at both ends, every link held; one joint of three declared as a motion |
+| pill_box | green,&nbsp;0.25 | stopped | its close left the seven clicks unverified: nothing could say where they are |
+| ratchet | green,&nbsp;0.31 | | told its flex never touched, the model removed it: the pawl touches nothing, and no stop |
+| battery_box | green,&nbsp;0.43 | | two `standard:aa_cell`; the cover's catch rides 0.8 mm over the wall as it slides |
+| spool_holder | green,&nbsp;0.25 | | `standard:bearing_608` pressed into its seat |
+| desk_drawers | green,&nbsp;0.30 | | both stops measured: the frame stops each drawer 1.25 mm past closed and 0.25 mm past open |
+| pi4_case | green,&nbsp;0.45 | green,&nbsp;4.15 | `standard:pi4_board` on standoffs under its four holes |
+| living_hinge_clip | ran&nbsp;out&nbsp;of&nbsp;time | | one piece bent at a living hinge, drawn as two parts and a turn |
+| m3_knob | green,&nbsp;0.29 | | `standard:m3_nut` in its pocket |
+| gridfinity_bin | green,&nbsp;0.06 | | the foot profile from the published spec, which nothing checks |
+
+What it found, each fixed with tests:
+
+- **A false red.** The bound on a flex's depth could not close across a wide flat overlap, and
+  refused both pill box lids: Spark's snap, 0.6 mm into its 0.8 mm flex, as "may go 0.89 mm".
+  It is exact there now. Wonder's pill box was stopped on it, after USD 0.70, and ran again.
+- **Clicks.** The pill box could not say where its lid clicks. A motion's `rests` are the values
+  where a detent holds it: its flex is free there, and rides over something between two rests.
+- **A green that holds nothing.** The ratchet's every claim was true, and its pawl touched
+  nothing. The auditor now reads the request, and refuses a close that leaves unmeasured
+  something the request asks for and a declaration would have measured: a stop, rests, a flex, a
+  held part, a printed thread, gears, a print in place, a standard part
+  ([how, and its replays](docs/architecture.md#the-auditor-reads-the-request), USD 5.75).
+- **An auditor that asked too much.** It asked the knob's set screw to hold the knob on, and the
+  model drew the screw as a part in the knob's way and listed the knob as held; and it asked the
+  clip, one part that bends, to be printed in place. It leaves out friction and a part that
+  bends now.
+- **The end in sight, misjudged.** The clip, told it had one request left and to close without
+  tools, closed four times in a row, refused each time for a view it had not seen: the note went
+  out at every request the estimate found one left, in six sessions, up to 14 times. And the
+  ratchet of the next round was told at its first request that about 10 were left, as were 18
+  other sessions at their first or second: one long first request made the average. The last
+  note goes out once now, and the estimate waits for half the time or the cost to be used.
+- **More.** A first assembly step that placed every part together, which only a print in place
+  may; a chained request that failed four times with a server error, now resent whole; the
+  standard parts off the path of the model's own shell; a tool call with a wrong argument name,
+  now told the names the tool takes.
+
+On the final harness, the pill box ran again on both designers, and the ratchet, the clip, the
+knob and the gearbox on Spark, USD 4.16 in all:
+
+| Request | Spark, USD | Wonder, USD | What it showed |
+|---|---|---|---|
+| pill_box | green,&nbsp;0.19 | green,&nbsp;2.75 | the lid rests at each of the seven days, free there and riding over what it presses on between them (0.8 mm of a 1 mm flex on Spark, 0.4 of 0.5 on Wonder), and snaps on as it goes in; Wonder's first detent rode over nothing between any two days, and G4 said so for each |
+| ratchet | green,&nbsp;0.44 | | one way, the pawl rides over a tooth (0.6 mm of 1 mm); the other way, the wheel stops 8° in, against the pawl |
+| living_hinge_clip | green,&nbsp;0.30 | | the auditor asked for the stop on the bag and the rest the latch holds at, not a print in place; the close says the two arms are one piece at the film, which nothing measures |
+| m3_knob | green,&nbsp;0.21 | | no set screw drawn as a part, and no early note of the end |
+| planetary_gearbox | green,&nbsp;0.27 | | herringbone gears that hold each other in, printed in place: the carrier turns the planets about the sun and drives the sun at 3 and each planet at -3 on its own axis, for a fixed 54-tooth ring |
+
+Every final ever recorded, checked again offline on the final harness (G3 to G5):
+
+| Sessions | Green when recorded | Green now | What fails |
+|---|--:|--:|---|
+| demo | 3 | 1 | the stand's socket ceiling, a bridge; the hinge box's knuckles |
+| bench | 17 | 6 | two jars whose flex never touches the jar; four stands' socket ceilings; every hinge box on G5, and in three of them the pin, free to slide out along its axis |
+| bridge | 7 | 0 | in six, the pin, free to slide out along its axis; all but the last on G5; the last one's lid, brought in through the floor of the box, and its catch, which never touches |
+| stress, first round | 11 | 7 | the gimbal, the bracelet, the clip and the battery box above; the Pi case still passes G3 to G5, since its board is its own, and only the auditor would ask for the standard one now |
+| stress, second round | 16 | 16 | |
+| stress, final harness | 6 | 6 | |
 
 ## Quick start
 
@@ -228,20 +351,31 @@ cadverify-sandbox cadcheck --help`).
 ## Limitations
 
 - A flex is measured for depth, not for strength: whether a detent or a snap can bend that far
-  without breaking or creeping is not verified, and a declared flex that never touches passes. The
-  assembly order is still swept with rigid parts, so a part that snaps into place on assembly cannot
-  pass G4 yet. (Before flex existed, the bayonet jar of the demo traded its detent bump for a
-  pocket.)
+  without breaking or creeping is not verified. (Before flex existed, the bayonet jar of the demo
+  traded its detent bump for a pocket.)
+- Held is checked by moving each part in a straight line, along the axes and the diagonals: a
+  part that comes off only by turning or along a curve counts as held. Motions are checked as
+  declared: a way a part can move that no motion declares is not swept, a gear train turns only
+  at the ratios its `drives` declare, and a stop is looked for within 2 mm past a declared end.
+- A single part that bends, such as a living hinge, cannot be declared: a session draws it as two
+  parts and a turn, and the film that bends is not measured.
+- The standard parts are four: a Raspberry Pi 4 (without its microSD slot and anything under the
+  board, which its mechanical drawing does not give), a 608 bearing, an AA cell and an M3 nut.
+  A design that draws its own version of any other bought part is checked only against itself,
+  and a standard part is checked for collisions and contact: a board resting on standoffs touches
+  them wherever they are, so whether each standoff is under its hole is not measured unless a
+  screw through the hole is placed too.
 - G5 measures a bridge by a lower bound: the farthest point of an overhang's part steeper than 60°
   from the material under it, doubled. It does not tell a part held on one side from one held on
   two, it leaves out strips narrower than 0.8 mm, it lets material up to 1 mm under a face hold it
   the way a support would, and its 10 mm limit comes from a design guide, not from prints on an
   A1; how much a bridge sags is not measured. A declared slope between 45° and 60° is still
   accepted with its reason. A print in place is checked as it prints only when the assembly
-  declares `print_in_place`.
-- No recorded hinge box passes the harness as it is now; the last one fails only on its lid's
-  declared assembly direction. Its pin prints 0.425 mm over the floor of its bores, which G5
-  takes as holding it the way a support would: whether it then breaks free is not measured.
+  declares `print_in_place`, and its clearance is one number for every direction: a gap of 0.2 mm
+  under a part passes like one beside it, though at 0.2 mm layers it may fuse.
+- No recorded hinge box passes the harness as it is now. The last one prints its pin 0.425 mm
+  over the floor of its bores, which G5 takes as holding it the way a support would: whether it
+  then breaks free is not measured.
 - Strength, stability, feel and fit on a particular printer are not measured. The close must
   list them as not verified, and G8 refuses a close that presents them as verified.
 - The renders and the spec checks are deterministic, but the design is not: two sessions on the

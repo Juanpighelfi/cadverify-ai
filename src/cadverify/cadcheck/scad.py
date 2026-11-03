@@ -24,6 +24,8 @@ from cadverify.openscad import define_args, openscad_bin
 PART = "part"  # the Customizer selector of a source with several parts
 ASSEMBLY = "assembly"  # the `part` option of the assembly, never printed
 INSTANCE_ECHO = "cadverify_instance"  # echoed by instance() of each part the assembly places
+# `use <cadverify_parts.scad>`: the standard parts an assembly places (cadcheck.assembly).
+STANDARD_DIR = Path(__file__).parent / "standard"
 
 # fmt -> OpenSCAD --export-format. STL stays ASCII: its coordinates are full doubles, while
 # binary STL rounds to float32 and fuses vertices that OpenSCAD leaves 1e-9 mm apart (a
@@ -273,6 +275,7 @@ def _run(cmd: list[str], scad: Path, timeout_s: float) -> dict[str, Any]:
         proc = subprocess.run(
             cmd,
             cwd=scad.parent,
+            env={**os.environ, "OPENSCADPATH": str(STANDARD_DIR)},
             capture_output=True,
             text=True,
             errors="replace",

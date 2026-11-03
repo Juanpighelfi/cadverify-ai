@@ -43,6 +43,8 @@ ENV = {
     "LANG": "C.UTF-8",
     "PYTHONUNBUFFERED": "1",
     "OPENSCAD_BIN": "/usr/local/bin/openscad",
+    # `use <cadverify_parts.scad>` finds the standard parts, as in the harness's own exports.
+    "OPENSCADPATH": str(Path(__file__).parent / "standard"),
     "CADVERIFY_SANDBOX": "1",
 }
 

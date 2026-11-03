@@ -104,6 +104,10 @@ def test_run_returns_output_exit_code_and_time(tmp_path):
     assert (r["stdout"], r["stderr"], r["exit_code"], r["ok"]) == ("hello\n", "error\n", 3, False)
     r = _run("python", "import os; print(os.getcwd())", tmp_path)
     assert r["ok"] and r["stdout"].strip() == str(tmp_path)
+    # The model's own OpenSCAD finds the standard parts, as the harness's exports do.
+    (tmp_path / "nut.scad").write_text("use <cadverify_parts.scad>\nm3_nut();\n")
+    r = _run("shell", "openscad -o nut.stl nut.scad 2>&1 && test -s nut.stl", tmp_path)
+    assert r["ok"], r["stdout"]
 
 
 @in_sandbox

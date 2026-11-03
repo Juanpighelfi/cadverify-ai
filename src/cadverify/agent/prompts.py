@@ -77,7 +77,12 @@ module instance(name, part, unit = 1) {{
 // for example: instance("pin_left", "pin") translate([...]) rotate([...]) pin();
 - name: one per instance. part: the option of the selector that is printed (the instance has to \
 be that part, moved: the same volume, area and inertia), or "external" for what is not printed \
-(a wall, a screw, a rope). unit: 1, or 2, 3... for the next units when the product chains.
+(a wall, a screw, a rope), or "standard:<module>" for a standard part of cadverify_parts.scad, \
+drawn from its datasheet: pi4_board() (a Raspberry Pi 4 Model B from the official drawing: board, \
+holes and port bodies), bearing_608(), aa_cell(), m3_nut(). With use <cadverify_parts.scad>, \
+place the module itself, moved (the harness checks it is): the design then fits the real part, \
+not one of its own drawing. Their origins and axes are in $OPENSCADPATH/cadverify_parts.scad. \
+unit: 1, or 2, 3... for the next units when the product chains.
 - Nothing of the assembly goes outside an instance, and unit 1 places each printable part as \
 many times as its copies.
 - The assembly has its own cadverify_spec echo (when part = "assembly"), in assembly \
@@ -90,16 +95,27 @@ echo(cadverify_spec = [
         ["name", ["instance", ...], "rotate", [x, y, z], [ax, ay, az], [from, to]],
         ["name", ["instance", ...], "slide", [dx, dy, dz], [from, to]],
         ["name", ["instance", ...], "rotate", [x, y, z], [ax, ay, az], [from, to],
-            ["flex", [["moving_instance", "other_instance", mm, "reason"]]]]
+            ["flex", [["moving_instance", "other_instance", mm, "reason"]]], ["stops", [to]]],
+        ["name", ["instance", ...], "rotate", [x, y, z], [ax, ay, az], [from, to],
+            ["flex", [["moving_instance", "other_instance", mm, "reason"]]],
+            ["rests", [value, ...]]],
+        ["name", ["instance", ...], "screw", [x, y, z], [ax, ay, az], pitch_mm, [from, to]],
+        ["name", ["instance", ...], "rotate", [x, y, z], [ax, ay, az], [from, to],
+            ["drives", [[["instance", ...], "rotate", [x, y, z], [ax, ay, az], ratio],
+                        [["instance", ...], "slide", [dx, dy, dz], ratio]]]]
     ]],
     ["assembly_order", [
         [["instance", ...], [0, 0, 0]],
         [["instance", ...], [dx, dy, dz]],
-        [["instance", ...], [dx, dy, dz], ["rotate", [x, y, z], [ax, ay, az], degrees]]
+        [["instance", ...], [dx, dy, dz], ["rotate", [x, y, z], [ax, ay, az], degrees]],
+        [["instance", ...], [dx, dy, dz], ["screw", [x, y, z], [ax, ay, az], pitch_mm, degrees]],
+        [["instance", ...], [dx, dy, dz],
+            ["flex", [["moving_instance", "placed_instance", mm, "reason"]]]]
     ]],
     ["print_in_place", clearance_mm],
     ["print_pose", [["motion name", value]]],
-    ["overhangs_allowed", [["reason", [[xmin, ymin, zmin], [xmax, ymax, zmax]]]]]
+    ["overhangs_allowed", [["reason", [[xmin, ymin, zmin], [xmax, ymax, zmax]]]]],
+    ["held", ["instance", ...]]
 ]);
   - bounds and support_faces of the assembled product (optional), measured on all the instances.
   - allowed_interferences: press fits up to 0.3 mm thick. Any other overlap between instances \
@@ -107,25 +123,46 @@ is an error. A press fit is still swept: along a motion it may stay pressed no t
 fit, and on its way in a part may push only into the overlap it has in place.
   - motions: what moves in use (a hinge, a link, a lid), from the pose of the assembly (0) \
 through its whole range, in degrees or in mm. It is swept looking for collisions, with rigid \
-parts. An elastic feature that bends while it moves (a detent bump, a snap) goes in the \
-motion's flex: the instance that moves, the one it presses on and how deep they may overlap, \
-up to 1 mm. The harness measures how deep they go, and they have to be free at both ends of \
-the range: a flex springs back.
+parts: the instances it names move against the rest, and one that names every instance checks \
+nothing and is refused. A thread is a screw: it turns and advances pitch_mm along the axis for \
+each turn of 360° (right hand rule; negative for a left-hand thread). Gears, or a rack and its \
+pinion, are one motion that drives the others: each group it drives turns (or slides) ratio \
+degrees (or mm) for each degree (or mm) of the motion, about its own axis, and is carried by the \
+motion too when the motion also names it (a planet on its carrier). Where a part stops the \
+motion at an end of its range (a drawer that does not come out, a hinge that opens to 110°, the \
+way a ratchet does not turn), say it in its stops: past that end, before its fastest point moves \
+2 mm more, the harness wants a collision, deeper than any flex. An elastic feature that bends \
+while it moves (a detent bump, a snap) goes in the motion's flex: the instance that moves, the \
+one it presses on and how deep they may overlap, up to 1 mm. The harness measures how deep they \
+go, they have to meet somewhere along it (a flex that never touches bends nothing) and be free \
+at both ends of the range: a flex springs back. Where a detent holds the motion (a lid that \
+clicks at each day, a knob with positions), list those values in its rests: there the flex is \
+free, a bump in its notch, and between two rests it rides over what it presses on.
   - print_in_place: only if the product is printed already assembled, all its parts in one \
 print (+z up, the lowest faces on the bed): the smallest clearance between any two parts, from \
 0.2 to 1 mm. The harness checks the overhangs and bridges of all the parts together, with the \
 assembly's own overhangs_allowed (only then does the assembly have them), the bed, the \
 clearances, and that every part rests on the bed or starts over another part, 1 mm under it at \
-most: a part that hangs (a lid standing on its hinge) starts printing in the air.
+most: a part that hangs (a lid standing on its hinge) starts printing in the air. It comes off the \
+bed in one piece, so each part must be held by the others: none may come off moving straight in \
+any direction (a pin capped at both ends or held by its knuckles, a pivot in a closed bore, not \
+an open groove).
   - print_pose: with print_in_place, the pose it prints in, if not the one the assembly shows: \
 motions at a value of their range, applied in order (a box printed open: its lid's hinge at \
 180). The clearances and the print are checked in that pose, and the assembly's \
 overhangs_allowed are in its coordinates.
   - assembly_order: the order it is put together in, with every instance once. Each step comes \
-in from far away moving along its direction (the first one does not need it) and, if it says \
-"rotate", then turns those degrees to land in its place, without passing through what is \
-already placed. A closed ring does not go into another closed ring: if the product needs that, \
-the design has to open somewhere.
+in from far away moving along its direction (the first one, a single part, does not need it; \
+printed in place, the first may hold every part) and, if it says \
+"rotate", then turns those degrees to land in its place (with "screw", it screws in: a cap on \
+its thread starts above the thread), without passing through what is already placed. What snaps \
+in as it comes in (a lid with a lip, a clip) says so in the step's flex, as a motion's: it may \
+ride over what it presses on that deep, and has to meet it and be free once in place. A closed \
+ring does not go into another closed ring: if the product needs that, the design has to open \
+somewhere.
+  - held: the instances that must not come off the assembled product moving straight in any \
+direction (a lid that does not lift off, a pin capped at both ends); printed in place, every \
+part is checked this way.
 - interference_check measures the assembly as the harness does: overlaps, contacts, units, \
 motions and assembly order; it leaves each instance, each overlap and each colliding pose as an \
 STL to look at with render_view.{units}
@@ -181,8 +218,10 @@ and be green.
 - Not verified: what nobody measured (strength, looks, what depends on the printer or the \
 material, whether a flex bends that far without breaking), and each adjustment of the spec you \
 made so it matches what was measured, with the reason.
-An auditor compares the close with what was verified: a claim presented as verified without \
-backing, or a spec adjustment you did not tell, leaves G8 red.
+An auditor compares the close with what was verified and with the request: a claim presented \
+as verified without backing, a spec adjustment you did not tell, or something the request asks \
+for that the harness measures once the spec declares it (a stop, a detent's rests, a part that \
+must not come off, a standard part) left unmeasured, leaves G8 red.
 
 GATES: the harness verifies them when you finish, on model.scad with the default parameters. \
 You cannot close with a red gate.
@@ -192,10 +231,11 @@ warnings (an unknown variable or module gives no error, but leaves the geometry 
 positive volume.
 - G3: the assembly: each instance is its part moved, every part is there with its copies, \
 nothing overlaps except the declared fits, everything forms one group (parts 1 mm apart or \
-less), the units the request asks for are there, and so are its bounds and support faces, if it \
-declares them.
+less), the units the request asks for are there, what is held does not come off straight, and \
+so are its bounds and support faces, if it declares them.
 - G4: every motion runs its whole range without colliding (a declared flex no deeper than \
-declared, and free at the ends), and the assembly can be put together in its order.
+declared, and free at the ends) and stops where it declares stops and rests where it declares \
+rests, and the assembly can be put together in its order.
 - G5: overhangs of more than 45° only inside overhangs_allowed zones, which cover at most half \
 of the part's surface, the part of each steeper than 60° a bridge of 10 mm at most, no body \
 that starts in the air (each one rests on the bed or starts 1 mm or less over another), and the \
@@ -253,7 +293,7 @@ file in two or three edits, in consecutive requests. It is only to stay under th
 afterwards, go back to sending the edits of one change with their checks in each request."""
 
 # The session's end in sight (Limits.wrap_up_requests): what is left, and what a close needs.
-WRAP_UP = """About {left} requests of the session are left: {done} of {max_requests} done, \
+WRAP_UP = """About {left} {requests} of the session {are} left: {done} of {max_requests} done, \
 USD {spent:.2f} of {max_cost:.2f} and {minutes:.0f} of {max_minutes:.0f} min. Put closing \
 first: finish what you are fixing, export each part with the default parameters and look at \
 it, verify the assembly if there is one, and close. A big change now may stay unverified."""

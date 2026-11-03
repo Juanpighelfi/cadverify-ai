@@ -21,7 +21,10 @@ request limit.
 With `wrap_up_requests`, a session is told when it has about that many requests left
 (the request limit, or the cost and the time left at the session's average per request), with
 what a close needs; the last one asks for the close. One session without it spent its last
-request rewriting model.scad, and ended with two parts broken and unseen.
+request rewriting model.scad, and ended with two parts broken and unseen. The last one is sent
+once: a close is quicker than the average request, so the estimate often finds one left again
+after it, and six sessions were told to close now without tools again and again (up to 14 times),
+one closing red four times in a row while G7 asked for a view. After it, the note is the first.
 
 Every request is streamed (cadverify.meta_api): without streaming the server answers 504 after
 about 600 s, and a response of 64k tokens takes longer.
@@ -64,7 +67,7 @@ from cadverify.agent.prompts import (
     instructions,
 )
 from cadverify.agent.tools import ToolBox
-from cadverify.meta_api import MODEL
+from cadverify.meta_api import MAX_ATTEMPTS, MODEL
 
 PROMPT_CACHE_KEY = "cadverify-agent"
 
@@ -121,6 +124,7 @@ def run_session(
     history: list[dict[str, Any]] = [{"role": "user", "content": task}]
     live: list[dict[str, int]] = []  # the images in the context: tool call seq, history index
     spent = 0.0
+    told_last = False  # WRAP_UP_LAST was sent
     for i in range(1, limits.max_requests + 1):
         elapsed = working_s()
         if spent >= limits.max_cost_usd:
@@ -203,7 +207,9 @@ def run_session(
         iteration["source"] = toolbox.source_hash()
         state = toolbox.gates()
         iteration["gates"] = {name: gate["ok"] for name, gate in state["gates"].items()}
-        notice = wrap_up_notice(limits, i, spent, working_s())
+        elapsed = working_s()
+        notice = wrap_up_notice(limits, i, spent, elapsed, last=not told_last)
+        told_last = told_last or bool(notice) and requests_left(limits, i, spent, elapsed) == 1
         if notice:
             iteration["wrap_up_notice"] = notice
         if outputs:
@@ -239,6 +245,7 @@ def run_session(
                     toolbox.history.adjustments,
                     f"it{i:02d}",
                     model=auditor,
+                    request=task,
                 )
                 spent += sum(c.cost_usd for c in calls)
                 session["audits"].append(
@@ -308,25 +315,33 @@ def compact(history: list[dict], live: list[dict], toolbox: ToolBox, keep: int) 
 
 def requests_left(limits: Limits, done: int, spent: float, elapsed_s: float) -> int:
     """About how many requests the session has after `done`: the request limit, or the cost and
-    the time left at the session's average per request, whichever comes first."""
+    the time left at the session's average per request, whichever comes first. The cost and the
+    time count once half of them is used: a first request may take minutes (reading the request,
+    planning), and nineteen recorded sessions were told at their first or second request that
+    about 4 to 10 were left, and to put closing first."""
     left = limits.max_requests - done
-    if done and spent > 0:
+    if done and spent > 0 and spent >= limits.max_cost_usd / 2:
         left = min(left, int((limits.max_cost_usd - spent) / (spent / done)))
-    if done and elapsed_s > 0:
+    if done and elapsed_s > 0 and elapsed_s >= limits.max_wall_s / 2:
         left = min(left, int((limits.max_wall_s - elapsed_s) / (elapsed_s / done)))
     return max(left, 0)
 
 
-def wrap_up_notice(limits: Limits, done: int, spent: float, elapsed_s: float) -> str | None:
-    """The note for a design session with its end in sight (Limits.wrap_up_requests)."""
+def wrap_up_notice(
+    limits: Limits, done: int, spent: float, elapsed_s: float, last: bool = True
+) -> str | None:
+    """The note for a design session with its end in sight (Limits.wrap_up_requests): with one
+    request left, the one that asks for the close, unless `last` is False (it was sent)."""
     if not limits.wrap_up_requests:
         return None
     left = requests_left(limits, done, spent, elapsed_s)
     if left > limits.wrap_up_requests or left == 0:
         return None
-    text = WRAP_UP_LAST if left == 1 else WRAP_UP
+    text = WRAP_UP_LAST if left == 1 and last else WRAP_UP
     return text.format(
         left=left,
+        requests="request" if left == 1 else "requests",
+        are="is" if left == 1 else "are",
         done=done,
         max_requests=limits.max_requests,
         spent=spent,
@@ -345,12 +360,16 @@ def _as_items(value: Any) -> list[dict[str, Any]]:
 
 
 def _lost_previous(call, payload: dict[str, Any]) -> bool:
-    """The server no longer has the response this request continues from. Any attempt may have
-    said so: the session of 2026-10-30 got "not found" on the three chained retries and then a
-    500 on the last attempt, and ended."""
+    """The server no longer has the response this request continues from, or fails on it. Any
+    attempt may have said so: the session of 2026-10-30 got "not found" on the three chained
+    retries and then a 500 on the last attempt, and ended. A chained request that fails with a
+    server error on every attempt is resent whole too: a stress-set session got four 500s in a
+    row, two seconds each, on its 19th request, and ended."""
     if call.ok or "previous_response_id" not in payload:
         return False
     tried = [(a.get("status_code"), a.get("error")) for a in call.attempts]
+    if len(tried) == MAX_ATTEMPTS and all(code in (500, 503) for code, _ in tried):
+        return True
     for status_code, error in tried or [(call.status_code, call.error_summary())]:
         message = error.get("message", "") if isinstance(error, dict) else error
         if status_code in (400, 404) and "not found" in str(message).lower():

@@ -197,6 +197,99 @@ def test_an_assembly_printed_in_place_may_print_in_another_pose():
         parse_spec(f'[["motions", [{hinge}]], ["print_pose", [["hinge", 90]]]]', assembly=True)
 
 
+def test_a_motion_may_screw_and_drive_other_instances():
+    drives = (
+        '["drives", [[["planet"], "rotate", [10, 0, 0], [0, 0, 1], -2], '
+        '[["rack"], "slide", [1, 0, 0], 0.1]]]'
+    )
+    assembly = parse_spec(
+        '[["motions", [["open", ["cap"], "screw", [0, 0, 0], [0, 0, 2], -3, [0, -720]], '
+        f'["crank", ["sun"], "rotate", [0, 0, 0], [0, 0, 1], [0, 360], {drives}]]], '
+        '["assembly_order", [[["jar"], [0, 0, 0]], '
+        '[["cap"], [0, 0, -1], ["screw", [0, 0, 0], [0, 0, 1], -3, 720]]]]]',
+        assembly=True,
+    )
+    screw, crank = assembly["motions"]
+    assert screw["kind"] == "screw" and screw["pitch_mm"] == -3 and screw["axis"] == [0, 0, 1]
+    assert screw["range"] == [-720, 0] and screw["drives"] == []
+    planet, rack = crank["drives"]
+    assert planet == {
+        "instances": ["planet"],
+        "kind": "rotate",
+        "point": [10, 0, 0],
+        "axis": [0, 0, 1],
+        "ratio": -2,
+    }
+    assert rack == {"instances": ["rack"], "kind": "slide", "axis": [1, 0, 0], "ratio": 0.1}
+    turn = assembly["assembly_order"][1]["turn"]
+    assert turn["kind"] == "screw" and turn["pitch_mm"] == -3 and turn["degrees"] == 720
+
+    motion = '["m", ["cap"], "rotate", [0, 0, 0], [0, 0, 1], [0, 90], {}]'
+    for bad, message in [
+        ('["drives", [[["b"], "rotate", [0, 0, 0], [0, 0, 1], 0]]]', "drives is"),
+        ('["drives", [[["b"], "spin", [0, 0, 0], [0, 0, 1], 1]]]', "drives is"),
+        (
+            '["drives", [[["b"], "slide", [1, 0, 0], 1], [["b"], "slide", [0, 1, 0], 1]]]',
+            "in one group of its drives only",
+        ),
+        ('["drives", []], ["drives", []]', "motions:"),
+    ]:
+        with pytest.raises(SpecError, match=message):
+            parse_spec(f'[["motions", [{motion.format(bad)}]]]', assembly=True)
+    drawer = '["d", ["tray"], "slide", [1, 0, 0], [0, 30], ["stops", [30, 0]]]'
+    stops = parse_spec(f'[["motions", [{drawer}]], ["held", ["tray"]]]', assembly=True)
+    assert stops["motions"][0]["stops"] == [0, 30] and stops["held"] == ["tray"]
+    with pytest.raises(SpecError, match="a stop is an end of the range it sweeps, 0 or 30; got 20"):
+        parse_spec(f'[["motions", [{drawer.replace("30, 0]", "20]")}]]]', assembly=True)
+    detent = '["flex", [["lid", "base", 0.4, "the bump clicks into each notch"]]]'
+    dial = '["d", ["lid"], "rotate", [0, 0, 0], [0, 0, 1], [0, 360], {}]'
+    clicks = dial.format(detent + ', ["rests", [360, 0, 120, 240]]')
+    rests = parse_spec(f'[["motions", [{clicks}]]]', assembly=True)
+    assert rests["motions"][0]["rests"] == [0, 120, 240, 360]
+    for bad, message in [
+        ('["rests", [0, 120]]', "rests are where a detent holds the motion, so it needs the flex"),
+        (detent + ', ["rests", [0, 400]]', "a rest is a value of the range it sweeps, 0 to 360"),
+        (detent + ', ["rests", []]', "rests is"),
+    ]:
+        with pytest.raises(SpecError, match=message):
+            parse_spec(f'[["motions", [{dial.format(bad)}]]]', assembly=True)
+    with pytest.raises(SpecError, match="the pitch of a screw"):
+        parse_spec(
+            '[["motions", [["m", ["c"], "screw", [0, 0, 0], [0, 0, 1], 0, [0, 90]]]]]',
+            assembly=True,
+        )
+
+
+def test_a_driven_instance_turns_on_its_axis_and_is_carried_by_the_motion():
+    from cadverify.cadcheck.assembly import _pose, _poses, rotation, translation
+
+    screw = {"kind": "screw", "point": [0, 0, 0], "axis": [0, 0, 1], "pitch_mm": 4}
+    assert np.allclose(
+        _pose(screw, 90), translation([0, 0, 1], 1) @ rotation([0, 0, 0], [0, 0, 1], 90)
+    )
+    # The carrier turns 30° about the center; its planet also turns -60° on its own pin.
+    carrier = {"name": "c", "instances": ["carrier", "planet"], "kind": "rotate"}
+    carrier.update(point=[0, 0, 0], axis=[0, 0, 1], range=[0, 360])
+    carrier["drives"] = [
+        {
+            "instances": ["planet"],
+            "kind": "rotate",
+            "point": [10, 0, 0],
+            "axis": [0, 0, 1],
+            "ratio": -2,
+        },
+        {"instances": ["sun"], "kind": "rotate", "point": [0, 0, 0], "axis": [0, 0, 1], "ratio": 3},
+    ]
+    poses = _poses(carrier, 30)
+    assert np.allclose(poses["carrier"], rotation([0, 0, 0], [0, 0, 1], 30))
+    assert np.allclose(poses["sun"], rotation([0, 0, 0], [0, 0, 1], 90))
+    planet = rotation([0, 0, 0], [0, 0, 1], 30) @ rotation([10, 0, 0], [0, 0, 1], -60)
+    assert np.allclose(poses["planet"], planet)
+    # Its pin, at 10 mm, ends where the carrier takes it.
+    pin = poses["planet"] @ [10, 0, 0, 1]
+    assert np.allclose(pin[:3], [10 * np.cos(np.pi / 6), 10 * np.sin(np.pi / 6), 0])
+
+
 def test_allowed_coverage_is_the_share_of_the_surface_in_the_boxes():
     box = trimesh.creation.box((10, 10, 10))
     box.apply_translation((5, 5, 5))
@@ -226,9 +319,11 @@ in_place = 0;
 print_pose = false;
 head_allowed = false;
 press = false;
+whole = false;
 no_pin = false;
 loose = false;
 two_units = false;
+together = false;
 cadverify_only = "";
 module instance(name, part, unit = 1) {
     echo(cadverify_instance = [name, part, unit]);
@@ -253,9 +348,11 @@ if (part == "assembly") {
     if (two_units) unit(2);
     if (loose) translate([100, 0, 0]) cube(5);
     echo(cadverify_spec = [
-        ["motions", [["pin turn", ["pin1"], "rotate", [20, 20, 0], turn_axis, [0, 90]]]],
-        ["assembly_order", concat([[["base1"], [0, 0, 0]], [["pin1"], entry]],
-            two_units ? [[["base2"], [-1, 0, 0]], [["pin2"], [0, 0, -1]]] : [])],
+        ["motions", [["pin turn", whole ? ["pin1", "base1"] : ["pin1"], "rotate", [20, 20, 0],
+            turn_axis, [0, 90]]]],
+        ["assembly_order", together ? [[["base1", "pin1"], [0, 0, 0]]]
+            : concat([[["base1"], [0, 0, 0]], [["pin1"], entry]],
+                two_units ? [[["base2"], [-1, 0, 0]], [["pin2"], [0, 0, -1]]] : [])],
         each (in_place > 0 ? [["print_in_place", in_place]] : []),
         each (print_pose ? [["print_pose", [["pin turn", 90]]]] : []),
         each (head_allowed ? [["overhangs_allowed", [["pin head", [[14, 14, 13.5],
@@ -300,6 +397,11 @@ ridge = 0.6;
 travel = 40;
 flex_mm = 0.5;
 with_flex = true;
+stops = [];
+rests = [];
+wall = false;
+entry = [0, 0, -1];
+entry_flex = false;
 cadverify_only = "";
 module instance(name, part, unit = 1) {
     echo(cadverify_instance = [name, part, unit]);
@@ -308,6 +410,7 @@ module instance(name, part, unit = 1) {
 module base() union() {
     cube([60, 8, 10]);
     translate([29, 0, 10]) cube([2, 8, ridge]);
+    if (wall) translate([44, 0, 10]) cube([2, 8, 6]);
 }
 module slider() cube([4, 8, 5]);
 if (part == "assembly") {
@@ -316,15 +419,126 @@ if (part == "assembly") {
     flex = [["flex", [["slider1", "base1", flex_mm, "the catch rides over the ridge"]]]];
     echo(cadverify_spec = [
         ["motions", [concat(["slide", ["slider1"], "slide", [1, 0, 0], [0, travel]],
-            with_flex ? flex : [])]],
-        ["assembly_order", [[["base1"], [0, 0, 0]], [["slider1"], [0, 0, -1]]]]
+            with_flex ? flex : [], len(stops) ? [["stops", stops]] : [],
+            len(rests) ? [["rests", rests]] : [])]],
+        ["assembly_order", [[["base1"], [0, 0, 0]],
+            concat([["slider1"], entry], entry_flex ? flex : [])]]
     ]);
 } else if (part == "base") {
     base();
-    echo(cadverify_spec = [["bounds", [[0, 0, 0], [60, 8, 10 + ridge]]]]);
+    echo(cadverify_spec = [["bounds", [[0, 0, 0], [60, 8, wall ? 16 : 10 + ridge]]]]);
 } else {
     slider();
     echo(cadverify_spec = [["bounds", [[0, 0, 0], [4, 8, 5]]]]);
+}
+"""
+
+
+# A nut on a threaded rod, both single-start helices (an off-center circle, twisted): it moves
+# only by screwing along the rod.
+SCREW = """\
+part = "assembly"; // [assembly, rod, nut]
+thread = 4;
+kind = "screw";
+pitch = 4;
+entry = "screw";
+$fn = 48;
+cadverify_only = "";
+module instance(name, part, unit = 1) {
+    echo(cadverify_instance = [name, part, unit]);
+    if (cadverify_only == "" || cadverify_only == name) children();
+}
+module helix(r, h) linear_extrude(height = h, twist = -360 * h / thread, slices = 8 * h)
+    translate([0.8, 0]) circle(r = r);
+module rod() helix(4, 20);
+module nut() difference() {
+    translate([-8, -8, 10]) cube([16, 16, 6]);
+    translate([0, 0, -1]) rotate([0, 0, -360 / thread]) helix(4.4, 30);
+}
+if (part == "assembly") {
+    instance("rod1", "rod") rod();
+    instance("nut1", "nut") nut();
+    axis = [[0, 0, 0], [0, 0, 1]];
+    along = kind == "screw" ? concat(["screw"], axis, [pitch]) : concat(["rotate"], axis);
+    turn = concat([entry], axis, entry == "screw" ? [4, -1080] : [-1080]);
+    echo(cadverify_spec = [
+        ["motions", [concat(["up", ["nut1"]], along, [[0, 360]])]],
+        ["assembly_order", [[["rod1"], [0, 0, 0]], [["nut1"], [0, 0, -1], turn]]]
+    ]);
+} else if (part == "rod") {
+    rod();
+    echo(cadverify_spec = [["bounds", [[-4.8, -4.8, 0], [4.8, 4.8, 20]]]]);
+} else {
+    nut();
+    echo(cadverify_spec = [["bounds", [[-8, -8, 10], [8, 8, 16]]]]);
+}
+"""
+
+
+# Two gears side by side, the second cut by the first as they turn together at -1: one turns
+# only when it drives the other.
+GEARS = """\
+part = "assembly"; // [assembly, pins, cut]
+ratio = -1;
+driven = true;
+d = 21;
+$fn = 32;
+cadverify_only = "";
+module instance(name, part, unit = 1) {
+    echo(cadverify_instance = [name, part, unit]);
+    if (cadverify_only == "" || cadverify_only == name) children();
+}
+module pins() union() {
+    circle(r = 9.5);
+    for (i = [0:9]) rotate(i * 36) translate([10.5, 0]) circle(r = 1.6);
+}
+module cut() difference() {
+    translate([d, 0]) circle(r = 12.1);
+    for (t = [0:2:358]) translate([d, 0]) rotate(t) translate([-d, 0]) rotate(t)
+        offset(r = 0.3) pins();
+}
+if (part == "assembly") {
+    instance("a", "pins") linear_extrude(5) pins();
+    instance("b", "cut") linear_extrude(5) cut();
+    drives = driven ? [["drives", [[["b"], "rotate", [d, 0, 0], [0, 0, 1], ratio]]]] : [];
+    echo(cadverify_spec = [
+        ["motions", [concat(["turn", ["a"], "rotate", [0, 0, 0], [0, 0, 1], [0, 72]], drives)]],
+        ["assembly_order", [[["a"], [0, 0, 0]], [["b"], [0, 0, -1]]]]
+    ]);
+} else if (part == "pins") {
+    linear_extrude(5) pins();
+    echo(cadverify_spec = [["bounds", [[-12.1, -12.1, 0], [12.1, 12.1, 5]]]]);
+} else {
+    linear_extrude(5) cut();
+    echo(cadverify_spec = [["bounds", [[9, -12.1, 0], [33.1, 12.1, 5]]]]);
+}
+"""
+
+
+# A block with a pocket for an M3 nut, and the standard nut in it.
+NUT = """\
+part = "assembly"; // [assembly, block]
+nut_scale = 1;
+name = "m3_nut";
+pocket = 5.8;
+use <cadverify_parts.scad>
+cadverify_only = "";
+module instance(name, part, unit = 1) {
+    echo(cadverify_instance = [name, part, unit]);
+    if (cadverify_only == "" || cadverify_only == name) children();
+}
+module block() difference() {
+    translate([-6, -6, 0]) cube([12, 12, 4]);
+    translate([0, 0, 1.4]) cylinder(d = pocket / cos(30), h = 3, $fn = 6);
+    translate([0, 0, -1]) cylinder(d = 3.4, h = 6, $fn = 24);
+}
+if (part == "assembly") {
+    instance("block1", "block") block();
+    instance("nut1", str("standard:", name)) translate([0, 0, 1.5]) scale(nut_scale) m3_nut();
+    echo(cadverify_spec = [["assembly_order", [[["block1"], [0, 0, 0]], [["nut1"], [0, 0, -1]]]]]);
+} else {
+    block();
+    echo(cadverify_spec = [["bounds", [[-6, -6, 0], [6, 6, 4]]]]);
 }
 """
 
@@ -368,6 +582,23 @@ def test_an_overlap_a_missing_part_a_loose_part_and_geometry_outside(tmp_path):
 
 
 @in_sandbox
+def test_a_standard_part_is_the_part_of_the_library(tmp_path):
+    report = _report(tmp_path / "a", NUT)
+    assert report["ok"], report["problems"]
+    nut = next(i for i in report["instances"] if i["name"] == "nut1")
+    assert nut["congruent"] and report["copies"] == [
+        {"part": "block", "expected": 1, "placed": 1, "ok": True}
+    ]
+    (problem,) = _report(tmp_path / "b", NUT, nut_scale=0.95)["problems"]["G3"]
+    assert problem.startswith("the instance nut1 is not the standard part m3_nut()")
+    (problem,) = _report(tmp_path / "c", NUT, name='"m4_nut"')["problems"]["G3"]
+    assert problem.startswith("there is no standard part 'm4_nut': cadverify_parts.scad has")
+    # A pocket drawn for a nut smaller than the standard one: the real nut does not go in.
+    (problem,) = _report(tmp_path / "d", NUT, pocket=5.4)["problems"]["G3"]
+    assert problem.startswith("block1 and nut1 overlap")
+
+
+@in_sandbox
 def test_the_units_the_request_chains(tmp_path):
     one = _report(tmp_path / "a", requirements={"units": 2})["problems"]["G3"]
     assert any("does not show unit 2" in p for p in one)
@@ -383,9 +614,17 @@ def test_a_motion_that_collides_and_an_entry_that_is_blocked(tmp_path):
     assert problem.startswith("motion pin turn: collides between")
     collision = swing["motions"][0]["collisions"]
     assert Path(collision["overlap_stl"]).exists() and Path(collision["posed_stl"]).exists()
+    # Base and pin swung together: nothing moves against anything, so nothing collides either.
+    (whole,) = _report(tmp_path / "w", turn_axis="[1, 0, 0]", whole=True)["problems"]["G4"]
+    assert whole.startswith("motion pin turn: it moves every instance together")
     side = _report(tmp_path / "b", entry="[1, 0, 0]")["problems"]["G4"]
     assert len(side) == 1 and "does not go in moving along [1, 0, 0]" in side[0]
     assert "it would go in along -z" in side[0]
+    # Placed together in the first step, the pin never comes in: only a print starts that way.
+    (together,) = _report(tmp_path / "t", together=True)["problems"]["G4"]
+    assert together.startswith("assembly_order, step 1 places base1, pin1 together")
+    printed = _report(tmp_path / "p", together=True, hole=8.8, in_place=0.3, head_allowed=True)
+    assert printed["problems"]["G4"] == [], printed["problems"]
 
 
 @in_sandbox
@@ -403,6 +642,40 @@ def test_a_press_fit_is_swept_and_pushed_in_as_a_fit(tmp_path):
     (problem,) = below["problems"]["G4"]
     assert "does not go in moving along [0, 0, 1]: it hits base1" in problem
     assert "it would go in along -z" in problem
+
+
+@in_sandbox
+def test_a_part_printed_in_place_is_held_by_the_others():
+    from cadverify.cadcheck.assembly import _held
+
+    # A pin through a 6 mm hole in a plate, 0.5 mm clear all round, with a cap under the plate.
+    plate = manifold3d.Manifold.cube((20, 20, 4)) - _bore(6, -1, 5, x=10, y=10)
+    pin = _bore(5, -1.5, 5.5, x=10, y=10) + _bore(9, -2.5, -1.5, x=10, y=10)
+
+    def judged(pin):
+        pair = (("plate", plate), ("pin", pin))
+        instances = [
+            {"name": n, "part": n, "unit": 1, "_mesh": _mesh(s), "_solid": s} for n, s in pair
+        ]
+        problems: list[str] = []
+        return [r["free"] for r in _held(instances, [], True, problems)], problems
+
+    # Capped at the top too, it goes nowhere: the caps stop it along the axis, the hole across.
+    assert judged(pin + _bore(9, 5.5, 6.5, x=10, y=10)) == ([[], []], [])
+    free, problems = judged(pin)
+    assert free == [["+z"], ["-z"]]
+    assert problems[1].startswith(
+        "pin is not held: printed in place, it comes off the others moving along -z"
+    )
+    # Assembled and not printed, `held` lists what has to stay on.
+    pair = [("plate", plate), ("pin", pin)]
+    instances = [{"name": n, "part": n, "unit": 1, "_mesh": _mesh(s), "_solid": s} for n, s in pair]
+    problems = []
+    assert _held(instances, ["pin", "cap"], False, problems) == [
+        {"instance": "pin", "free": ["-z"]}
+    ]
+    assert problems[0] == "held: there are no instances ['cap']"
+    assert problems[1].startswith("pin is not held: assembled, it comes off the others moving")
 
 
 @in_sandbox
@@ -429,6 +702,89 @@ def test_a_catch_that_flexes_over_a_ridge(tmp_path):
     stuck = _report(tmp_path / "d", SLIDER, travel=28)
     (problem,) = stuck["problems"]["G4"]
     assert "still overlap at 28 mm, an end of its range" in problem
+    # Short of the ridge, the catch rides over nothing: a flex declared that never bends.
+    (problem,) = _report(tmp_path / "e", SLIDER, travel=20)["problems"]["G4"]
+    assert problem.startswith("motion slide: slider1 and base1 never overlap along it")
+
+
+@in_sandbox
+def test_a_nut_screws_along_its_rod(tmp_path):
+    report = _report(tmp_path / "a", SCREW)
+    assert report["ok"], report["problems"]
+    assert report["motions"][0]["kind"] == "screw" and report["motions"][0]["pitch_mm"] == 4
+    # Turned without going up, or screwed the wrong way, the thread hits the rod's.
+    for name, params in [("b", {"kind": '"rotate"'}), ("c", {"pitch": -4})]:
+        (problem,) = _report(tmp_path / name, SCREW, **params)["problems"]["G4"]
+        assert problem.startswith("motion up: collides between") and "nut1 with rod1" in problem
+    # Turned into place without screwing, it comes down through the thread and turns through it.
+    straight, turning = _report(tmp_path / "d", SCREW, entry='"rotate"')["problems"]["G4"]
+    assert "step 2: nut1 does not go in moving along [0, 0, -1]: it hits rod1" in straight
+    assert turning.startswith("assembly_order, step 2: turning -1080° into place, nut1 hits rod1")
+
+
+@in_sandbox
+def test_a_gear_turns_when_it_drives_the_other(tmp_path):
+    report = _report(tmp_path / "a", GEARS)
+    assert report["ok"], report["problems"]
+    assert report["motions"][0]["drives"] == [{"instances": ["b"], "ratio": -1.0}]
+    for name, params in [("b", {"driven": False}), ("c", {"ratio": -0.9})]:
+        (problem,) = _report(tmp_path / name, GEARS, **params)["problems"]["G4"]
+        assert problem.startswith("motion turn: collides between") and "with" in problem
+
+
+@in_sandbox
+def test_a_motion_stops_where_a_part_is_in_its_way(tmp_path):
+    report = _report(tmp_path / "a", SLIDER, wall=True, stops="[0, 40]")
+    (problem,) = report["problems"]["G4"]
+    assert problem.startswith("motion slide: it does not stop at 0 mm: moved 2 mm past it")
+    stops = report["motions"][0]["stops"]
+    assert stops[0] == {"at": 0, "ok": False}
+    # The wall is on the base the slider flexes against: it stops it once deeper than the flex.
+    assert stops[1]["ok"] and stops[1]["by"] == ["slider1", "base1"]
+    assert 0.5 <= stops[1]["after"] <= 0.75
+    # Short of the ridge, the ridge stops it; declared as a flex it rides over, it does not (and
+    # the flex, never reached, bends nothing).
+    stopped = _report(tmp_path / "b", SLIDER, travel=24, stops="[24]", with_flex=False)
+    assert stopped["ok"], stopped["problems"]
+    never, rides = _report(tmp_path / "c", SLIDER, travel=24, stops="[24]")["problems"]["G4"]
+    assert "never overlap" in never and rides.startswith("motion slide: it does not stop at 24")
+
+
+@in_sandbox
+def test_a_detent_rests_free_and_rides_over_its_ridge_between_rests(tmp_path):
+    report = _report(tmp_path / "a", SLIDER, rests="[0, 40]")
+    assert report["ok"], report["problems"]
+    assert report["motions"][0]["rests"] == [
+        {"at": 0, "ok": True, "rides_to_next": True},
+        {"at": 40, "ok": True},
+    ]
+    # A rest short of the ridge: nothing holds the slider between 0 and 10 mm.
+    (problem,) = _report(tmp_path / "b", SLIDER, rests="[0, 10, 40]")["problems"]["G4"]
+    assert problem.startswith("motion slide: between its rests 0 mm and 10 mm, its flex rides")
+    # A rest on the ridge: the catch is still bent there.
+    (problem,) = _report(tmp_path / "c", SLIDER, rests="[0, 28, 40]")["problems"]["G4"]
+    assert problem.startswith("motion slide: at its rest 28 mm, slider1 and base1 overlap")
+
+
+@in_sandbox
+def test_a_part_that_snaps_in_as_it_comes_in(tmp_path):
+    # Slid on from the far end, the slider rides over the ridge: rigid, it does not go in.
+    rigid = dict(with_flex=False, travel=20, entry="[-1, 0, 0]")
+    (problem,) = _report(tmp_path / "a", SLIDER, **rigid)["problems"]["G4"]
+    assert "does not go in moving along [-1, 0, 0]: it hits base1" in problem
+    snaps = _report(tmp_path / "b", SLIDER, entry_flex=True, **rigid)
+    assert snaps["ok"], snaps["problems"]
+    (flex,) = snaps["assembly_steps"][1]["flex"]
+    assert flex["ok"] and flex["depth_mm"] == pytest.approx(0.4, abs=0.01)
+    (problem,) = _report(tmp_path / "c", SLIDER, entry_flex=True, flex_mm=0.3, **rigid)["problems"][
+        "G4"
+    ]
+    assert problem.startswith("assembly_order, step 2: slider1 goes 0.4 mm deep into base1")
+    # Set down from above, it meets no ridge: nothing snaps.
+    (problem,) = _report(tmp_path / "d", SLIDER, with_flex=False, travel=20, entry_flex=True)[
+        "problems"
+    ]["G4"]
+    assert problem.startswith("assembly_order, step 2: slider1 and base1 never overlap as it")
 
 
 def test_how_deep_a_flex_goes():
@@ -446,8 +802,15 @@ def test_how_deep_a_flex_goes():
     ]:
         pin = manifold3d.Manifold.cube((4, 4, 4), True).translate((0, 0, z))
         hit = {"_solid": pin ^ block}
-        depth, kind = _flex_depth(hit, triangles(pin), triangles(block), limit)
+        depth, kind, _ = _flex_depth(hit, triangles(pin), triangles(block), limit)
         assert (depth, kind) == (pytest.approx(expected[0], abs=0.01), expected[1])
+    # A plate as deep in the block as its flex, across a wide face: the farthest vertex from the
+    # face it is under bounds it, where its center plus its radius cannot.
+    for width, z, expected in [(30, 21.2, 0.8), (30, 21.3, 0.7), (4, 21.2, 0.8)]:
+        plate = manifold3d.Manifold.cube((width, width, 4), True).translate((0, 0, z))
+        hit = {"_solid": plate ^ block}
+        depth, kind, _ = _flex_depth(hit, triangles(plate), triangles(block), 0.8)
+        assert (depth, kind) == (pytest.approx(expected, abs=0.01), "measured")
     # Two pins, one deeper: each is measured near itself, the deeper one counts.
     pins = [
         manifold3d.Manifold.cube((4, 4, 4), True).translate((x, 0, z))
@@ -455,7 +818,7 @@ def test_how_deep_a_flex_goes():
     ]
     both = manifold3d.Manifold.batch_boolean(pins, manifold3d.OpType.Add)
     hit = {"_solid": both ^ block}
-    depth, kind = _flex_depth(hit, triangles(both), triangles(block), 0.8)
+    depth, kind, _ = _flex_depth(hit, triangles(both), triangles(block), 0.8)
     assert (depth, kind) == (pytest.approx(0.6, abs=0.01), "measured")
 
 

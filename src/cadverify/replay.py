@@ -152,12 +152,13 @@ a { color: var(--info); }
 .runs { overflow-x: auto; padding: 6px 8px; }
 .runs table { border-collapse: collapse; width: 100%; min-width: 960px; table-layout: fixed;
   font-size: 14px; }
-.runs col.request { width: 22%; } .runs col.model { width: 19%; }
-.runs col.status { width: 17%; } .runs col.n { width: 6.5%; } .runs col.when { width: 16%; }
+.runs col.request { width: 27%; } .runs col.model { width: 19%; }
+.runs col.status { width: 17%; } .runs col.n { width: 6%; } .runs col.when { width: 13%; }
 .runs th { font-weight: 500; color: var(--muted); font-size: 13px; text-align: left; }
 .runs th, .runs td { padding: 6px 8px; }
 .runs th { vertical-align: bottom; }
 .runs td { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.runs td:first-child { white-space: normal; }
 .runs tr + tr td { border-top: 1px solid var(--line); }
 .runs .n { text-align: right; font-variant-numeric: tabular-nums; }
 """

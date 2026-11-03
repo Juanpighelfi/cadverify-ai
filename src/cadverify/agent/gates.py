@@ -33,14 +33,21 @@ GREEN_MEANS = {
     "volume and the declared number of bodies",
     "G3": "the assembly: each instance is its part moved (same volume, area and principal "
     "moments), every part placed as many times as its copies, no overlap between instances "
-    "beyond the allowed_interferences, all of them one connected group, and the units the "
-    "request chains (nothing to check for one part without an assembly)",
-    "G4": "every declared motion swept through its whole range, and every assembly_order step "
-    "brought in from far away along its direction (turning, when it turns), without a collision "
+    "beyond the allowed_interferences, all of them one connected group, the units the request "
+    "chains, and every instance the spec says is held (all the printed parts, printed in "
+    "place) held by the others: none comes off moving straight along any of 26 directions, "
+    "though one freed by turning first is not caught (nothing to check for one part without an "
+    "assembly)",
+    "G4": "every declared motion swept through its whole range (a screw advancing as it turns, "
+    "the instances it drives at their ratio) and stopped, past each end it declares a stop, by "
+    "a collision within 2 mm of travel; at each rest it declares, its flex free, and between "
+    "two rests riding over what it presses on; and every assembly_order step brought in from far "
+    "away along its direction (turning or screwing in, when it does), without a collision "
     "with what is already placed (a press fit only as a fit: no thicker than one along a motion, "
     "and pushed in only where it overlaps in place). The parts are swept as rigid bodies; a pair "
-    "a motion declares as flex may overlap while it moves, no deeper than declared and never at "
-    "an end of the range: how deep is measured, not whether the feature can bend that far",
+    "a motion declares as flex may overlap while it moves, no deeper than declared, somewhere "
+    "along it and never at an end of the range: how deep is measured, not whether the feature "
+    "can bend that far",
     "G5": "each part alone, in the orientation it is exported in: no overhang steeper than 45° "
     "outside its declared overhangs_allowed boxes (which cover at most half of its surface), "
     "the part of every overhang steeper than 60° (where the A1's slicer adds supports by "

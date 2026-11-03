@@ -103,6 +103,17 @@ def _tool(name: str, description: str, properties: dict, required: list[str]) ->
     }
 
 
+def _wrong_arguments(name: str, schema: dict, args: dict) -> str:
+    """What is wrong with the names of a call's arguments, against its tool's schema, or ''."""
+    unknown = [k for k in args if k not in schema["properties"]]
+    missing = [k for k in schema["required"] if k not in args]
+    if not unknown and not missing:
+        return ""
+    wrong = [f"{', '.join(unknown)} is not one of them"] if unknown else []
+    wrong += [f"it needs {', '.join(missing)}"] if missing else []
+    return f"{name} takes {', '.join(schema['properties']) or 'no arguments'}: {'; '.join(wrong)}"
+
+
 SCHEMAS = [
     _tool(
         "scad_write",
@@ -246,12 +257,14 @@ SCHEMAS = [
         "instance in assembly coordinates and compares it with its part (volume, area, "
         "inertia); copies and units; overlaps between instances (volume, mean thickness and "
         "where) and the gap between the ones that touch; whether everything forms one group; "
-        "bounds and support faces of the assembly; each motion swept through its whole range, "
-        "with how deep each declared flex goes, and the assembly order; with print_in_place, "
-        "the clearances and the print of all the parts together, in the print_pose if there is "
-        f"one (G5). Leaves in {ASSEMBLY_DIR}/ the STL of each instance, each overlap, each pose "
-        "that collides, the deepest overlap of each flex and the parts as they print in place, "
-        "to look at with render_view.",
+        "what is held and the directions it comes off along; bounds and support faces of the "
+        "assembly; each motion swept through its whole range, with how deep each declared flex "
+        "goes, what stops it at each declared stop and whether it rests free at each declared "
+        "rest, and the assembly order; with "
+        "print_in_place, the clearances and the print of all the parts together, in the "
+        f"print_pose if there is one (G5). Leaves in {ASSEMBLY_DIR}/ the STL of each instance, "
+        "each overlap, each pose that collides, the deepest overlap of each flex and the parts as "
+        "they print in place, to look at with render_view.",
         {"path": {"type": "string"}},
         ["path"],
     ),
@@ -313,8 +326,11 @@ class ToolBox:
             args, result = None, {"ok": False, "error": f"Invalid arguments: {exc}"}
         else:
             handler = getattr(self, f"_{name}", None)
-            if handler is None or name not in {s["name"] for s in self.schemas}:
+            schema = next((s["parameters"] for s in self.schemas if s["name"] == name), None)
+            if handler is None or schema is None:
                 result = {"ok": False, "error": f"Unknown tool: {name}"}
+            elif wrong := _wrong_arguments(name, schema, args):
+                result = {"ok": False, "error": f"Invalid arguments: {wrong}"}
             elif name in EDIT_TOOLS and blocked:
                 result = dict(blocked)
                 event = {"seq": self.seq, "tool": name, "edit": "refused", **self._pending()}

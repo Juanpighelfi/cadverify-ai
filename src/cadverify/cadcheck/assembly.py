@@ -10,8 +10,9 @@ The assembly (`part = "assembly"`) places each part through a module the prompt 
 
 so the list of instances comes from the code, and `-D cadverify_only="<name>"` exports one
 instance alone, in assembly coordinates. A name no instance has exports what the assembly draws
-outside instance(): it must be nothing. `part` is the printable part the instance is, or
-"external" for what is not printed (a wall, a screw, a rope).
+outside instance(): it must be nothing. `part` is the printable part the instance is,
+"external" for what is not printed (a wall, a screw, a rope), or "standard:<module>" for a part
+of standard/cadverify_parts.scad, which is checked like a printed part against the module itself.
 
 What is measured (G3, assembly):
 - each instance is its printable part moved, not a variant of it: the same volume, area and
@@ -22,24 +23,42 @@ What is measured (G3, assembly):
   0.36 mm³ that were 0.0075 mm thick, the faceting of two circles). A press fit is declared in
   `allowed_interferences`, up to 0.3 mm thick;
 - the instances touch each other (1 mm or less apart, manifold3d's min_gap) as one group;
+- printed in place (`print_in_place`), each printed part is held by the others, and so is each
+  instance `held` lists (a lid that does not lift off): it comes off moving straight along none
+  of 26 directions (the faces, edges and corners of a cube), each checked whole with the depth
+  maps of the assembly order below. A pivot in an open groove, a pin that slides out of its
+  knuckles, a ring that lifts out of its frame: each comes off the bed loose, not assembled;
 - with `requirements["units"] = n`, units 1 to n are there and each one touches the one before;
 - the assembly's own `bounds` and `support_faces`, if its spec declares them, on its instances
   together.
 
 And G4, motion:
 - each `motions` entry sweeps its instances through the whole range (from 0, the assembled
-  pose), at most 0.25 mm of travel or 2° per step, measuring the overlap at each step. The
+  pose), at most 0.25 mm of travel or 2° per step, measuring the overlap at each step between
+  every two instances that move against each other. A `screw` turns and advances its pitch for
+  each turn; the instances a motion `drives` turn or slide at their ratio, each group about its
+  own axis (carried by the motion too, when it names them: a planet on its carrier). The
   parts are rigid: an elastic feature (a detent bump, a snap) is declared in the motion's
-  `flex`, a pair of instances and how deep they may overlap. There, an overlap is a flex and
+  `flex`, a pair of instances and how deep they may overlap. A motion that moves every instance
+  moves nothing against anything, and is refused. There, an overlap is a flex and
   not a collision when it is no deeper than declared (the farthest a vertex of the overlap is
   from the surface of the other solid) and the parts are free at both ends of the range: a
-  feature that stays deflected at rest is a press fit (allowed_interferences). The bayonet jar
-  of the demo had to trade its detent bump for a pocket before this existed;
-- `assembly_order` lists every instance once, in order: each step's instances arrive from far away
-  moving along its direction (and then turn, if the step says so) without crossing what the
-  steps before placed. The straight approach is checked whole with two depth maps along the
+  feature that stays deflected at rest is a press fit (allowed_interferences), and a flex that
+  never overlaps bends nothing and is refused. The bayonet jar
+  of the demo had to trade its detent bump for a pocket before this existed. At each end the
+  motion `stops` at, moving on until its fastest point has gone 2 mm more, two instances collide
+  (deeper than their flex, for a flex pair): a drawer that does not come out, the way a ratchet
+  does not turn (the poses of a sweep are the same both ways; only its ends tell them apart). At
+  each value it `rests` at, its flex pairs do not overlap (a detent in its notch), and between
+  two rests they do: it clicks from one to the next;
+- `assembly_order` lists every instance once, in order: the first step places one (an assembly
+  printed in place may start with all it prints), and each next step's instances arrive from far
+  away moving along its direction (and then turn or screw in, if the step says so) without crossing
+  what the steps before placed. The straight approach is checked whole with two depth maps along the
   direction (the farthest point of the moving parts against the nearest of the placed ones, on a
-  grid of 0.05 mm or finer than 1/3000 of the size); the turn, by steps like a movement.
+  grid of 0.05 mm or finer than 1/3000 of the size); the turn, by steps like a movement. A step
+  that declares a `flex` (what snaps in as it comes in) comes in by steps instead against what it
+  flexes on, from where their bounding boxes no longer meet, with a motion's flex rule;
 
 A pair that presses together in place (allowed_interferences) is swept like any other, as a
 press fit: along a motion or a turn, its overlaps no thicker than a fit are not collisions, and on
@@ -62,6 +81,7 @@ from __future__ import annotations
 import hashlib
 import itertools
 import math
+import re
 import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -71,15 +91,17 @@ import manifold3d
 import numpy as np
 import trimesh
 from scipy.ndimage import binary_erosion
+from scipy.spatial import cKDTree
 
 from cadverify.cadcheck import section
 from cadverify.cadcheck.mesh import load_exact
 from cadverify.cadcheck.printability import mesh_printability
-from cadverify.cadcheck.scad import ASSEMBLY, scad_export
+from cadverify.cadcheck.scad import ASSEMBLY, STANDARD_DIR, scad_export
 
 SOLO = "cadverify_only"
 OUTSIDE = "__outside_instances__"
 EXTERNAL = "external"
+STANDARD = "standard:"  # a part of cadverify_parts.scad, `standard:<module>`
 OVERLAP_MM3 = 0.01
 OVERLAP_THICKNESS_MM = 0.02
 PERMITTED_THICKNESS_MM = 0.3
@@ -89,6 +111,7 @@ INERTIA_REL = 2e-3  # of the largest principal moment
 SWEEP_STEP_MM = 0.25
 SWEEP_STEP_DEG = 2.0
 SWEEP_MAX_STEPS = 360
+STOP_TRAVEL_MM = 2.0  # past a stop, how far the fastest point moves looking for what stops it
 DEPTH_PX_MM = 0.05
 DEPTH_MAX_SIDE = 3000
 DEPTH_EPS_MM = 0.02
@@ -104,6 +127,17 @@ AXES = {
     "-y": (0, -1, 0),
     "+z": (0, 0, 1),
     "-z": (0, 0, -1),
+}
+# The 26 directions a part may come off along: the axes first, then the edges and corners.
+_CUBE = [v for v in itertools.product((-1, 0, 1), repeat=3) if sum(map(abs, v)) > 1]
+DIRECTIONS = {
+    **{name: np.array(v, float) for name, v in AXES.items()},
+    **{
+        "".join(f"{'+' if c > 0 else '-'}{a}" for a, c in zip("xyz", v, strict=True) if c): (
+            np.array(v) / np.linalg.norm(v)
+        )
+        for v in _CUBE
+    },
 }
 MAX_LISTED = 12
 
@@ -164,7 +198,7 @@ def assembly_report(
             g3.append(inst["problem"])
     good = [i for i in instances if i.get("_solid") is not None]
 
-    _congruence(good, parts, g3)
+    _congruence(good, parts, out_dir, g3)
     report["instances"] = [{k: v for k, v in i.items() if not k.startswith("_")} for i in instances]
     report["copies"] = _copies(instances, parts, g3)
     permitted = _permitted(spec, {i["name"] for i in instances}, g3)
@@ -172,6 +206,8 @@ def assembly_report(
     report["components"] = _components(good, report["pairs"], g3)
     report["units"] = _units(instances, report["pairs"], int(requirements.get("units", 1)), g3)
     report["spec_check"] = _own_spec(good, spec, g3)
+    if spec.get("print_in_place") or spec.get("held"):
+        report["held"] = _held(good, spec.get("held") or [], bool(spec.get("print_in_place")), g3)
 
     names = {i["name"]: i for i in good}
     # Pairs left out of the motion checks: the overlaps G3 already reports (they would collide
@@ -182,7 +218,9 @@ def assembly_report(
     report["motions"] = [_motion(m, names, skip, pressed, out_dir, g4) for m in motions]
     steps = spec.get("assembly_order", [])
     before = len(g4)
-    report["assembly_steps"] = _assembly_order(steps, instances, names, skip, pressed, out_dir, g4)
+    report["assembly_steps"] = _assembly_order(
+        steps, instances, names, skip, pressed, bool(spec.get("print_in_place")), out_dir, g4
+    )
     report["assembly_order_ok"] = len(g4) == before
     if spec.get("print_in_place"):
         report["print_in_place"] = _print_in_place(
@@ -245,20 +283,29 @@ def _export_instances(path: Path, out_dir: Path, listed: list[dict], timeout_s: 
 # ---- G3 -----------------------------------------------------------------------------------
 
 
+def _printed(inst: dict) -> bool:
+    """Whether an instance is a part that is printed: not external, not a standard part."""
+    return inst["part"] != EXTERNAL and not inst["part"].startswith(STANDARD)
+
+
 def _properties(mesh: trimesh.Trimesh) -> tuple[float, float, np.ndarray]:
     inertia = np.linalg.eigvalsh(mesh.moment_inertia)
     return float(mesh.volume), float(mesh.area), np.sort(inertia)
 
 
-def _congruence(instances: list[dict], parts: dict[str, dict], problems: list[str]) -> None:
-    cache: dict[str, tuple] = {}
+def _congruence(
+    instances: list[dict], parts: dict[str, dict], out_dir: Path, problems: list[str]
+) -> None:
+    cache: dict[str, tuple | None] = {}
     for inst in instances:
         part = inst["part"]
-        if part == EXTERNAL or part not in parts:
+        if part.startswith(STANDARD) and part not in cache:
+            cache[part] = _standard(part.removeprefix(STANDARD), out_dir, problems)
+        elif part in parts and part not in cache:
+            cache[part] = _properties(load_exact(parts[part]["path"]))
+        if cache.get(part) is None:
             inst["congruent"] = None
             continue
-        if part not in cache:
-            cache[part] = _properties(load_exact(parts[part]["path"]))
         volume, area, inertia = cache[part]
         v, a, i = _properties(inst["_mesh"])
         dv, da = abs(v - volume) / max(volume, 1e-9), abs(a - area) / max(area, 1e-9)
@@ -270,7 +317,14 @@ def _congruence(instances: list[dict], parts: dict[str, dict], problems: list[st
             "area_mm2": [round(a, 2), round(area, 2)],
             "inertia_rel_diff": round(di, 5),
         }
-        if not ok:
+        if not ok and part.startswith(STANDARD):
+            problems.append(
+                f"the instance {inst['name']} is not the standard part "
+                f"{part.removeprefix(STANDARD)}() of cadverify_parts.scad: volume {v:.1f} against "
+                f"{volume:.1f} mm³, area {a:.1f} against {area:.1f} mm² (place the module "
+                "itself, moved: the design has to fit the real part)"
+            )
+        elif not ok:
             problems.append(
                 f"the instance {inst['name']} is not the part {part} that is printed: volume "
                 f"{v:.1f} against {volume:.1f} mm³, area {a:.1f} against {area:.1f} mm² (the "
@@ -278,13 +332,32 @@ def _congruence(instances: list[dict], parts: dict[str, dict], problems: list[st
             )
 
 
+def _standard(name: str, out_dir: Path, problems: list[str]) -> tuple | None:
+    """The volume, area and principal moments of a module of cadverify_parts.scad."""
+    modules = re.findall(
+        r"^module (\w+)\(\)", (STANDARD_DIR / "cadverify_parts.scad").read_text(), re.M
+    )
+    if name not in modules:
+        problems.append(
+            f"there is no standard part {name!r}: cadverify_parts.scad has {sorted(modules)}"
+        )
+        return None
+    source = out_dir / f"standard-{name}.scad"
+    source.write_text(f"use <cadverify_parts.scad>\n{name}();\n")
+    export = scad_export(source, out_dir=out_dir)
+    if not export["ok"]:
+        problems.append(f"the standard part {name} could not be exported")
+        return None
+    return _properties(load_exact(export["path"]))
+
+
 def _copies(instances: list[dict], parts: dict[str, dict], problems: list[str]) -> list[dict]:
     for inst in instances:
-        if inst["part"] != EXTERNAL and inst["part"] not in parts:
+        if _printed(inst) and inst["part"] not in parts:
             problems.append(
                 f"the instance {inst['name']} says it is the part {inst['part']!r}, which is "
-                f"neither a printable option of the part selector ({sorted(parts)}) nor "
-                f"{EXTERNAL!r}"
+                f"neither a printable option of the part selector ({sorted(parts)}), "
+                f"{EXTERNAL!r} nor a {STANDARD}<module> of cadverify_parts.scad"
             )
     rows = []
     for part, export in sorted(parts.items()):
@@ -437,6 +510,58 @@ def _own_spec(instances: list[dict], spec: dict[str, Any], problems: list[str]) 
     return check
 
 
+def _held(
+    instances: list[dict], listed: list[str], in_place: bool, problems: list[str]
+) -> list[dict]:
+    """The directions each instance `held` lists, and each printed part of an assembly printed in
+    place, comes off the others along, straight from where it is assembled (module docstring).
+    The axes are checked first: a part that comes off along one is not checked along the
+    diagonals. Printed in place, a part is held by the other printed parts only."""
+    names = {i["name"]: i for i in instances}
+    missing = [n for n in listed if n not in names]
+    if missing:
+        problems.append(f"held: there are no instances {missing}")
+    printed = [i for i in instances if _printed(i) and i["unit"] == 1]
+    if not in_place or len(printed) < 2:
+        printed = []
+    checked = printed + [names[n] for n in listed if n in names and names[n] not in printed]
+    if not checked:
+        return []
+    import moderngl
+
+    ctx = moderngl.create_context(standalone=True, backend="egl")
+    rows = []
+    try:
+        for inst in checked:
+            pool = printed if inst in printed else instances
+            others = [(o["name"], o["_mesh"]) for o in pool if o is not inst]
+            free: list[str] = []
+            for names in (list(AXES), [n for n in DIRECTIONS if n not in AXES]):
+                # Coming off along a direction sweeps what arriving along its opposite does.
+                free += [
+                    n for n in names if blocked(ctx, [inst["_mesh"]], others, -DIRECTIONS[n])["ok"]
+                ]
+                if free:
+                    break
+            rows.append({"instance": inst["name"], "free": free})
+            if free and inst in printed:
+                problems.append(
+                    f"{inst['name']} is not held: printed in place, it comes off the others "
+                    f"moving along {', '.join(free)}. An assembly printed in place comes off the "
+                    "bed in one piece, each part held by the others (a pin capped at both ends, "
+                    "a pivot in a closed bore)"
+                )
+            elif free:
+                problems.append(
+                    f"{inst['name']} is not held: assembled, it comes off the others moving along "
+                    f"{', '.join(free)}, and held says it stays on (a lip that catches, a cap at "
+                    "each end, a bore that closes around it)"
+                )
+    finally:
+        ctx.release()
+    return rows
+
+
 def _print_in_place(
     instances: list[dict],
     spec: dict[str, Any],
@@ -447,7 +572,7 @@ def _print_in_place(
 ) -> dict[str, Any]:
     """G5 of an assembly printed whole, as it stands or in its print pose (module docstring)."""
     need = spec["print_in_place"]["min_gap_mm"]
-    printed = [i for i in instances if i["part"] != EXTERNAL and i["unit"] == 1]
+    printed = [i for i in instances if _printed(i) and i["unit"] == 1]
     names = {i["name"] for i in printed}
     pose = spec.get("print_pose") or []
     if pose:
@@ -496,10 +621,9 @@ def _in_print_pose(printed: list[dict], pose: list[dict], motions: list[dict]) -
     by_name = {m["name"]: m for m in motions}
     matrix = {i["name"]: np.eye(4) for i in printed}
     for step in pose:
-        motion = by_name[step["motion"]]
-        for name in motion["instances"]:
+        for name, moved in _poses(by_name[step["motion"]], step["value"]).items():
             if name in matrix:
-                matrix[name] = _pose(motion, step["value"]) @ matrix[name]
+                matrix[name] = moved @ matrix[name]
     return [
         {
             **i,
@@ -525,31 +649,38 @@ def translation(direction, mm: float) -> np.ndarray:
 
 
 def _sweep(
-    moving: list[dict],
-    others: list[dict],
-    poses: list[tuple[float, np.ndarray]],
+    pairs: list[tuple[dict, dict]],
+    poses: list[tuple[float, dict[str, np.ndarray]]],
 ) -> list[dict[str, Any]]:
-    """The collisions of the moving instances, posed by each 4 × 4 matrix, with the others."""
-    boxes = [(o, np.reshape(o["_solid"].bounding_box(), (2, 3))) for o in others]
+    """The collisions of each pair of instances (the first one moves) at each pose: a 4 × 4
+    matrix for each instance that moves; one without stays in place."""
+    rest = {}
+    for inst in {i["name"]: i for pair in pairs for i in pair}.values():
+        rest[inst["name"]] = (inst["_solid"], np.reshape(inst["_solid"].bounding_box(), (2, 3)))
     hits = []
-    for pose, matrix in poses:
-        for inst in moving:
-            solid = inst["_solid"].transform(matrix[:3])
-            box = np.reshape(solid.bounding_box(), (2, 3))
-            for other, other_box in boxes:
-                if _box_gap(box, other_box) > 0:
-                    continue
-                hit = overlap(solid, other["_solid"])
-                if hit:
-                    hits.append(
-                        {
-                            "pose": round(pose, 3),
-                            "moving": inst["name"],
-                            "with": other["name"],
-                            **hit,
-                            "_matrix": matrix,
-                        }
-                    )
+    for pose, matrices in poses:
+        placed = dict(rest)
+        for name, matrix in matrices.items():
+            if name in rest:
+                solid = rest[name][0].transform(matrix[:3])
+                placed[name] = (solid, np.reshape(solid.bounding_box(), (2, 3)))
+        for a, b in pairs:
+            (solid, box), (other, other_box) = placed[a["name"]], placed[b["name"]]
+            if _box_gap(box, other_box) > 0:
+                continue
+            hit = overlap(solid, other)
+            if hit:
+                hits.append(
+                    {
+                        "pose": round(pose, 3),
+                        "moving": a["name"],
+                        "with": b["name"],
+                        **hit,
+                        "_matrices": {
+                            n: matrices.get(n, np.eye(4)) for n in (a["name"], b["name"])
+                        },
+                    }
+                )
     return hits
 
 
@@ -557,40 +688,69 @@ def _motion(
     motion: dict, names: dict, skip: set, pressed: set, out_dir: Path, problems: list[str]
 ) -> dict:
     row: dict[str, Any] = {"name": motion["name"], "kind": motion["kind"], "range": motion["range"]}
-    missing = [n for n in motion["instances"] if n not in names]
+    if motion["kind"] == "screw":
+        row["pitch_mm"] = motion["pitch_mm"]
+    drives = motion.get("drives") or []
+    if drives:
+        row["drives"] = [{"instances": d["instances"], "ratio": d["ratio"]} for d in drives]
+    driven = [n for d in drives for n in d["instances"]]
+    missing = [n for n in dict.fromkeys(motion["instances"] + driven) if n not in names]
     if missing:
         problems.append(f"motion {motion['name']}: there are no instances {missing}")
         return {**row, "ok": False}
-    moving = [names[n] for n in motion["instances"]]
-    moving_names = set(motion["instances"])
-    others = [
-        o
-        for n, o in names.items()
-        if n not in moving_names and not any(frozenset((n, m)) in skip for m in moving_names)
+    # Instances with the same key move together: by the motion, by one of its drives, or not.
+    keys = {
+        n: (
+            n in motion["instances"],
+            next((k for k, d in enumerate(drives) if n in d["instances"]), -1),
+        )
+        for n in names
+    }
+    still = (False, -1)
+    if len(set(keys.values())) < 2:
+        problems.append(
+            f"motion {motion['name']}: it moves every instance together, so nothing moves against "
+            "anything and the sweep checks nothing: a motion moves some instances against the rest"
+        )
+        return {**row, "ok": False}
+    moving = [names[n] for n in names if keys[n] != still]
+    # Every two instances that move against each other, the one that moves (or the motion's) first.
+    pairs = [
+        (names[a], names[b]) if keys[a] > keys[b] else (names[b], names[a])
+        for a, b in itertools.combinations(names, 2)
+        if keys[a] != keys[b] and frozenset((a, b)) not in skip
     ]
     lo, hi = min(0.0, motion["range"][0]), max(0.0, motion["range"][1])
-    if motion["kind"] == "rotate":
-        reach = max(_radius(i["_mesh"].vertices, motion["point"], motion["axis"]) for i in moving)
-        step = min(SWEEP_STEP_DEG, math.degrees(SWEEP_STEP_MM / max(reach, 1e-6)))
-    else:
-        step = SWEEP_STEP_MM
+    step = _step(motion, names)
     count = min(SWEEP_MAX_STEPS, max(1, math.ceil((hi - lo) / step)))
     values = np.linspace(lo, hi, count + 1)
-    poses = [(float(v), _pose(motion, float(v))) for v in values]
-    hits = _fits_left_out(_sweep(moving, others, poses), pressed)
-    unit = "°" if motion["kind"] == "rotate" else " mm"
+    poses = [(float(v), _poses(motion, float(v))) for v in values]
+    hits = _fits_left_out(_sweep(pairs, poses), pressed)
+    unit = " mm" if motion["kind"] == "slide" else "°"
     flexes = motion.get("flex") or []
+    bent = {frozenset((f["a"], f["b"])) for f in flexes}
+    rides = sorted({h["pose"] for h in hits if frozenset((h["moving"], h["with"])) in bent})
     if flexes:
-        row["flex"], hits = _flexes(motion, flexes, hits, names, (lo, hi), out_dir, problems)
+        row["flex"], hits = _flexes(motion, flexes, hits, names, keys, (lo, hi), out_dir, problems)
     flexed = any(not f["ok"] for f in row.get("flex", []))
-    row.update(ok=not hits and not flexed, steps=count + 1, step=round((hi - lo) / count, 4))
+    if motion.get("stops"):
+        row["stops"] = _stops(motion, pairs, names, pressed, (lo, hi), step, problems)
+    stopped = all(s["ok"] for s in row.get("stops", []))
+    if motion.get("rests"):
+        row["rests"] = _rests(motion, pairs, bent, rides, problems)
+    rested = all(r["ok"] for r in row.get("rests", []))
+    row.update(
+        ok=not hits and not flexed and stopped and rested,
+        steps=count + 1,
+        step=round((hi - lo) / count, 4),
+    )
     if hits:
         worst = max(hits, key=lambda h: h["volume_mm3"])
         first = min(hits, key=lambda h: abs(h["pose"]))
         stl = out_dir / f"motion-{_slug(motion['name'])}-{_slug(str(worst['pose']))}.stl"
         _write_stl(worst["_solid"], stl)
         posed = out_dir / f"motion-{_slug(motion['name'])}-pose.stl"
-        _write_mesh(_posed_mesh(moving, _pose(motion, worst["pose"])), posed)
+        _write_mesh(_posed_mesh(moving, _poses(motion, worst["pose"])), posed)
         poses_hit = sorted({h["pose"] for h in hits})
         row["collisions"] = {
             "from_to": [poses_hit[0], poses_hit[-1]],
@@ -623,39 +783,54 @@ def _flexes(
     flexes: list[dict],
     hits: list[dict],
     names: dict,
-    ends: tuple[float, float],
+    keys: dict,
+    ends: tuple[float, ...],
     out_dir: Path,
     problems: list[str],
+    touch: bool = True,
 ) -> tuple[list[dict], list[dict]]:
-    """The motion's flex pairs measured on its overlaps, and the overlaps left: collisions."""
-    unit = "°" if motion["kind"] == "rotate" else " mm"
-    moving = set(motion["instances"])
+    """The motion's flex pairs measured on its overlaps, and the overlaps left: collisions. `keys`
+    tells which instances move together; without `touch`, a pair may not meet in it (an assembly
+    step's flex may meet only as it turns). Its problems start with the motion's `label`."""
+    unit = " mm" if motion["kind"] == "slide" else "°"
+    label = motion.get("label") or f"motion {motion['name']}"
     rows, left = [], list(hits)
     for flex in flexes:
         pair = {flex["a"], flex["b"]}
         row: dict[str, Any] = {**flex, "ok": True, "poses": None, "depth_mm": 0.0}
         rows.append(row)
-        if not pair <= set(names) or len(pair & moving) != 1:
+        if not pair <= set(keys) or keys[flex["a"]] == keys[flex["b"]]:
             row["ok"] = False
             problems.append(
-                f"motion {motion['name']}: the flex {flex['a']} / {flex['b']} needs one "
-                "instance that moves in it and one that does not"
+                f"{label}: the flex {flex['a']} / {flex['b']} needs two "
+                "instances that move against each other in it"
             )
             continue
         mine = [h for h in left if {h["moving"], h["with"]} == pair]
         left = [h for h in left if h not in mine]
         if not mine:
+            if not touch:
+                continue
+            row["ok"] = False
+            problems.append(
+                f"{label}: {flex['a']} and {flex['b']} never overlap along it, so "
+                "nothing bends: a flex is a feature that rides over what it presses on (a detent, "
+                "a catch). Make it meet that, or leave the flex out"
+            )
             continue
-        a = next(n for n in pair if n in moving)
-        b = next(n for n in pair if n != a)
-        fixed = names[b]["_mesh"].triangles
+        a, b = mine[0]["moving"], mine[0]["with"]
         measured = []
         # The largest overlaps first: one deeper than declared is enough to refuse the flex.
         for hit in sorted(mine, key=lambda h: -h["volume_mm3"]):
-            posed = trimesh.transform_points(
-                names[a]["_mesh"].triangles.reshape(-1, 3), hit["_matrix"]
-            ).reshape(-1, 3, 3)
-            hit["depth_mm"], hit["depth_is"] = _flex_depth(hit, posed, fixed, flex["max_mm"])
+            posed, fixed = (
+                trimesh.transform_points(
+                    names[n]["_mesh"].triangles.reshape(-1, 3), hit["_matrices"][n]
+                ).reshape(-1, 3, 3)
+                for n in (a, b)
+            )
+            hit["depth_mm"], hit["depth_is"], hit["depth_floor_mm"] = _flex_depth(
+                hit, posed, fixed, flex["max_mm"]
+            )
             measured.append(hit)
             if hit["depth_mm"] > flex["max_mm"]:
                 break
@@ -673,36 +848,47 @@ def _flexes(
         if at_rest:
             row["ok"] = False
             problems.append(
-                f"motion {motion['name']}: {a} and {b} still overlap at {at_rest[0]:g}{unit}, "
+                f"{label}: {a} and {b} still overlap at {at_rest[0]:g}{unit}, "
                 "an end of its range: a flex springs back at rest; a fit that stays loaded is "
                 "an allowed_interference"
             )
-        if deepest["depth_mm"] > flex["max_mm"]:
+        if deepest["depth_mm"] > flex["max_mm"] and deepest["depth_is"] == "at most":
             row["ok"] = False
-            goes = {"measured": "goes", "at least": "goes more than", "at most": "may go"}
-            bound = " (a bound: the overlap is large)" if deepest["depth_is"] == "at most" else ""
             problems.append(
-                f"motion {motion['name']}: {a} {goes[deepest['depth_is']]} {deepest['depth_mm']} "
+                f"{label}: {a} may go up to {deepest['depth_mm']} mm deep into {b} at "
+                f"{deepest['pose']:g}{unit}, past the {flex['max_mm']} mm of its flex: it goes "
+                f"{deepest['depth_floor_mm']} mm at least, and the overlap is too large to "
+                "measure closer"
+            )
+        elif deepest["depth_mm"] > flex["max_mm"]:
+            row["ok"] = False
+            goes = {"measured": "goes", "at least": "goes more than"}
+            problems.append(
+                f"{label}: {a} {goes[deepest['depth_is']]} {deepest['depth_mm']} "
                 f"mm deep into {b} at {deepest['pose']:g}{unit}, deeper than the "
-                f"{flex['max_mm']} mm of its flex{bound}"
+                f"{flex['max_mm']} mm of its flex"
             )
     return rows, left
 
 
 def _flex_depth(
     hit: dict, moving: np.ndarray, other: np.ndarray, limit: float
-) -> tuple[float, str]:
+) -> tuple[float, str, float]:
     """How deep two solids go into each other: the farthest a point of their overlap's surface
     is from the surface of the other solid (each point of it lies on one of the two; `moving`
-    and `other` are their triangles), and whether that is "measured", or past the limit and
-    only "at least" or "at most" that.
+    and `other` are their triangles), whether that is "measured", or past the limit and only
+    "at least" or "at most" that, and the deepest point measured.
 
     The deepest point can be inside a face (a ridge as wide as the slider over it has every
     vertex of the overlap on both surfaces), so the surface is sampled at the centers of
-    triangles FLEX_SAMPLE_MM wide (wider on a large overlap). The distance changes no faster
-    than the point moves, so a triangle whose center plus its radius stays under the limit
-    (plus FLEX_TOLERANCE_MM) cannot pass it; the others are split until they do or one center
-    passes. When that needs more than FLEX_MAX_TRIANGLES, the answer is the bound: at most.
+    triangles FLEX_SAMPLE_MM wide (wider on a large overlap). A triangle cannot pass the limit
+    (plus FLEX_TOLERANCE_MM) when either bound of it stays under: its center's depth plus its
+    radius (the distance changes no faster than the point moves), or the farthest of its
+    vertices from the face nearest its center on each surface (the distance to one face is
+    convex, so a triangle's farthest point from it is a vertex: an overlap as deep as its flex
+    across a wide face is measured as that deep). The others are split until they cannot pass
+    or one center passes. When that needs more than FLEX_MAX_TRIANGLES, the answer is the
+    bound: at most.
 
     Each piece of the overlap is measured against the surface within the limit plus
     FLEX_SAMPLE_MM of it only (the three detents of a jar make one overlap as wide as the
@@ -717,61 +903,153 @@ def _flex_depth(
         # Only the surface near the piece can be nearer than the limit to it.
         margin = limit + FLEX_SAMPLE_MM
         lo, hi = vertices.min(axis=0) - margin, vertices.max(axis=0) + margin
-        near = [
-            t[np.all(t.max(axis=1) >= lo, axis=1) & np.all(t.min(axis=1) <= hi, axis=1)]
-            for t in (moving, other)
-        ]
+        near = [_Surface(t, lo, hi) for t in (moving, other)]
         size = max(FLEX_SAMPLE_MM, math.sqrt(8 * piece.surface_area() / FLEX_MAX_TRIANGLES))
         vertices, faces = trimesh.remesh.subdivide_to_size(vertices, faces, size, 20)
-        depth, kind = _piece_depth(vertices[faces], near, limit, margin)
+        depth, kind, floor = _piece_depth(vertices[faces], near, limit, margin)
         if depth > limit:
-            return round(depth, 3), kind
+            return round(depth, 3), kind, round(floor, 3)
         deepest = max(deepest, depth)
-    return round(deepest, 3), "measured"
+    return round(deepest, 3), "measured", round(deepest, 3)
 
 
 def _piece_depth(
     triangles: np.ndarray, near: list, limit: float, margin: float
-) -> tuple[float, str]:
-    """_flex_depth of one piece of the overlap, sampled on `triangles`; `near` holds the
-    surface within `margin` of it."""
+) -> tuple[float, str, float]:
+    """_flex_depth of one piece of the overlap, sampled on `triangles`; `near` are the two
+    surfaces within `margin` of it. The triangles are first taken in cells, FLEX_SAMPLE_MM wide
+    and then halved, each measured at the center of one of its triangles, with the farthest of
+    its vertices from there as its radius: an overlap cut from fine facets has thousands of
+    triangles in a few square mm, and only the cells that might pass the limit are opened."""
     deepest = 0.0
+    size = FLEX_SAMPLE_MM
+    for _ in range(FLEX_ROUNDS):
+        centers = triangles.mean(axis=1)
+        cells = np.unique(np.floor(centers / size), axis=0, return_inverse=True)[1].reshape(-1)
+        if cells.max() + 1 > len(triangles) // 4:
+            break
+        mean = np.zeros((cells.max() + 1, 3))
+        np.add.at(mean, cells, centers)
+        mean /= np.bincount(cells)[:, None]
+        # The center nearest the middle of each cell: a point of the surface.
+        order = np.lexsort((np.linalg.norm(centers - mean[cells], axis=1), cells))
+        sample = centers[order[np.r_[True, cells[order][1:] != cells[order][:-1]]]]
+        radius = np.zeros(len(sample))
+        reach = np.linalg.norm(triangles - sample[cells][:, None], axis=2).max(axis=1)
+        np.maximum.at(radius, cells, reach)
+        depth, bound = _depth_and_bound(sample, triangles, cells, near)
+        if depth.max() >= margin:
+            return margin, "at least", margin
+        deepest = max(deepest, float(depth.max()))
+        open_ = np.minimum(depth + radius, bound) > limit + FLEX_TOLERANCE_MM
+        if deepest > limit or not open_.any():
+            return deepest, "measured", deepest
+        triangles = triangles[open_[cells]]
+        size /= 2
     for _ in range(FLEX_ROUNDS):
         centers = triangles.mean(axis=1)
         radius = np.linalg.norm(triangles - centers[:, None], axis=2).max(axis=1)
-        depth = np.maximum(*(_distance(centers, t) for t in near))
+        depth, bound = _depth_and_bound(centers, triangles, np.arange(len(triangles)), near)
         if depth.max() >= margin:
-            return margin, "at least"
+            return margin, "at least", margin
         deepest = max(deepest, float(depth.max()))
-        open_ = depth + radius > limit + FLEX_TOLERANCE_MM
+        upper = np.minimum(depth + radius, bound)
+        open_ = upper > limit + FLEX_TOLERANCE_MM
         if deepest > limit or not open_.any():
-            return deepest, "measured"
+            return deepest, "measured", deepest
         if 4 * int(open_.sum()) > FLEX_MAX_TRIANGLES:
             break
         triangles = _split(triangles[open_])
-    return float((depth + radius)[open_].max()), "at most"
+    return float(upper[open_].max()), "at most", deepest
 
 
-def _distance(points: np.ndarray, triangles: np.ndarray) -> np.ndarray:
-    """The distance from each point to the nearest of the triangles (inf without any). Only
-    the triangles whose bounding sphere comes nearer to the point than the far side of the
-    nearest sphere are measured."""
-    out = np.full(len(points), np.inf)
-    if not len(triangles):
+def _depth_and_bound(
+    samples: np.ndarray, triangles: np.ndarray, cells: np.ndarray, near: list
+) -> tuple[np.ndarray, np.ndarray]:
+    """The depth at each sample point (the farther of the two surfaces), and a bound of the
+    depth over each cell of `triangles` (its index in `cells`): on each surface, the farthest
+    of the cell's vertices from the face nearest its sample."""
+    depth = np.zeros(len(samples))
+    bound = np.zeros(len(samples))
+    for surface in near:
+        distance, nearest = surface.distance(samples)
+        depth = np.maximum(depth, distance)
+        farthest = np.zeros(len(samples))
+        np.maximum.at(farthest, cells, surface.farthest(triangles, nearest[cells]))
+        bound = np.maximum(bound, farthest)
+    return depth, bound
+
+
+class _Surface:
+    """The triangles of a surface inside the box [lo, hi], to measure points against.
+
+    `distance` gives each point's distance to the nearest of them (inf without any) and which
+    one it is. The triangles are kept in classes about as wide (radius within a factor of 2),
+    each in a tree of its centers. A point's distance is at most `bound`, the nearest of the
+    triangles of the few nearest centers of each class; the nearest triangle's center is no
+    farther than the distance plus its radius, so only the centers of each class within the
+    bound plus its widest radius are measured: a cap of the surface around the nearest point,
+    whether its facets are fine or a few large ones."""
+
+    def __init__(self, triangles: np.ndarray, lo: np.ndarray, hi: np.ndarray):
+        self.triangles = _inside(triangles, lo, hi)
+        centers = self.triangles.mean(axis=1)
+        radius = np.linalg.norm(self.triangles - centers[:, None], axis=2).max(axis=1)
+        level = np.floor(np.log2(np.maximum(radius, 1e-6)))
+        self.classes = []
+        for each in np.unique(level):
+            index = np.nonzero(level == each)[0]
+            self.classes.append((cKDTree(centers[index]), index, float(radius[index].max())))
+
+    def distance(self, points: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        out = np.full(len(points), np.inf)
+        nearest = np.full(len(points), -1)
+        if not len(self.triangles):
+            return out, nearest
+        for tree, index, _ in self.classes:
+            k = min(4, len(index))
+            cols = tree.query(points, k=k)[1].reshape(len(points), k)
+            rows = np.repeat(np.arange(len(points)), k)
+            self._measure(points, rows, index[cols.reshape(-1)], out, nearest)
+        bound = out.copy()
+        for tree, index, widest in self.classes:
+            for i in range(0, len(points), 4096):
+                chunk = slice(i, i + 4096)
+                found = tree.query_ball_point(points[chunk], bound[chunk] + widest)
+                rows = np.repeat(np.arange(len(found)), [len(f) for f in found])
+                if len(rows):
+                    cols = index[np.fromiter(itertools.chain.from_iterable(found), int, len(rows))]
+                    self._measure(points[chunk], rows, cols, out[chunk], nearest[chunk])
+        return out, nearest
+
+    def farthest(self, triangles: np.ndarray, faces: np.ndarray) -> np.ndarray:
+        """How far the farthest vertex of each of `triangles` is from its face of `faces` (inf
+        for a face of -1: no surface near it)."""
+        out = np.full(len(triangles), np.inf)
+        known = faces >= 0
+        if known.any():
+            vertices = triangles[known].reshape(-1, 3)
+            closest = trimesh.triangles.closest_point(
+                np.repeat(self.triangles[faces[known]], 3, axis=0), vertices
+            )
+            out[known] = np.linalg.norm(closest - vertices, axis=1).reshape(-1, 3).max(axis=1)
         return out
-    centers = triangles.mean(axis=1)
-    radius = np.linalg.norm(triangles - centers[:, None], axis=2).max(axis=1)
-    step = max(1, 1_000_000 // len(triangles))
-    for i in range(0, len(points), step):
-        chunk = points[i : i + step]
-        to_center = np.linalg.norm(chunk[:, None] - centers[None], axis=2)
-        bound = (to_center + radius).min(axis=1)
-        rows, cols = np.nonzero(to_center - radius <= bound[:, None])
-        closest = trimesh.triangles.closest_point(triangles[cols], chunk[rows])
-        best = np.full(len(chunk), np.inf)
-        np.minimum.at(best, rows, np.linalg.norm(closest - chunk[rows], axis=1))
-        out[i : i + step] = best
-    return out
+
+    def _measure(self, points, rows, cols, out, nearest) -> None:
+        """Keeps, for each point of `rows`, the nearer of what it has and the triangles `cols`."""
+        closest = trimesh.triangles.closest_point(self.triangles[cols], points[rows])
+        distance = np.linalg.norm(closest - points[rows], axis=1)
+        order = np.lexsort((distance, rows))
+        first = order[np.r_[True, rows[order][1:] != rows[order][:-1]]]
+        better = distance[first] < out[rows[first]]
+        out[rows[first][better]] = distance[first][better]
+        nearest[rows[first][better]] = cols[first][better]
+
+
+def _inside(triangles: np.ndarray, lo: np.ndarray, hi: np.ndarray) -> np.ndarray:
+    """The triangles whose bounding box meets the box [lo, hi]."""
+    keep = np.all(triangles.max(axis=1) >= lo, axis=1) & np.all(triangles.min(axis=1) <= hi, axis=1)
+    return triangles[keep]
 
 
 def _split(triangles: np.ndarray) -> np.ndarray:
@@ -783,10 +1061,164 @@ def _split(triangles: np.ndarray) -> np.ndarray:
     )
 
 
-def _pose(motion: dict, value: float) -> np.ndarray:
-    if motion["kind"] == "rotate":
-        return rotation(motion["point"], motion["axis"], value)
-    return translation(motion["axis"], value)
+def _pose(movement: dict, value: float) -> np.ndarray:
+    """The 4 × 4 matrix of a rotation, slide or screw at `value` (degrees; mm for a slide)."""
+    if movement["kind"] == "slide":
+        return translation(movement["axis"], value)
+    matrix = rotation(movement["point"], movement["axis"], value)
+    if movement["kind"] == "screw":
+        matrix = translation(movement["axis"], movement["pitch_mm"] * value / 360) @ matrix
+    return matrix
+
+
+def _poses(motion: dict, value: float) -> dict[str, np.ndarray]:
+    """Where a motion at `value` takes each instance it moves: those it names by its own movement,
+    those it drives by theirs at its ratio (and then by the motion's, when it names them too)."""
+    own = _pose(motion, value)
+    out = {name: own for name in motion["instances"]}
+    for drive in motion.get("drives") or []:
+        matrix = _pose(drive, drive["ratio"] * value)
+        for name in drive["instances"]:
+            out[name] = out.get(name, np.eye(4)) @ matrix
+    return out
+
+
+def _step(motion: dict, names: dict) -> float:
+    """The step of a motion's sweep: no point of what it moves travels more than SWEEP_STEP_MM
+    or turns more than SWEEP_STEP_DEG in one, moved by the motion and by its drives."""
+    turn, travel = _speed(motion, names)
+    return min(
+        SWEEP_STEP_DEG / turn if turn else math.inf, SWEEP_STEP_MM / travel if travel else math.inf
+    )
+
+
+def _speed(motion: dict, names: dict) -> tuple[float, float]:
+    """The most a motion turns (degrees) and moves (mm) any point of what it moves, for each
+    degree (or mm) of the motion, by its own movement and by its drives."""
+    span = max(map(abs, motion["range"]))
+    turn = travel = 0.0  # the most, for each degree (or mm) of the motion
+    for name, inst in names.items():
+        vertices = inst["_mesh"].vertices
+        drive = next((d for d in motion.get("drives") or [] if name in d["instances"]), None)
+        t = d = shift = 0.0
+        if drive:
+            t, d, shift = _rates(drive, vertices, abs(drive["ratio"]), span)
+        if name in motion["instances"]:
+            own_t, own_d, _ = _rates(motion, vertices, 1.0, span, shift)
+            t, d = t + own_t, d + own_d
+        turn, travel = max(turn, t), max(travel, d)
+    return turn, travel
+
+
+def _stops(
+    motion: dict,
+    pairs: list[tuple[dict, dict]],
+    names: dict,
+    pressed: set,
+    ends: tuple[float, float],
+    step: float,
+    problems: list[str],
+) -> list[dict]:
+    """Each stop the motion declares: past that end of its range, before its fastest point has
+    moved STOP_TRAVEL_MM more, two instances collide (deeper than its flex, for a flex pair)."""
+    unit = " mm" if motion["kind"] == "slide" else "°"
+    past = STOP_TRAVEL_MM / max(_speed(motion, names)[1], 1e-9)
+    flex = {frozenset((f["a"], f["b"])): f["max_mm"] for f in motion.get("flex") or []}
+    rows = []
+    for at in motion["stops"]:
+        sign = 1.0 if at == ends[1] else -1.0
+        count = max(1, math.ceil(past / step))
+        values = at + sign * np.linspace(0.0, past, count + 1)[1:]
+        poses = [(float(v), _poses(motion, float(v))) for v in values]
+        hits = sorted(
+            _fits_left_out(_sweep(pairs, poses), pressed), key=lambda h: abs(h["pose"] - at)
+        )
+        stop = next((h for h in hits if _stops_it(h, flex, names)), None)
+        row: dict[str, Any] = {"at": at, "ok": stop is not None}
+        rows.append(row)
+        if stop:
+            row.update(after=round(abs(stop["pose"] - at), 3), by=[stop["moving"], stop["with"]])
+            continue
+        problems.append(
+            f"motion {motion['name']}: it does not stop at {at:g}{unit}: moved {past:.3g}{unit} "
+            f"past it ({STOP_TRAVEL_MM:g} mm for its fastest point), nothing is in its way. A "
+            "stop is a part in the way: past the end, the parts collide, deeper than any flex"
+        )
+    return rows
+
+
+def _rests(
+    motion: dict,
+    pairs: list[tuple[dict, dict]],
+    bent: set,
+    rides: list[float],
+    problems: list[str],
+) -> list[dict]:
+    """Each rest the motion declares: there, the pairs its flex names do not overlap (a detent in
+    its notch), and between it and the next rest they do somewhere (`rides`: the poses of the
+    sweep where they overlap; a gap no pose of the sweep falls in is swept at four more)."""
+    unit = " mm" if motion["kind"] == "slide" else "°"
+    label = f"motion {motion['name']}"
+    flexing = [p for p in pairs if frozenset((p[0]["name"], p[1]["name"])) in bent]
+    rests = motion["rests"]
+    held = _sweep(flexing, [(r, _poses(motion, r)) for r in rests])
+    rows = []
+    for k, at in enumerate(rests):
+        row: dict[str, Any] = {"at": at, "ok": True}
+        pressed = [h for h in held if abs(h["pose"] - at) <= 1e-3]  # poses: 3 decimals
+        if pressed:
+            worst = max(pressed, key=lambda h: h["volume_mm3"])
+            row.update(ok=False, overlap=[worst["moving"], worst["with"]])
+            problems.append(
+                f"{label}: at its rest {at:g}{unit}, {worst['moving']} and {worst['with']} "
+                f"overlap ({worst['thickness_mm']} mm thick): a detent rests free in its notch, "
+                "and rides over what it presses on only between rests"
+            )
+        if k + 1 < len(rests):
+            after = rests[k + 1]
+            clicks = any(at < pose < after for pose in rides)
+            if not clicks:
+                values = [float(v) for v in np.linspace(at, after, 6)[1:-1]]
+                clicks = bool(_sweep(flexing, [(v, _poses(motion, v)) for v in values]))
+            row["rides_to_next"] = clicks
+            if not clicks:
+                row["ok"] = False
+                problems.append(
+                    f"{label}: between its rests {at:g}{unit} and {after:g}{unit}, its flex rides "
+                    "over nothing, so nothing holds it at either: between two rests a detent "
+                    "rides over what it presses on, and drops into the next notch"
+                )
+        rows.append(row)
+    return rows
+
+
+def _stops_it(hit: dict, flex: dict, names: dict) -> bool:
+    """Whether a collision past a stop stops the motion: any, but a flex no deeper than its own."""
+    limit = flex.get(frozenset((hit["moving"], hit["with"])))
+    if limit is None:
+        return True
+    posed, other = (
+        trimesh.transform_points(
+            names[n]["_mesh"].triangles.reshape(-1, 3), hit["_matrices"][n]
+        ).reshape(-1, 3, 3)
+        for n in (hit["moving"], hit["with"])
+    )
+    return _flex_depth(hit, posed, other, limit)[0] > limit
+
+
+def _rates(
+    movement: dict, vertices: np.ndarray, ratio: float, span: float, shift: float = 0.0
+) -> tuple[float, float, float]:
+    """How many degrees a movement at `ratio` turns, and how many mm it moves the farthest of
+    the vertices (or of points `shift` away from them), for each unit of the motion; and how far
+    it takes one from where it was over a motion of `span` at most."""
+    if movement["kind"] == "slide":
+        return 0.0, ratio, ratio * span
+    radius = _radius(vertices, movement["point"], movement["axis"]) + shift
+    arc = radius * math.pi / 180  # mm of arc for each degree
+    advance = abs(movement.get("pitch_mm", 0.0)) / 360  # mm along the axis for each degree
+    shift = min(2 * radius, ratio * span * arc) + ratio * span * advance
+    return ratio, ratio * (arc + advance), shift
 
 
 def _assembly_order(
@@ -795,6 +1227,7 @@ def _assembly_order(
     names: dict,
     skip: set,
     pressed: set,
+    in_place: bool,
     out_dir: Path,
     problems,
 ) -> list[dict]:
@@ -806,6 +1239,13 @@ def _assembly_order(
             "instance, in order, with the direction it moves along as it comes in"
         )
         return []
+    if not in_place and len(steps[0]["instances"]) > 1:
+        # Parts that start out together were never put together: only a print does that.
+        problems.append(
+            f"assembly_order, step 1 places {', '.join(steps[0]['instances'])} together, and only "
+            "an assembly printed in place starts out in more than one part: start with one and "
+            "bring each of the others in along its direction"
+        )
     order = [n for s in steps for n in s["instances"]]
     every = [i["name"] for i in instances]
     repeated = sorted({n for n in order if order.count(n) > 1})
@@ -838,20 +1278,63 @@ def _assembly_order(
                     )
             elif against and moving:
                 turn = step.get("turn")
-                start = (
-                    rotation(turn["point"], turn["axis"], -turn["degrees"]) if turn else np.eye(4)
-                )
+                start = _pose(turn, -turn["degrees"]) if turn else np.eye(4)
                 meshes = [_transformed(m["_mesh"], start) for m in moving]
                 if ctx is None:
                     import moderngl
 
                     ctx = moderngl.create_context(standalone=True, backend="egl")
                 direction /= np.linalg.norm(direction)
+                flexes = step.get("flex") or []
+                keys = {n: (n in moving_names, -1) for n in names}
+                partners = {n for f in flexes for n in (f["a"], f["b"])}
+                # What snaps in comes in by steps, against what it flexes on; the rest, whole.
+                swept = [p for p in against if p["name"] in partners]
+                rigid = [p for p in against if p not in swept]
                 # A part pressed in place comes in straight; one that turns presses as it turns.
-                fits = {} if turn else _fits(moving, against, pressed)
+                fits = {} if turn else _fits(moving, rigid, pressed)
                 approach = blocked(
-                    ctx, meshes, [(p["name"], p["_mesh"]) for p in against], direction, fits
+                    ctx, meshes, [(p["name"], p["_mesh"]) for p in rigid], direction, fits
                 )
+                flexed: list[list[dict]] = []
+                if swept:
+                    span = _clear_after(meshes, swept, direction)
+                    count = min(SWEEP_MAX_STEPS, max(1, math.ceil(span / SWEEP_STEP_MM)))
+                    poses = [
+                        (float(v), {m["name"]: translation(direction, v) @ start for m in moving})
+                        for v in np.linspace(-span, 0.0, count + 1)
+                    ]
+                    hits = _fits_left_out(
+                        _sweep([(m, p) for m in moving for p in swept], poses), pressed
+                    )
+                    coming = {
+                        "name": f"step {k}",
+                        "kind": "slide",
+                        "label": f"assembly_order, step {k}",
+                    }
+                    rows_in, hits = _flexes(
+                        coming,
+                        flexes,
+                        hits,
+                        names,
+                        keys,
+                        (-span,) if turn else (-span, 0.0),
+                        out_dir,
+                        problems,
+                        touch=False,
+                    )
+                    flexed.append(rows_in)
+                    row["flex"] = rows_in
+                    if hits:
+                        row["ok"] = False
+                        worst = max(hits, key=lambda h: h["volume_mm3"])
+                        row["approach_collision"] = _public(worst)
+                        problems.append(
+                            f"assembly_order, step {k}: coming in along {_vec(direction)}, "
+                            f"{worst['moving']} hits {worst['with']} {-worst['pose']:g} mm before "
+                            f"it is in ({worst['volume_mm3']} mm³, {worst['thickness_mm']} mm "
+                            "thick): deeper than any flex it declares"
+                        )
                 if not approach["ok"]:
                     row["ok"] = False
                     free = [
@@ -880,25 +1363,52 @@ def _assembly_order(
                     )
                 if turn:
                     span = turn["degrees"]
-                    reach = max(
-                        _radius(m["_mesh"].vertices, turn["point"], turn["axis"]) for m in moving
-                    )
-                    step_deg = min(SWEEP_STEP_DEG, math.degrees(SWEEP_STEP_MM / max(reach, 1e-6)))
+                    motion = {**turn, "instances": step["instances"], "range": [-span, 0.0]}
+                    step_deg = _step(motion, {m["name"]: m for m in moving})
                     count = min(SWEEP_MAX_STEPS, max(1, math.ceil(abs(span) / step_deg)))
                     poses = [
-                        (float(a), rotation(turn["point"], turn["axis"], float(a)))
+                        (float(a), {m["name"]: _pose(turn, float(a)) for m in moving})
                         for a in np.linspace(-span, 0.0, count + 1)
                     ]
-                    hits = _fits_left_out(_sweep(moving, against, poses), pressed)
+                    pairs = [(m, p) for m in moving for p in against]
+                    hits = _fits_left_out(_sweep(pairs, poses), pressed)
+                    if flexes:
+                        turning = {
+                            **motion,
+                            "name": f"step {k}",
+                            "label": f"assembly_order, step {k}",
+                        }
+                        rows_turn, hits = _flexes(
+                            turning,
+                            flexes,
+                            hits,
+                            names,
+                            keys,
+                            (0.0,),
+                            out_dir,
+                            problems,
+                            touch=False,
+                        )
+                        flexed.append(rows_turn)
+                        row["turn_flex"] = rows_turn
                     row["turn_ok"] = not hits
                     if hits:
                         row["ok"] = False
                         worst = max(hits, key=lambda h: h["volume_mm3"])
                         row["turn_collision"] = _public(worst)
+                        verb = "screwing" if turn["kind"] == "screw" else "turning"
                         problems.append(
-                            f"assembly_order, step {k}: turning {span:g}° into place, "
+                            f"assembly_order, step {k}: {verb} {span:g}° into place, "
                             f"{worst['moving']} hits {worst['with']} {worst['pose']:g}° "
                             f"before the end ({worst['volume_mm3']} mm³)"
+                        )
+                for i, flex in enumerate(flexes):
+                    if not any(r[i]["poses"] for r in flexed):
+                        row["ok"] = False
+                        problems.append(
+                            f"assembly_order, step {k}: {flex['a']} and {flex['b']} never "
+                            "overlap as it comes in, so nothing snaps: a flex is a feature that "
+                            "rides over what it presses on. Make it meet that, or leave it out"
                         )
             rows.append(row)
             placed += moving
@@ -906,6 +1416,16 @@ def _assembly_order(
         if ctx is not None:
             ctx.release()
     return rows
+
+
+def _clear_after(meshes: list[trimesh.Trimesh], placed: list[dict], direction) -> float:
+    """How far back along `direction` the meshes start clear of what is placed: where their
+    bounding boxes, seen along it, no longer meet."""
+    ahead = max(float((trimesh.bounds.corners(m.bounds) @ direction).max()) for m in meshes)
+    behind = min(
+        float((trimesh.bounds.corners(p["_mesh"].bounds) @ direction).min()) for p in placed
+    )
+    return max(ahead - behind + 1.0, SWEEP_STEP_MM)
 
 
 _DEPTH_VS = """
@@ -1063,8 +1583,10 @@ def _transformed(mesh: trimesh.Trimesh, matrix: np.ndarray) -> trimesh.Trimesh:
     return out
 
 
-def _posed_mesh(instances: list[dict], matrix: np.ndarray) -> trimesh.Trimesh:
-    return trimesh.util.concatenate([_transformed(i["_mesh"], matrix) for i in instances])
+def _posed_mesh(instances: list[dict], matrices: dict[str, np.ndarray]) -> trimesh.Trimesh:
+    return trimesh.util.concatenate(
+        [_transformed(i["_mesh"], matrices.get(i["name"], np.eye(4))) for i in instances]
+    )
 
 
 def _box_gap(a: np.ndarray, b: np.ndarray) -> float:

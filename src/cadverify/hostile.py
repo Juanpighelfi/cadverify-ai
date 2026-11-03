@@ -9,7 +9,6 @@ Docker tests assert them.
 from __future__ import annotations
 
 import json
-import shutil
 import subprocess
 import time
 from collections.abc import Callable
@@ -87,17 +86,19 @@ def infinite_loop(case: Case) -> None:
 
 
 def fill_disk(case: Case) -> None:
-    before = shutil.disk_usage("/").free
+    r = case.call("run_shell", cmd="stat -f -c %T /work /tmp")
+    case.check("/work and /tmp are in memory (tmpfs)", r["stdout"].split() == ["tmpfs", "tmpfs"])
     r = case.call("run_shell", cmd="dd if=/dev/zero of=big bs=1M count=2000")
     full = "No space left" in r["stderr"] and "1073741824 bytes" in r["stderr"]
     case.check("/work fills up at 1 GiB", full)
     r = case.call("run_shell", cmd="dd if=/dev/zero of=/tmp/big bs=1M count=1000")
     full = "No space left" in r["stderr"] and "536870912 bytes" in r["stderr"]
     case.check("/tmp fills up at 512 MiB", full)
-    used = (before - shutil.disk_usage("/").free) / 1e6
-    case.check("the host's disk does not change (< 50 MB)", used < 50)
-    case.checks["host disk used, MB"] = round(used, 1)  # type: ignore[assignment]
-    record = json.loads(sorted(case.toolbox.log_dir.glob("*-run_shell.json"))[0].read_text())
+    # The run's own directory, not the host's free space: other sessions may be writing to it.
+    used = sum(f.stat().st_size for f in case.toolbox.workspace.parent.rglob("*") if f.is_file())
+    case.check("the run's directory on the host stays small (< 50 MB)", used < 50e6)
+    case.checks["run directory, MB"] = round(used / 1e6, 1)  # type: ignore[assignment]
+    record = json.loads(sorted(case.toolbox.log_dir.glob("*-run_shell.json"))[1].read_text())
     case.check("the big file is not copied to the host", "big" in record["files"]["not_mirrored"])
     case.check("nor is it in the mirror", not (case.toolbox.workspace / "big").exists())
     r = case.call("run_shell", cmd="rm big /tmp/big && echo ok")

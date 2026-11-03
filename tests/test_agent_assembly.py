@@ -471,14 +471,24 @@ def test_the_auditor_judges_a_close_whose_references_pass():
     request = model.audit_payloads[0]
     assert "tools" not in request and request["reasoning"] == {"effort": "medium"}
     assert "ADJUSTMENTS\n- (none)" in request["input"] and "CLOSE\nHolds" in request["input"]
+    assert request["input"].startswith("REQUEST\n(none)\n")
 
     model = FakeModel([])
     g8, _ = closing.judge(model, "Good. [[base]]", _state(True), [], "it05")
     assert g8 == {
         "ok": True,
         "detail": [],
-        "audit": {"unsupported": [], "untold_adjustments": []},
+        "audit": {"unsupported": [], "untold_adjustments": [], "unmeasured": []},
     }
+
+    # What the request asks for and the spec could declare, left unmeasured: the stress set's
+    # ratchet closed green with a pawl that never touched its wheel and no stop declared.
+    gap = {"requirement": "counterclockwise the pawl stops it", "how": "stops"}
+    model = FakeModel([], audits=[json.dumps({"unmeasured": [gap]})])
+    ratchet = "A ratchet: turned clockwise it clicks; counterclockwise the pawl stops it."
+    g8, _ = closing.judge(model, "Good. [[base]]", _state(True), [], "it05", request=ratchet)
+    assert g8["detail"] == ["requirement not measured: counterclockwise the pawl stops it: stops"]
+    assert model.audit_payloads[0]["input"].startswith(f"REQUEST\n{ratchet}\n\nVERIFIED\n")
 
     adjustments = [
         {"part": "lid", "text": "bodies from 4 to 2, the mesh measures 2 (the mesh is the same)"},
@@ -507,9 +517,11 @@ def test_parse_audit():
     assert closing.parse_audit('{"unsupported": ["a"], "untold_adjustments": []}') == {
         "unsupported": ["a"],
         "untold_adjustments": [],
+        "unmeasured": [],
     }
-    assert closing.parse_audit("{}") == {"unsupported": [], "untold_adjustments": []}
-    for bad in ("", "[1]", '{"unsupported": [1]}', "{no"):
+    empty = {"unsupported": [], "untold_adjustments": [], "unmeasured": []}
+    assert closing.parse_audit("{}") == empty
+    for bad in ("", "[1]", '{"unsupported": [1]}', '{"unmeasured": "stops"}', "{no"):
         assert closing.parse_audit(bad) is None
 
 

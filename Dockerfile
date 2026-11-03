@@ -56,6 +56,7 @@ RUN uv sync --locked --no-editable
 RUN useradd --uid 1000 --create-home cadverify
 ENV PATH=/opt/venv/bin:$PATH \
     OPENSCAD_BIN=/usr/local/bin/openscad \
+    OPENSCADPATH=/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/standard \
     CADVERIFY_SANDBOX=1 \
     MPLCONFIGDIR=/tmp/matplotlib
 USER cadverify

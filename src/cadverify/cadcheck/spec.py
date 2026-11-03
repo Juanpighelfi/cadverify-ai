@@ -31,16 +31,36 @@ The assembly (`part = "assembly"`) declares instead, in assembly coordinates
     ["allowed_interferences", [["pin_right", "arm_top", "press fit"]]],
     ["motions", [["hinge", ["lid"], "rotate", [x, y, z], [ax, ay, az], [0, 90]],
                  ["drawer", ["tray"], "slide", [dx, dy, dz], [0, 30],
-                  ["flex", [["tray", "body", 0.5, "the detent bump rides over the stop"]]]]]],
+                  ["flex", [["tray", "body", 0.5, "the detent bump rides over the ridge"]]],
+                  ["stops", [0, 30]]],
+                 ["open", ["cap"], "screw", [x, y, z], [ax, ay, az], 3, [0, -720]],
+                 ["crank", ["sun"], "rotate", [x, y, z], [ax, ay, az], [0, 360],
+                  ["drives", [[["planet"], "rotate", [x, y, z], [ax, ay, az], -0.5]]]],
+                 ["dial", ["lid"], "rotate", [x, y, z], [ax, ay, az], [0, 360],
+                  ["flex", [["lid", "base", 0.4, "the bump clicks into each notch"]]],
+                  ["rests", [0, 90, 180, 270, 360]]]]],
     ["assembly_order", [[["base"], [0, 0, 0]],
                         [["insert"], [0, 0, -1]],
-                        [["lid"], [0, 0, 1], ["rotate", [x, y, z], [ax, ay, az], 90]]]],
+                        [["lid"], [0, 0, 1], ["rotate", [x, y, z], [ax, ay, az], 90]],
+                        [["cap"], [0, 0, -1], ["screw", [x, y, z], [ax, ay, az], 3, -720]],
+                        [["cover"], [0, 0, -1], ["flex", [["cover", "base", 0.6, "snaps on"]]]]]],
     ["print_in_place", 0.3],
     ["print_pose", [["hinge", 180]]],
-    ["overhangs_allowed", [["pin underside", [[x, y, z], [x, y, z]]]]]
+    ["overhangs_allowed", [["pin underside", [[x, y, z], [x, y, z]]]]],
+    ["held", ["lid"]]
 
 A motion's `flex` lets two instances overlap while it moves, up to that many mm deep: an elastic
-feature (a detent, a snap) that deflects and springs back. `print_in_place` says the assembly is
+feature (a detent, a snap) that deflects and springs back; an assembly step's `flex` does the
+same for what snaps in as it is put together. A `screw` turns and advances along its
+axis, pitch mm for every turn of 360° (right hand rule; a left-hand thread has a negative pitch).
+A motion `drives` other instances with it, each group by its own rotation or slide, that many
+degrees or mm for each degree (or mm) of the motion: gears, a rack and its pinion. A driven
+instance the motion also moves turns on its own axis and is carried by the motion (a planet on
+its carrier). A motion `stops` at an end of its range when a part is in the way there (a drawer
+that does not come out, the way a ratchet does not turn), and `rests` where a detent holds it (a
+lid that clicks at each day): its flex is free there and rides over something between two rests.
+`held` names the instances that do not
+come off the assembly moving straight (a lid snapped on). `print_in_place` says the assembly is
 printed whole, every part at once, with that clearance or more between any two of them; only
 then does the assembly have `overhangs_allowed`, for the print of the whole. It prints as it
 stands, or in its `print_pose`: motions at a value of their range, applied in order (a box
@@ -81,8 +101,9 @@ ASSEMBLY_KEYS = {
     "print_in_place",
     "print_pose",
     "overhangs_allowed",
+    "held",
 }
-MOTIONS = ("rotate", "slide")
+MOTIONS = ("rotate", "slide", "screw")
 # An undercut deeper than this on a printed part is a crash more often than a snap.
 FLEX_MAX_MM = 1.0
 # Closer than this, two parts printed together fuse on a common FDM printer (0.4 mm nozzle).
@@ -242,50 +263,83 @@ def _assembly_keys(pairs: dict[str, Any]) -> dict[str, Any]:
     motions = []
     for item in _list(pairs.get("motions", []), "motions"):
         usage = (
-            'motions: ["name", ["instance", ...], "rotate", point, axis, [from, to]] (degrees) '
-            'or ["name", ["instance", ...], "slide", direction, [from, to]] (mm), each with '
-            'an optional ["flex", [["instance", "instance", mm, "reason"], ...]] at the end'
+            'motions: ["name", ["instance", ...], "rotate", point, axis, [from, to]] (degrees), '
+            '["name", ["instance", ...], "slide", direction, [from, to]] (mm) or '
+            '["name", ["instance", ...], "screw", point, axis, pitch_mm, [from, to]] (degrees), '
+            'each with an optional ["flex", [["instance", "instance", mm, "reason"], ...]], '
+            'an optional ["drives", [[["instance", ...], "rotate", point, axis, ratio] or '
+            '[["instance", ...], "slide", direction, ratio], ...]], an optional '
+            '["stops", [value, ...]] and an optional ["rests", [value, ...]] at the end'
         )
         if not (isinstance(item, list) and len(item) >= 5 and isinstance(item[0], str)):
             raise SpecError(f"{usage}; got {item!r}")
         name, moving, kind = item[0], _names(item[1], f"motions {item[0]!r}"), item[2]
         where = f"motions {name!r}"
-        if kind == "rotate" and len(item) in (6, 7):
-            motion = {
-                "point": _vector(item[3], where),
-                "axis": _direction(item[4], where),
-                "range": _range(item[5], where),
-            }
-            extra = item[6:]
-        elif kind == "slide" and len(item) in (5, 6):
-            motion = {"axis": _direction(item[3], where), "range": _range(item[4], where)}
-            extra = item[5:]
-        else:
+        size = _size(item, 2, {"rotate": 6, "slide": 5, "screw": 7})
+        if size is None or len(item) < size:
             raise SpecError(f"{usage}; got {item!r}")
-        motion["flex"] = _flex(extra[0], where) if extra else []
+        motion = _movement([kind, *item[3 : size - 1]], where)
+        motion["range"] = _range(item[size - 1], where)
+        options = {"flex": _flex, "drives": _drives, "stops": _stops, "rests": _rests}
+        found: dict[str, Any] = {}
+        for option in item[size:]:
+            key = option[0] if isinstance(option, list) and option else None
+            if key not in options or key in found:
+                raise SpecError(f"{usage}; got {item!r}")
+            found[key] = options[key](option, where)
+        motion["flex"] = found.get("flex", [])
+        motion["drives"] = found.get("drives", [])
+        motion["stops"] = found.get("stops", [])
+        motion["rests"] = found.get("rests", [])
+        ends = min(0.0, motion["range"][0]), max(0.0, motion["range"][1])
+        for value in motion["stops"]:
+            if not any(abs(value - e) < 1e-9 for e in ends):
+                raise SpecError(
+                    f"{where}: a stop is an end of the range it sweeps, {ends[0]:g} or "
+                    f"{ends[1]:g}; got {value:g}"
+                )
+        outside = [v for v in motion["rests"] if not ends[0] - 1e-9 <= v <= ends[1] + 1e-9]
+        if outside:
+            raise SpecError(
+                f"{where}: a rest is a value of the range it sweeps, {ends[0]:g} to {ends[1]:g}; "
+                f"got {outside[0]:g}"
+            )
+        if motion["rests"] and not motion["flex"]:
+            raise SpecError(
+                f"{where}: rests are where a detent holds the motion, so it needs the flex that "
+                "rides over something between them"
+            )
+        driven = [n for d in motion["drives"] for n in d["instances"]]
+        if len(set(driven)) < len(driven):
+            raise SpecError(f"{where}: an instance it drives is in one group of its drives only")
         motions.append({"name": name, "instances": moving, "kind": kind, **motion})
     steps = []
     for item in _list(pairs.get("assembly_order", []), "assembly_order"):
         usage = (
             'assembly_order: each step is [["instance", ...], direction it moves along as it '
             'comes in] or, if it turns after it comes in, [["instance", ...], direction, '
-            '["rotate", point, axis, degrees]]'
+            '["rotate", point, axis, degrees]] or [["instance", ...], direction, '
+            '["screw", point, axis, pitch_mm, degrees]], with an optional ["flex", '
+            '[["instance", "instance", mm, "reason"], ...]] at the end for what snaps in'
         )
-        if not (isinstance(item, list) and len(item) in (2, 3)):
+        if not (isinstance(item, list) and len(item) in (2, 3, 4)):
             raise SpecError(f"{usage}; got {item!r}")
         where = f"assembly_order {item[0]!r}"
         step = {"instances": _names(item[0], where), "direction": _vector(item[1], where)}
-        if len(item) == 3:
-            turn = item[2]
-            if not (isinstance(turn, list) and len(turn) == 4 and turn[0] == "rotate"):
+        rest = item[2:]
+        if rest and isinstance(rest[-1], list) and rest[-1][:1] == ["flex"]:
+            step["flex"] = _flex(rest[-1], where)
+            rest = rest[:-1]
+        if len(rest) > 1:
+            raise SpecError(f"{usage}; got {item!r}")
+        if rest:
+            turn = rest[0]
+            size = _size(turn, 0, {"rotate": 4, "screw": 5})
+            if not (size and len(turn) == size):
                 raise SpecError(f"{usage}; got {item!r}")
-            if not _number(turn[3]):
+            if not _number(turn[-1]):
                 raise SpecError(f"{where}: the turn is a number of degrees")
-            step["turn"] = {
-                "point": _vector(turn[1], where),
-                "axis": _direction(turn[2], where),
-                "degrees": float(turn[3]),
-            }
+            step["turn"] = {**_movement(turn[:-1], where), "degrees": float(turn[-1])}
         steps.append(step)
     in_place = pairs.get("print_in_place")
     if in_place is not None:
@@ -296,6 +350,7 @@ def _assembly_keys(pairs: dict[str, Any]) -> dict[str, Any]:
                 f"from {lo} to {hi} mm (closer, they fuse); got {in_place!r}"
             )
         in_place = {"min_gap_mm": float(in_place)}
+    held = _names(pairs["held"], "held") if "held" in pairs else []
     pose = _print_pose(pairs.get("print_pose", []), motions)
     if pose and in_place is None:
         raise SpecError(
@@ -307,6 +362,7 @@ def _assembly_keys(pairs: dict[str, Any]) -> dict[str, Any]:
         "assembly_order": steps,
         "print_in_place": in_place,
         "print_pose": pose,
+        "held": held,
     }
 
 
@@ -333,6 +389,83 @@ def _print_pose(value: Any, motions: list[dict[str, Any]]) -> list[dict[str, Any
             )
         out.append({"motion": item[0], "value": float(item[1])})
     return out
+
+
+def _size(item: Any, index: int, sizes: dict[str, int]) -> int | None:
+    """How long `item` is for the kind of movement named at `index`, None for no such kind."""
+    if not (isinstance(item, list) and len(item) > index and isinstance(item[index], str)):
+        return None
+    return sizes.get(item[index])
+
+
+def _movement(item: list, where: str) -> dict[str, Any]:
+    """One rotation (point, axis), slide (direction) or screw (point, axis, pitch), as a motion
+    and an assembly step's turn declare it, without its range."""
+    kind = item[0]
+    if kind == "slide":
+        return {"kind": kind, "axis": _direction(item[1], where)}
+    movement = {"kind": kind, "point": _vector(item[1], where), "axis": _direction(item[2], where)}
+    if kind == "screw":
+        if not (_number(item[3]) and item[3] != 0):
+            raise SpecError(
+                f"{where}: the pitch of a screw is the mm it advances along its axis for each "
+                f"turn, not zero (negative for a left-hand thread); got {item[3]!r}"
+            )
+        movement["pitch_mm"] = float(item[3])
+    return movement
+
+
+def _drives(value: Any, where: str) -> list[dict[str, Any]]:
+    """The instances a motion drives, each group by its own rotation or slide at a ratio."""
+    usage = (
+        f'{where}: drives is ["drives", [[["instance", ...], "rotate", point, axis, ratio], '
+        '[["instance", ...], "slide", direction, ratio], ...]], with ratio the degrees (or mm) '
+        "they move for each degree (or mm) of the motion"
+    )
+    if not (isinstance(value, list) and len(value) == 2 and value[0] == "drives"):
+        raise SpecError(f"{usage}; got {value!r}")
+    out = []
+    for item in _list(value[1], where):
+        size = _size(item, 1, {"rotate": 5, "slide": 4})
+        if not (size and len(item) == size and _number(item[-1]) and item[-1] != 0):
+            raise SpecError(f"{usage}; got {item!r}")
+        drive = _movement(item[1:-1], where)
+        out.append({"instances": _names(item[0], where), **drive, "ratio": float(item[-1])})
+    return out
+
+
+def _stops(value: Any, where: str) -> list[float]:
+    """The ends of a motion's range where something stops it."""
+    if not (
+        isinstance(value, list)
+        and len(value) == 2
+        and value[0] == "stops"
+        and isinstance(value[1], list)
+        and value[1]
+        and all(map(_number, value[1]))
+    ):
+        raise SpecError(
+            f'{where}: stops is ["stops", [value, ...]], the ends of its range where a part stops '
+            f"it; got {value!r}"
+        )
+    return sorted({float(v) for v in value[1]})
+
+
+def _rests(value: Any, where: str) -> list[float]:
+    """The values of a motion's range where a detent holds it (a lid that clicks at each day)."""
+    if not (
+        isinstance(value, list)
+        and len(value) == 2
+        and value[0] == "rests"
+        and isinstance(value[1], list)
+        and value[1]
+        and all(map(_number, value[1]))
+    ):
+        raise SpecError(
+            f'{where}: rests is ["rests", [value, ...]], the values of its range where a detent '
+            f"holds it; got {value!r}"
+        )
+    return sorted({float(v) for v in value[1]})
 
 
 def _flex(value: Any, where: str) -> list[dict[str, Any]]:

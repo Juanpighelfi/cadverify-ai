@@ -9,9 +9,11 @@ Two checks, in order:
 - the auditor, only when the rest is green: a model without tools (muse-wonder-1.0 unless the
   session names another one) reads the close against a summary of what was verified and
   the spec adjustments the harness flagged (agent/spec_history.py), and lists the claims
-  presented as verified that nothing verified backs, and the adjustments the close does not
-  tell. One retry when its answer is not the JSON asked for; after that the close passes,
-  marked as not audited.
+  presented as verified that nothing verified backs, the adjustments the close does not tell,
+  and what the user's request asks for that the harness measures once declared (a stop, a
+  detent's rests, a held part, a standard part) and the design did not have measured. One
+  retry when its answer is not the JSON asked for; after that the close passes, marked as not
+  audited.
 """
 
 from __future__ import annotations
@@ -29,12 +31,13 @@ AUDIT_MAX_OUTPUT = 16_000
 MAX_SUMMARY_CHARS = 60_000
 
 AUDIT_INSTRUCTIONS = """You audit the close of a design session for 3D printing in OpenSCAD. \
-The harness verified the final version of the design and gives you, in JSON, what it measured \
-(VERIFIED) and the spec adjustments it detected: changes of the spec towards what the mesh \
-already measured, without the part changing (ADJUSTMENTS). Read the designer's CLOSE and answer \
-only with a JSON object, with no text before or after it:
+You get the user's REQUEST. The harness verified the final version of the design and gives you, \
+in JSON, what it measured (VERIFIED) and the spec adjustments it detected: changes of the spec \
+towards what the mesh already measured, without the part changing (ADJUSTMENTS). Read the \
+designer's CLOSE and answer only with a JSON object, with no text before or after it:
 {"unsupported": [{"claim": "...", "reason": "..."}], \
-"untold_adjustments": [{"adjustment": "...", "reason": "..."}]}
+"untold_adjustments": [{"adjustment": "...", "reason": "..."}], \
+"unmeasured": [{"requirement": "...", "how": "..."}]}
 - unsupported: every claim the close presents as verified (measured, checked, that it meets, \
 that it fits, that it does not collide, that it goes in, that it prints without supports) that \
 VERIFIED does not back: it is not there, it says something else or the numbers do not match. \
@@ -42,9 +45,28 @@ Leave out: what the close states as not verified, an opinion, an intention, or a
 the design that does not claim to have been checked.
 - untold_adjustments: every part of ADJUSTMENTS whose adjustments the close does not mention \
 with their reason (one mention per part saying what was adjusted and why is enough).
+- unmeasured: every requirement of the REQUEST about how the product moves or what it fits \
+that VERIFIED does not show measured (the close leaves it not verified, or leaves it out), when \
+one of these declarations has the harness measure it; "how" names it: stops (a part that stops \
+a motion at an end of its range: a drawer that does not come out, a hinge that opens to 110°, \
+the way a ratchet does not turn), rests (a detent that holds a motion at given positions: a lid \
+that clicks at each step), flex (a snap or a detent that bends while a part moves or as it goes \
+in), held (a part that must not come off the assembled product, kept on by its shape: a lip, \
+a cap, a snap), screw (a thread printed on the parts, such as a jar and its cap; not a bought \
+screw or bolt), drives (gears or a rack that turn each other), print_in_place (separate parts \
+printed already assembled, apart from each other), standard (the fit of one of these four \
+bought parts, and no other: a Raspberry Pi 4 Model B board, a 608 bearing, an AA cell, an M3 \
+nut). Leave out sizes, walls, holes and other features (the designer's own spec measures \
+those), a part that must not move at all (a keyed or glued joint, a part that must not spin), \
+a part kept on by friction (a set screw, a press fit), bought screws and bolts, a single part \
+that bends (a living hinge), and what no declaration measures (strength, stiffness, feel, \
+friction, wear, looks, the material, the printer).
 Empty lists if there is nothing to object to. Be precise: quote the claim as it is written."""
 
-AUDIT_REQUEST = """VERIFIED
+AUDIT_REQUEST = """REQUEST
+{request}
+
+VERIFIED
 {verified}
 
 ADJUSTMENTS
@@ -161,6 +183,7 @@ def summary(state: dict[str, Any]) -> dict[str, Any]:
             "units": assembly.get("units"),
             "copies": assembly.get("copies"),
             "spec_check": assembly.get("spec_check"),
+            "held": assembly.get("held"),
             "motions": assembly.get("motions"),
             "assembly_steps": assembly.get("assembly_steps"),
             "print_in_place": assembly.get("print_in_place"),
@@ -186,6 +209,7 @@ def parse_audit(text: str) -> dict[str, list[str]] | None:
     for key, fields in (
         ("unsupported", ("claim", "reason")),
         ("untold_adjustments", ("adjustment", "reason")),
+        ("unmeasured", ("requirement", "how")),
     ):
         items = data.get(key, [])
         if not isinstance(items, list):
@@ -209,8 +233,10 @@ def judge(
     adjustments: list[dict[str, Any]],
     label: str,
     model: str = MODEL,
+    request: str = "",
 ) -> tuple[dict[str, Any], list]:
-    """G8 of a close, and the auditor's API calls (to count their cost); `model` audits."""
+    """G8 of a close, and the auditor's API calls (to count their cost); `model` audits, and
+    reads the close against the user's `request` too."""
     problems = reference_problems(text, state)
     if problems:
         return {"ok": False, "detail": problems}, []
@@ -225,7 +251,10 @@ def judge(
         model=model,
         instructions=AUDIT_INSTRUCTIONS,
         input=AUDIT_REQUEST.format(
-            verified=verified, adjustments="\n".join(f"- {a}" for a in flagged), close=text
+            request=request.strip() or "(none)",
+            verified=verified,
+            adjustments="\n".join(f"- {a}" for a in flagged),
+            close=text,
         ),
         reasoning={"effort": AUDIT_EFFORT},
         max_output_tokens=AUDIT_MAX_OUTPUT,
@@ -239,6 +268,7 @@ def judge(
             continue
         detail = [f"unsupported claim: {a}" for a in audit["unsupported"]]
         detail += [f"spec adjustment not told: {a}" for a in audit["untold_adjustments"]]
+        detail += [f"requirement not measured: {a}" for a in audit["unmeasured"]]
         return {"ok": not detail, "detail": detail, "audit": audit}, calls
     return {
         "ok": True,

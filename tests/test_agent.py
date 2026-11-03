@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 
 from cadverify import summary
-from cadverify.agent import gates, prompts
+from cadverify.agent import gates, loop, prompts
 from cadverify.agent.loop import Limits, requests_left, run_session, wrap_up_notice
 from cadverify.agent.prompts import CLOSE_REJECTED
 from cadverify.agent.sandbox import Sandbox
@@ -469,6 +469,9 @@ def test_tool_errors_go_back_to_the_model(toolbox):
     assert "Unknown tool" in toolbox.call("cad_magic", "{}", 1)[0]["error"]
     assert "Invalid arguments" in toolbox.call("mesh_report", _args(path="x"), 1)[0]["error"]
     assert "Invalid arguments" in toolbox.call("run_shell", "{}", 1)[0]["error"]
+    error = toolbox.call("render_view", _args(view="iso"), 1)[0]["error"]
+    assert "render_view takes " in error and "view is not one of them" in error
+    assert "it needs cmd" in toolbox.call("run_shell", "{}", 1)[0]["error"]
 
 
 def test_printability_gets_the_declared_zones_of_its_export(toolbox):
@@ -598,11 +601,14 @@ class FakeModel:
 
     The auditor's requests (agent/closing.py) take their answers from `audits`, a clean audit
     when it runs out, and are kept apart in `audit_payloads`. `lose` lists request numbers whose
-    previous_response_id the server no longer has, and `lose_then_fail` the ones where it says so
-    on every chained retry and then fails with a 500.
+    previous_response_id the server no longer has, `lose_then_fail` the ones where it says so
+    on every chained retry and then fails with a 500, and `fail_chained` the ones that fail with
+    a 500 on every attempt while chained.
     """
 
-    def __init__(self, script, cost_tokens=1000, lose=(), lose_then_fail=(), audits=()):
+    def __init__(
+        self, script, cost_tokens=1000, lose=(), lose_then_fail=(), fail_chained=(), audits=()
+    ):
         self.script = list(script)
         self.payloads = []
         self.audits = list(audits)
@@ -610,6 +616,7 @@ class FakeModel:
         self.cost_tokens = cost_tokens
         self.lose = set(lose)
         self.lose_then_fail = set(lose_then_fail)
+        self.fail_chained = set(fail_chained)
 
     def responses(self, label, **payload):
         if "-audit" in label:
@@ -625,6 +632,10 @@ class FakeModel:
             failed = {"type": "server_error", "message": "internal server error"}
             attempts = [{"attempt": n, "status_code": 400, "error": error} for n in (1, 2, 3)]
             attempts.append({"attempt": 4, "status_code": 500, "error": failed})
+            return ApiCall(label, 500, {"error": failed}, latency_s=0.1, attempts=attempts)
+        if len(self.payloads) in self.fail_chained and chained:
+            failed = {"type": "server_error", "message": "internal server error"}
+            attempts = [{"attempt": n, "status_code": 500, "error": failed} for n in (1, 2, 3, 4)]
             return ApiCall(label, 500, {"error": failed}, latency_s=0.1, attempts=attempts)
         step = self.script.pop(0)
         if callable(step):
@@ -747,6 +758,16 @@ def test_a_lost_response_is_resent_even_when_the_last_retry_fails_otherwise(tool
     assert "previous_response_id" not in model.payloads[2]
 
 
+def test_a_chained_request_that_fails_on_every_attempt_is_resent_whole(toolbox, tmp_path):
+    # A stress-set session got four 500s in a row on a chained request and ended.
+    model = FakeModel([WRITE, EXPORT, "Done."], fail_chained={2})
+    session = run_session(model, toolbox, "request", Limits(), tmp_path)
+    assert session["status"] == "green"
+    assert session["iterations"][1]["lost_previous_response"]["status_code"] == 500
+    assert "previous_response_id" not in model.payloads[2]
+    assert model.payloads[3]["previous_response_id"] == "resp_3"  # chained again
+
+
 def test_the_summary_of_a_session(tmp_path):
     script = [
         [("run_python", {"code": "write measure.txt trimesh volume 1000"})],
@@ -865,6 +886,20 @@ def test_a_rejected_close_near_the_end_says_so(toolbox, tmp_path):
     assert session["iterations"][1]["wrap_up_notice"].startswith("You have one request left")
 
 
+def test_the_last_request_is_announced_once(toolbox, tmp_path, monkeypatch):
+    # A close is quicker than the average request, so the estimate may find one left again.
+    monkeypatch.setattr(loop, "requests_left", lambda *args: 1)
+    model = FakeModel([WRITE, "Done.", "Done."])
+    limits = Limits(max_requests=3, wrap_up_requests=5)
+    session = run_session(model, toolbox, "request", limits, tmp_path)
+    first, second = (it["wrap_up_notice"] for it in session["iterations"][:2])
+    assert first.startswith("You have one request left")
+    assert session["iterations"][1]["close"] == "rejected"
+    assert second.startswith("About 1 request of the session is left: 2 of 3 done")
+    assert "look at it, verify the assembly if there is one, and close" in second
+    assert model.payloads[2]["input"].endswith(second)
+
+
 def test_requests_left_at_the_session_average():
     limits = Limits(max_requests=150, max_cost_usd=12.0, max_wall_s=5400.0)
     assert requests_left(limits, 80, 7.42, 4203.0) == 22  # time: 1197 s left at 52.5 s each
@@ -872,5 +907,9 @@ def test_requests_left_at_the_session_average():
     assert requests_left(limits, 145, 1.0, 100.0) == 5  # the request limit
     assert requests_left(limits, 0, 0.0, 0.0) == 150
     assert requests_left(limits, 100, 12.5, 100.0) == 0
+    # A long first request: 5 min of 60, USD 0.01 of 1, is no measure of the next ones.
+    first = Limits(max_requests=100, max_cost_usd=1.0, max_wall_s=3600.0)
+    assert requests_left(first, 1, 0.01, 330.0) == 99
+    assert requests_left(first, 30, 0.3, 2400.0) == 15  # past half the time: 1200 s at 80 s each
     assert wrap_up_notice(Limits(), 24, 0.1, 1.0) is None  # not asked for
     assert wrap_up_notice(Limits(max_requests=4, wrap_up_requests=2), 4, 0.1, 1.0) is None

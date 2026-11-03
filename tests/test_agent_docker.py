@@ -198,5 +198,9 @@ def test_an_assembly_closes_green(tmp_path):
     assert [image["tool"] for image in sheets] == ["scad_export", "scad_export"]
     for image in sheets:
         assert (tmp_path / "workspace" / "renders" / f"sheet-{image['seq']:03d}.png").exists()
-    assert session["audits"][-1]["g8"]["audit"] == {"unsupported": [], "untold_adjustments": []}
+    assert session["audits"][-1]["g8"]["audit"] == {
+        "unsupported": [],
+        "untold_adjustments": [],
+        "unmeasured": [],
+    }
     assert len(model.audit_payloads) == 1

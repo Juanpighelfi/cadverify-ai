@@ -208,6 +208,23 @@ def test_printability_measures_each_flat_ceiling_as_a_bridge(tmp_path):
     assert held_plate["farthest_mm"] == 0.0
 
 
+def test_overhang_faces_that_share_no_edge_are_zones_of_their_own():
+    from cadverify.cadcheck.printability import _zones
+
+    box = trimesh.creation.box((10, 10, 10))
+    top, bottom = (
+        np.flatnonzero(box.face_normals[:, 2] > 0.9)[0],
+        np.flatnonzero(box.face_normals[:, 2] < -0.9)[0],
+    )
+    selected = np.zeros(len(box.faces), bool)
+    selected[[top, bottom]] = True
+    zones = _zones(box, selected)
+    assert sorted(int(z[0]) for z in zones) == sorted([int(top), int(bottom)])
+    assert all(isinstance(z, np.ndarray) and z.dtype.kind == "i" for z in zones)
+    angle = np.zeros(len(box.faces))
+    assert zones[0][angle[zones[0]] >= 0].tolist() == zones[0].tolist()  # indexable by a mask
+
+
 def test_printability_measures_the_part_of_an_overhang_steeper_than_60_degrees(tmp_path):
     def ledge(degrees, out):  # a wall with a ledge whose underside rises `degrees` from vertical
         rise = out / np.tan(np.radians(degrees))
