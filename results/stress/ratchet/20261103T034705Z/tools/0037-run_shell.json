@@ -1,0 +1,37 @@
+{
+  "seq": 37,
+  "iteration": 27,
+  "name": "run_shell",
+  "arguments": {
+    "cmd": "python3 -c \"\nimport trimesh, numpy as np, math\nw=trimesh.load('checks/assembly/model.assembly.1d428528.stl')\nb=trimesh.load('checks/assembly/model.assembly.57cfb177.stl')\n# check for coincident-plane issues: finger top at z=10, wheel top z=10. top faces coplanar!\nprint('wheel z range', w.bounds[:,2], 'base finger top 10')\n# The wheel top face z=10 coincides with finger top z=10 and post top z=14? post taller.\n# Coplanar top faces could confuse boolean? shouldn't.\n# Check volumes of rotated instance boolean via trimesh (use manifold engine through trimesh?)\n# Try trimesh boolean with 'manifold' engine on rotated copies\nwr=w.copy()\nM=np.eye(4)  # identity: overlap at 0 should be ~0 (touching at post only?)\nprint('identity boolean test:')\ntry:\n    inter=w.intersection(b)\n    print('trimesh intersection vol', inter.volume if hasattr(inter,'volume') else 'none')\nexcept Exception as e:\n    print('fail', e)\n# distance: from wheel teeth to finger - compute min distance between meshes via nearest vertex\nfrom scipy.spatial import cKDTree\ntree=cKDTree(b.vertices)\nd,_=tree.query(np.asarray(w.vertices))\nprint('min vertex dist identity:', d.min())\n# rotate wheel -17 deg about z=4 axis\na=math.radians(-17)\nT=np.eye(4); c,s=math.cos(a),math.sin(a)\nT[:3,:3]=np.array([[c,-s,0],[s,c,0],[0,0,1]])\nT[:3,3]=np.array([0,0,4])-T[:3,:3]@[0,0,4]\nw2=w.copy(); w2.apply_transform(T)\nd2,_=cKDTree(b.vertices).query(np.asarray(w2.vertices))\nprint('min vertex dist at -17:', d2.min())\nprint('wheel verts near finger:', (np.asarray(w2.vertices)[:,0]>23).sum())\nv=np.asarray(w2.vertices); bv=np.asarray(b.vertices)\nprint('wheel near-finger verts:', v[v[:,0]>23][:10])\n\"\n",
+    "timeout_s": 120.0
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 1.173,
+    "stdout": "wheel z range [ 4. 10.] base finger top 10\nidentity boolean test:\ntrimesh intersection vol 0.0\nmin vertex dist identity: 0.3003734878429219\nmin vertex dist at -17: 0.3422422950199587\nwheel verts near finger: 2\nwheel near-finger verts: [[24.9983077   0.29088166  4.        ]\n [24.9983077   0.29088166 10.        ]]\n",
+    "stderr": "/opt/venv/lib/python3.12/site-packages/trimesh/triangles.py:302: RuntimeWarning: invalid value encountered in divide\n  center_mass = integrated[1:4] / volume\n",
+    "stdout_bytes": 314,
+    "stderr_bytes": 158,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 1.755,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "a1c3e6cd649abb7e"
+}

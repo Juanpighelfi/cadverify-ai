@@ -1,0 +1,32 @@
+{
+  "seq": 13,
+  "iteration": 15,
+  "name": "scad_write",
+  "arguments": {
+    "content": "// Storage jar with screw-on lid. Units mm. Print orientation: +Z up, base on bed.\npart = \"jar\"; // [jar, lid, assembly]\n\nr_in = 30; depth_in = 70; wall = 2.4; floor_h = 3;\nP = 4.5; th_h = 1.0; tip_w = 1.6; flank = 50; clr = 0.3;\nband_turns = 1.5; bandH = P * band_turns;\nmale_top = 71; male_z0 = male_top - bandH;\ncotf = 1 / tan(flank);\ntipH = tip_w / 2; wBot = tip_w / 2 + th_h * cotf; wTop = tip_w / 2;\n\nr_out = r_in + wall; Hj = floor_h + depth_in;\nrMm = r_out; rMM = r_out + th_h;\nrFm = rMm + clr; rFM = rMM + clr;\nrSk = rFM + wall; ribR = rSk + 0.8;\nlidH = 18; tzA = Hj + floor_h;\nfem_z0 = (tzA - male_top - bandH) + 0.3;\n\ncadverify_only = \"\";\nmodule instance(name, part, unit = 1) {\n    echo(cadverify_instance = [name, part, unit]);\n    if (cadverify_only == \"\" || cadverify_only == name) children();\n}\n\nmodule helical_thread(Rbase, inward, z0, turns) {\n    N = ceil(turns * 110);\n    prof = inward\n        ? [[0.3, -wBot], [-th_h, -tipH], [-th_h, tipH], [0.3, wTop]]\n        : [[-0.3, -wBot], [th_h, -tipH], [th_h, tipH], [-0.3, wTop]];\n    translate([0, 0, z0])\n        linear_extrude(height = P * turns, twist = turns * 360, slices = N, convexity = 6)\n            translate([Rbase, 0, 0]) polygon(prof);\n}\n\nmodule jar() {\n    difference() {\n        union() {\n            cylinder(r = r_out, h = Hj, $fn = 180);\n            cylinder(r1 = r_out - 0.5, r2 = r_out, h = 0.5, $fn = 180);\n        }\n        translate([0, 0, floor_h]) cylinder(r = r_in, h = depth_in + 1.5, $fn = 180);\n    }\n    helical_thread(rMm, false, male_z0, band_turns);\n}\n\nmodule lid() {\n    difference() {\n        cylinder(r = rSk, h = lidH, $fn = 180);\n        translate([0, 0, floor_h]) cylinder(r = rFM, h = lidH, $fn = 180);\n    }\n    helical_thread(rFM, true, fem_z0, band_turns);\n    for (k = [0:23]) rotate([0, 0, k * 15])\n        translate([rSk - 0.4, -1.5, 0]) cube([1.2, 3, lidH]);\n}\n\nif (part == \"jar\") {\n    echo(cadverify_spec = [\n        [\"bounds\", [[-rMM, -rMM, 0], [rMM, rMM, Hj]]],\n        [\"bodies\", 1],\n        [\"support_faces\", [[\"base\", \"-z\", 3000]]],\n        [\"details\", [\n            [\"cavity\", \"void\", [[-21, -21, 3.5], [21, 21, 72.5]], 0.95],\n            [\"mouth\", \"hole\", [0, 0, 80], [0, 0, -1], [[0, 60], [65, 60]]],\n            [\"wall\", \"thickness\", [40, 0, 40], [-1, 0, 0], wall],\n            [\"floor\", \"thickness\", [0, 0, -2], [0, 0, 1], floor_h],\n            [\"ext_thread\", \"view\", [[30, -8, 63], [34.5, 8, 72]]]\n        ]]\n    ]);\n    jar();\n} else if (part == \"lid\") {\n    echo(cadverify_spec = [\n        [\"bounds\", [[-ribR, -ribR, 0], [ribR, ribR, lidH]]],\n        [\"bodies\", 1],\n        [\"support_faces\", [[\"dome\", \"-z\", 3800]]],\n        [\"details\", [\n            [\"roof\", \"thickness\", [0, 0, 25], [0, 0, -1], floor_h],\n            [\"skirt\", \"thickness\", [45, 0, 3.6], [-1, 0, 0], 3.2],\n            [\"int_thread\", \"view\", [[30, -8, 4], [34.5, 8, 13]]]\n        ]]\n    ]);\n    lid();\n} else if (part == \"assembly\") {\n    echo(cadverify_spec = [\n        [\"bounds\", [[-ribR, -ribR, 0], [ribR, ribR, tzA]]],\n        [\"support_faces\", [[\"base\", \"-z\", 3000]]],\n        [\"allowed_interferences\", [[\"lid\", \"jar\", \"thread flanks kiss for feel and seal\"]]],\n        [\"motions\", [\n            [\"screw_on\", [\"lid\"], \"rotate\", [0, 0, 73], [0, 0, 1], [-720, 0],\n                [\"flex\", [[\"lid\", \"jar\", 0.9, \"thread flanks ride over each other\"]]]],\n            [\"lift_off\", [\"lid\"], \"slide\", [0, 0, 1], [0, 14],\n                [\"flex\", [[\"lid\", \"jar\", 0.9, \"thread ridges pass each other\"]]]]\n        ]],\n        [\"assembly_order\", [\n            [[ \"jar\"], [0, 0, 0]],\n            [[ \"lid\"], [0, 0, -1]]\n        ]]\n    ]);\n    instance(\"jar\", \"jar\") jar();\n    instance(\"lid\", \"lid\") rotate([180, 0, 0]) translate([0, 0, -tzA]) lid();\n}\n",
+    "path": "model.scad"
+  },
+  "result": {
+    "ok": true,
+    "path": "model.scad",
+    "replaced": false,
+    "bytes": 3739,
+    "lines": 99,
+    "sha256": "a1143b542a084df9abcd84651f4124405df91b0acc91df850251cd368b0a1394"
+  },
+  "seconds": 0.331,
+  "image": null,
+  "files": {
+    "new": [
+      "model.scad"
+    ],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [
+    "model.scad"
+  ],
+  "rule": null,
+  "source": "fd55ff50462d2fe4"
+}

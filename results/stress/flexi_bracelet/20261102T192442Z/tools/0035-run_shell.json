@@ -1,0 +1,37 @@
+{
+  "seq": 35,
+  "iteration": 29,
+  "name": "run_shell",
+  "arguments": {
+    "cmd": "sed -n 1,60p /opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/verify.py; sed -n 195,230p /opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/assembly.py",
+    "timeout_s": 30.0
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.006,
+    "stdout": "\"\"\"verify: the checks behind the gates, run by the orchestrator on the current source.\n\nThe orchestrator never trusts the agent's own tool results to close a session: it compiles the\nsource as is, exports every printable part with the default parameters and analyzes each one.\nWith `assembly`, it also measures the assembly (cadcheck.assembly): when the selector has an\n\"assembly\" option, or when there are two printable parts or more and so there must be one.\n`requirements` are the request's own demands on the assembly, such as {\"units\": 2}.\n\"\"\"\n\nfrom __future__ import annotations\n\nfrom pathlib import Path\nfrom typing import Any\n\nfrom cadverify.cadcheck.printability import printability_report\nfrom cadverify.cadcheck.scad import ASSEMBLY, PART, scad_compile, scad_export\nfrom cadverify.scad_source import customizer_options\n\n\ndef printable_parts(source: str) -> list[str | None]:\n    \"\"\"The options of the `part` selector except the assembly, or [None] without a selector.\"\"\"\n    return [p for p in customizer_options(source, PART) if p != ASSEMBLY] or [None]\n\n\ndef verify(\n    path: str | Path,\n    out_dir: str | Path | None = None,\n    assembly: bool = False,\n    requirements: dict[str, Any] | None = None,\n) -> dict[str, Any]:\n    path = Path(path).resolve()\n    out_dir = Path(out_dir) if out_dir else path.parent / \"checks\" / \"exports\"\n    compiled = scad_compile(path)\n    source = path.read_text(encoding=\"utf-8\")\n    parts = []\n    for part in printable_parts(source):\n        export = scad_export(path, part, out_dir=out_dir)\n        printability = None\n        if export[\"ok\"] and export[\"mesh\"] and export[\"mesh\"][\"triangles\"]:\n            allowed = (export[\"spec\"] or {}).get(\"overhangs_allowed\", [])\n            printability = printability_report(export[\"path\"], allowed)\n        parts.append({\"part\": part, \"export\": export, \"printability\": printability})\n    result: dict[str, Any] = {\"compile\": compiled, \"parts\": parts}\n    if not assembly:\n        return result\n    printable = [p for p in parts if p[\"part\"] is not None]\n    has_assembly = ASSEMBLY in customizer_options(source, PART)\n    if not has_assembly and len(printable) < 2:\n        result[\"assembly\"] = {\"ok\": True, \"not_needed\": True}\n        return result\n    if not has_assembly:\n        result[\"assembly\"] = {\"ok\": False, \"missing\": True}\n        return result\n    from cadverify.cadcheck.assembly import assembly_report\n\n    exported = {\n        p[\"part\"]: {\"path\": p[\"export\"][\"path\"], \"spec\": p[\"export\"][\"spec\"]}\n        for p in printable\n        if p[\"export\"][\"ok\"]\n    }\n    report[\"ok\"] = not any(report[\"problems\"].values())\n    report[\"seconds\"] = round(time.perf_counter() - t0, 2)\n    return report\n\n\n# ---- exports ------------------------------------------------------------------------------\n\n\ndef _export_parts(path: Path, out_dir: Path, timeout_s: float) -> dict[str, dict[str, Any]]:\n    from cadverify.cadcheck.verify import printable_parts\n\n    out = {}\n    for part in printable_parts(path.read_text(encoding=\"utf-8\")):\n        if part is None:\n            continue\n        export = scad_export(path, part, out_dir=out_dir, timeout_s=timeout_s)\n        if export[\"ok\"]:\n            out[part] = {\"path\": export[\"path\"], \"spec\": export.get(\"spec\")}\n    return out\n\n\ndef _export_instances(path: Path, out_dir: Path, listed: list[dict], timeout_s: float) -> list:\n    def one(item: dict[str, Any]) -> dict[str, Any]:\n        export = scad_export(\n            path, ASSEMBLY, {SOLO: item[\"name\"]}, out_dir=out_dir, timeout_s=timeout_s\n        )\n        inst: dict[str, Any] = {**item, \"stl\": export.get(\"path\"), \"sha256\": export.get(\"sha256\")}\n        if not export[\"ok\"]:\n            reason = \"has no geometry\" if export.get(\"empty\") else \"could not be exported\"\n            inst[\"problem\"] = (\n                f\"the instance {item['name']} {reason} (is it inside another instance, or \"\n                \"outside the assembly with the default parameters?)\"\n            )\n            return inst\n        mesh = load_exact(export[\"path\"])\n        solid = section.to_manifold(mesh)\n",
+    "stderr": "",
+    "stdout_bytes": 4086,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 0.378,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "523cd575cf5938bc"
+}

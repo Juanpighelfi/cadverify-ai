@@ -1,0 +1,37 @@
+{
+  "seq": 52,
+  "iteration": 42,
+  "name": "run_shell",
+  "arguments": {
+    "cmd": "python3 -c \"\nimport numpy as np, trimesh\nfrom cadverify.cadcheck.mesh import load_exact\nfrom cadverify.cadcheck import section\nfrom cadverify.cadcheck.assembly import _poses, _box_gap, overlap\nw = load_exact('checks/assembly/model.assembly.1d428528.stl')\nb = load_exact('checks/assembly/model.assembly.57cfb177.stl')\nsw = section.to_manifold(w); sb = section.to_manifold(b)\nfor v in [-17.0, -16.98, -13.02, -20.3, -15.0, -14.0]:\n    m = _poses({'name':'free','kind':'rotate','point':[0,0,4],'axis':[0,0,1],'range':[0,-30],'instances':['wheel1']}, v)['wheel1']\n    sw2 = sw.transform(m[:3])\n    box = np.reshape(sw2.bounding_box(),(2,3)); obox = np.reshape(sb.bounding_box(),(2,3))\n    print(v, 'gap', _box_gap(box,obox), 'ov', round((sb^sw2).volume(),4))\n\"\n",
+    "timeout_s": 120.0
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.876,
+    "stdout": "-17.0 gap 0.0 ov 4.4203\n-16.98 gap 0.0 ov 4.4303\n-13.02 gap 0.0 ov 0.1569\n-20.3 gap 0.0 ov 0.0774\n-15.0 gap 0.0 ov 2.0244\n-14.0 gap 0.0 ov 0.8143\n",
+    "stderr": "",
+    "stdout_bytes": 146,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 1.247,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "a1c3e6cd649abb7e"
+}

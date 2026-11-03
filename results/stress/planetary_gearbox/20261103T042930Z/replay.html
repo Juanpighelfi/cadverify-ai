@@ -1,0 +1,369 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Planetary gear set printed in place</title><style>
+:root {
+  --bg: #f7f7f5; --panel: #ffffff; --text: #1d1d1b; --muted: #6b6b66; --line: #e2e2dc;
+  --ok: #1f8a4c; --ok-bg: #e3f4ea; --red: #c23b2a; --red-bg: #fbe7e4;
+  --pend: #b8b8b0; --info: #2f5fb3; --info-bg: #e6edf9; --code: #f0f0ec;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #161615; --panel: #1f1f1d; --text: #ecece8; --muted: #9a9a93; --line: #34342f;
+    --ok: #4cc27c; --ok-bg: #18301f; --red: #ef6b5a; --red-bg: #3a1d19;
+    --pend: #55554f; --info: #7da2e8; --info-bg: #1b2539; --code: #272724;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+main { max-width: 1100px; margin: 0 auto; padding: 24px 16px 64px; }
+h1 { font-size: 26px; margin: 0 0 6px; }
+h2 { font-size: 18px; margin: 32px 0 12px; }
+.meta { color: var(--muted); display: flex; flex-wrap: wrap; gap: 6px 16px; }
+.badge {
+  display: inline-block; padding: 1px 9px; border-radius: 999px; font-size: 13px;
+  font-weight: 600;
+}
+.badge.ok { color: var(--ok); background: var(--ok-bg); }
+.badge.red { color: var(--red); background: var(--red-bg); }
+.badge.info { color: var(--info); background: var(--info-bg); }
+.badge.pend { color: var(--muted); background: var(--code); }
+.panel {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+  padding: 14px 16px;
+}
+pre {
+  margin: 0; white-space: pre-wrap; word-break: break-word;
+  font: 13px/1.45 ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+.md { overflow-wrap: anywhere; }
+.md > :first-child { margin-top: 0; }
+.md > :last-child { margin-bottom: 0; }
+.md p { margin: 0 0 8px; }
+.md p.h { font-weight: 700; margin-top: 12px; }
+.md ul, .md ol { margin: 0 0 8px; padding-left: 22px; }
+.md ul { list-style: disc; }
+.md li > ul { list-style: circle; }
+.md li > ul, .md li > ol { margin: 2px 0 0; }
+.md code, .detail code { font: 13px ui-monospace, "SFMono-Regular", Menlo, monospace;
+  background: var(--code); border-radius: 4px; padding: 0 4px; }
+.cite { font: 600 12px ui-monospace, "SFMono-Regular", Menlo, monospace; color: var(--info);
+  background: var(--info-bg); border-radius: 4px; padding: 0 5px; white-space: nowrap; }
+pre.code { background: var(--code); border-radius: 8px; padding: 12px; overflow-x: auto;
+  white-space: pre; }
+details > summary { cursor: pointer; font-weight: 600; }
+details[open] > summary { margin-bottom: 10px; }
+.grid { overflow-x: auto; }
+.grid table { border-collapse: separate; border-spacing: 2px; }
+.grid th { font-weight: 500; color: var(--muted); font-size: 13px; text-align: left;
+  white-space: nowrap; padding-right: 10px; }
+.grid td { padding: 0; }
+.grid a { display: block; width: var(--cell); height: 22px; border-radius: 3px; }
+.grid a.ok { background: var(--ok); }
+.grid a.red { background: var(--red); }
+.grid a.pend { background: var(--pend); }
+.grid a.none { box-shadow: inset 0 0 0 1.5px var(--pend); }
+.grid .num { font-size: 11px; color: var(--muted); text-align: center; }
+ol.timeline { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
+.it-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; }
+.it-head b { font-size: 16px; }
+.it-head span { color: var(--muted); font-size: 13px; }
+.said { margin-top: 10px; border-left: 3px solid var(--info); padding-left: 12px; }
+.answer { border-left-color: var(--ok); }
+ul.calls { margin: 10px 0 0; padding: 0; list-style: none; display: grid; gap: 4px; }
+ul.calls > li { font-size: 13px; overflow-wrap: anywhere; }
+ul.calls > li > code { font-weight: 600; }
+.images { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 12px; margin-top: 12px; }
+.images figure { margin: 0; }
+.images img { display: block; width: 100%; border: 1px solid var(--line); border-radius: 6px;
+  background: #fff; }
+.images figcaption { font-size: 12px; color: var(--muted); margin-top: 2px; }
+ul.detail, ul.found { list-style: none; margin: 10px 0 0; padding: 2px 0 2px 12px;
+  border-left: 3px solid var(--red); font-size: 13px; display: grid; gap: 3px;
+  overflow-wrap: anywhere; }
+ul.found { margin: 4px 0 4px 2px; }
+ul.found.note { border-left-color: var(--info); }
+ul.detail b, ul.found b { color: var(--red); margin-right: 4px; }
+ul.found.note b { color: var(--info); }
+.more { color: var(--muted); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.legend { color: var(--muted); font-size: 13px; margin: 10px 0 0; }
+.legend i { display: inline-block; width: 10px; height: 12px; border-radius: 2px;
+  vertical-align: -1px; margin: 0 4px 0 10px; }
+.legend i:first-child { margin-left: 0; }
+.legend .ok { background: var(--ok); } .legend .red { background: var(--red); }
+.legend .pend { background: var(--pend); }
+.legend .none { box-shadow: inset 0 0 0 1.5px var(--pend); }
+a { color: var(--info); }
+.lead { color: var(--muted); max-width: 780px; margin: 0; }
+.runs { overflow-x: auto; padding: 6px 8px; }
+.runs table { border-collapse: collapse; width: 100%; min-width: 960px; table-layout: fixed;
+  font-size: 14px; }
+.runs col.request { width: 27%; } .runs col.model { width: 19%; }
+.runs col.status { width: 17%; } .runs col.n { width: 6%; } .runs col.when { width: 13%; }
+.runs th { font-weight: 500; color: var(--muted); font-size: 13px; text-align: left; }
+.runs th, .runs td { padding: 6px 8px; }
+.runs th { vertical-align: bottom; }
+.runs td { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.runs td:first-child { white-space: normal; }
+.runs tr + tr td { border-top: 1px solid var(--line); }
+.runs .n { text-align: right; font-variant-numeric: tabular-nums; }
+</style></head><body><main><h1>Planetary gear set printed in place</h1><div class="meta"><span class="badge ok">green</span><span>muse-spark-1.3-contributor</span><span>audited by muse-wonder-1.0</span><span>27 requests</span><span>41 tool calls</span><span>USD 0.27</span><span>51 min</span></div><h2>Request</h2><div class="panel md"><p>A planetary gear set that prints as one piece and turns right off the bed: a sun gear in the middle, three planet gears around it, and a ring gear outside.</p><ul><li>About 60 mm across and 10 mm thick.</li><li>Straight or herringbone teeth, your call, as long as the gears stay captive (they must not fall out of the ring) and everything prints without supports.</li><li>Clearances that work in PLA on a Bambu Lab A1 with a 0.4 mm nozzle, so nothing fuses.</li><li>A hex hole in the sun gear for a 1/4 inch bit, to drive it.</li></ul><p>Show me the gear set as the assembly, and the sun gear turning, with the planets, as its motion.</p></div><h2>Gates at every iteration</h2><div class="grid panel"><table style="--cell: 32px"><tr><th></th><td class="num"></td><td class="num"></td><td class="num"></td><td class="num"></td><td class="num">5</td><td class="num"></td><td class="num"></td><td class="num"></td><td class="num"></td><td class="num">10</td><td class="num"></td><td class="num"></td><td class="num"></td><td class="num"></td><td class="num">15</td><td class="num"></td><td class="num"></td><td class="num"></td><td class="num"></td><td class="num">20</td><td class="num"></td><td class="num"></td><td class="num"></td><td class="num"></td><td class="num">25</td></tr><tr><th>G1 compiles clean</th><td><a class="ok" href="#it-1" title="iteration 1: G1 ok"></a></td><td><a class="ok" href="#it-2" title="iteration 2: G1 ok"></a></td><td><a class="ok" href="#it-3" title="iteration 3: G1 ok"></a></td><td><a class="ok" href="#it-4" title="iteration 4: G1 ok"></a></td><td><a class="ok" href="#it-5" title="iteration 5: G1 ok"></a></td><td><a class="ok" href="#it-6" title="iteration 6: G1 ok"></a></td><td><a class="ok" href="#it-7" title="iteration 7: G1 ok"></a></td><td><a class="ok" href="#it-8" title="iteration 8: G1 ok"></a></td><td><a class="ok" href="#it-9" title="iteration 9: G1 ok"></a></td><td><a class="ok" href="#it-10" title="iteration 10: G1 ok"></a></td><td><a class="ok" href="#it-11" title="iteration 11: G1 ok"></a></td><td><a class="ok" href="#it-12" title="iteration 12: G1 ok"></a></td><td><a class="ok" href="#it-13" title="iteration 13: G1 ok"></a></td><td><a class="ok" href="#it-14" title="iteration 14: G1 ok"></a></td><td><a class="ok" href="#it-15" title="iteration 15: G1 ok"></a></td><td><a class="ok" href="#it-16" title="iteration 16: G1 ok"></a></td><td><a class="ok" href="#it-17" title="iteration 17: G1 ok"></a></td><td><a class="ok" href="#it-18" title="iteration 18: G1 ok"></a></td><td><a class="ok" href="#it-19" title="iteration 19: G1 ok"></a></td><td><a class="ok" href="#it-20" title="iteration 20: G1 ok"></a></td><td><a class="ok" href="#it-21" title="iteration 21: G1 ok"></a></td><td><a class="ok" href="#it-22" title="iteration 22: G1 ok"></a></td><td><a class="ok" href="#it-23" title="iteration 23: G1 ok"></a></td><td><a class="ok" href="#it-24" title="iteration 24: G1 ok"></a></td><td><a class="ok" href="#it-25" title="iteration 25: G1 ok"></a></td></tr><tr><th>G2 closed meshes</th><td><a class="ok" href="#it-1" title="iteration 1: G2 ok"></a></td><td><a class="ok" href="#it-2" title="iteration 2: G2 ok"></a></td><td><a class="ok" href="#it-3" title="iteration 3: G2 ok"></a></td><td><a class="ok" href="#it-4" title="iteration 4: G2 ok"></a></td><td><a class="ok" href="#it-5" title="iteration 5: G2 ok"></a></td><td><a class="ok" href="#it-6" title="iteration 6: G2 ok"></a></td><td><a class="ok" href="#it-7" title="iteration 7: G2 ok"></a></td><td><a class="ok" href="#it-8" title="iteration 8: G2 ok"></a></td><td><a class="ok" href="#it-9" title="iteration 9: G2 ok"></a></td><td><a class="ok" href="#it-10" title="iteration 10: G2 ok"></a></td><td><a class="ok" href="#it-11" title="iteration 11: G2 ok"></a></td><td><a class="ok" href="#it-12" title="iteration 12: G2 ok"></a></td><td><a class="ok" href="#it-13" title="iteration 13: G2 ok"></a></td><td><a class="red" href="#it-14" title="iteration 14: G2 red"></a></td><td><a class="red" href="#it-15" title="iteration 15: G2 red"></a></td><td><a class="ok" href="#it-16" title="iteration 16: G2 ok"></a></td><td><a class="ok" href="#it-17" title="iteration 17: G2 ok"></a></td><td><a class="ok" href="#it-18" title="iteration 18: G2 ok"></a></td><td><a class="ok" href="#it-19" title="iteration 19: G2 ok"></a></td><td><a class="ok" href="#it-20" title="iteration 20: G2 ok"></a></td><td><a class="ok" href="#it-21" title="iteration 21: G2 ok"></a></td><td><a class="ok" href="#it-22" title="iteration 22: G2 ok"></a></td><td><a class="ok" href="#it-23" title="iteration 23: G2 ok"></a></td><td><a class="ok" href="#it-24" title="iteration 24: G2 ok"></a></td><td><a class="ok" href="#it-25" title="iteration 25: G2 ok"></a></td></tr><tr><th>G3 assembly</th><td><a class="red" href="#it-1" title="iteration 1: G3 red"></a></td><td><a class="red" href="#it-2" title="iteration 2: G3 red"></a></td><td><a class="red" href="#it-3" title="iteration 3: G3 red"></a></td><td><a class="ok" href="#it-4" title="iteration 4: G3 ok"></a></td><td><a class="ok" href="#it-5" title="iteration 5: G3 ok"></a></td><td><a class="ok" href="#it-6" title="iteration 6: G3 ok"></a></td><td><a class="ok" href="#it-7" title="iteration 7: G3 ok"></a></td><td><a class="ok" href="#it-8" title="iteration 8: G3 ok"></a></td><td><a class="red" href="#it-9" title="iteration 9: G3 red"></a></td><td><a class="red" href="#it-10" title="iteration 10: G3 red"></a></td><td><a class="red" href="#it-11" title="iteration 11: G3 red"></a></td><td><a class="red" href="#it-12" title="iteration 12: G3 red"></a></td><td><a class="red" href="#it-13" title="iteration 13: G3 red"></a></td><td><a class="red" href="#it-14" title="iteration 14: G3 red"></a></td><td><a class="red" href="#it-15" title="iteration 15: G3 red"></a></td><td><a class="ok" href="#it-16" title="iteration 16: G3 ok"></a></td><td><a class="ok" href="#it-17" title="iteration 17: G3 ok"></a></td><td><a class="ok" href="#it-18" title="iteration 18: G3 ok"></a></td><td><a class="ok" href="#it-19" title="iteration 19: G3 ok"></a></td><td><a class="ok" href="#it-20" title="iteration 20: G3 ok"></a></td><td><a class="ok" href="#it-21" title="iteration 21: G3 ok"></a></td><td><a class="ok" href="#it-22" title="iteration 22: G3 ok"></a></td><td><a class="ok" href="#it-23" title="iteration 23: G3 ok"></a></td><td><a class="ok" href="#it-24" title="iteration 24: G3 ok"></a></td><td><a class="ok" href="#it-25" title="iteration 25: G3 ok"></a></td></tr><tr><th>G4 motion</th><td><a class="ok" href="#it-1" title="iteration 1: G4 ok"></a></td><td><a class="ok" href="#it-2" title="iteration 2: G4 ok"></a></td><td><a class="ok" href="#it-3" title="iteration 3: G4 ok"></a></td><td><a class="ok" href="#it-4" title="iteration 4: G4 ok"></a></td><td><a class="ok" href="#it-5" title="iteration 5: G4 ok"></a></td><td><a class="ok" href="#it-6" title="iteration 6: G4 ok"></a></td><td><a class="ok" href="#it-7" title="iteration 7: G4 ok"></a></td><td><a class="ok" href="#it-8" title="iteration 8: G4 ok"></a></td><td><a class="ok" href="#it-9" title="iteration 9: G4 ok"></a></td><td><a class="ok" href="#it-10" title="iteration 10: G4 ok"></a></td><td><a class="ok" href="#it-11" title="iteration 11: G4 ok"></a></td><td><a class="ok" href="#it-12" title="iteration 12: G4 ok"></a></td><td><a class="ok" href="#it-13" title="iteration 13: G4 ok"></a></td><td><a class="ok" href="#it-14" title="iteration 14: G4 ok"></a></td><td><a class="ok" href="#it-15" title="iteration 15: G4 ok"></a></td><td><a class="ok" href="#it-16" title="iteration 16: G4 ok"></a></td><td><a class="ok" href="#it-17" title="iteration 17: G4 ok"></a></td><td><a class="ok" href="#it-18" title="iteration 18: G4 ok"></a></td><td><a class="ok" href="#it-19" title="iteration 19: G4 ok"></a></td><td><a class="ok" href="#it-20" title="iteration 20: G4 ok"></a></td><td><a class="ok" href="#it-21" title="iteration 21: G4 ok"></a></td><td><a class="ok" href="#it-22" title="iteration 22: G4 ok"></a></td><td><a class="ok" href="#it-23" title="iteration 23: G4 ok"></a></td><td><a class="ok" href="#it-24" title="iteration 24: G4 ok"></a></td><td><a class="ok" href="#it-25" title="iteration 25: G4 ok"></a></td></tr><tr><th>G5 printable</th><td><a class="red" href="#it-1" title="iteration 1: G5 red"></a></td><td><a class="red" href="#it-2" title="iteration 2: G5 red"></a></td><td><a class="red" href="#it-3" title="iteration 3: G5 red"></a></td><td><a class="ok" href="#it-4" title="iteration 4: G5 ok"></a></td><td><a class="ok" href="#it-5" title="iteration 5: G5 ok"></a></td><td><a class="ok" href="#it-6" title="iteration 6: G5 ok"></a></td><td><a class="ok" href="#it-7" title="iteration 7: G5 ok"></a></td><td><a class="ok" href="#it-8" title="iteration 8: G5 ok"></a></td><td><a class="ok" href="#it-9" title="iteration 9: G5 ok"></a></td><td><a class="ok" href="#it-10" title="iteration 10: G5 ok"></a></td><td><a class="ok" href="#it-11" title="iteration 11: G5 ok"></a></td><td><a class="ok" href="#it-12" title="iteration 12: G5 ok"></a></td><td><a class="ok" href="#it-13" title="iteration 13: G5 ok"></a></td><td><a class="ok" href="#it-14" title="iteration 14: G5 ok"></a></td><td><a class="ok" href="#it-15" title="iteration 15: G5 ok"></a></td><td><a class="ok" href="#it-16" title="iteration 16: G5 ok"></a></td><td><a class="ok" href="#it-17" title="iteration 17: G5 ok"></a></td><td><a class="ok" href="#it-18" title="iteration 18: G5 ok"></a></td><td><a class="ok" href="#it-19" title="iteration 19: G5 ok"></a></td><td><a class="ok" href="#it-20" title="iteration 20: G5 ok"></a></td><td><a class="ok" href="#it-21" title="iteration 21: G5 ok"></a></td><td><a class="ok" href="#it-22" title="iteration 22: G5 ok"></a></td><td><a class="ok" href="#it-23" title="iteration 23: G5 ok"></a></td><td><a class="ok" href="#it-24" title="iteration 24: G5 ok"></a></td><td><a class="ok" href="#it-25" title="iteration 25: G5 ok"></a></td></tr><tr><th>G7 spec held, all seen</th><td><a class="red" href="#it-1" title="iteration 1: G7 red"></a></td><td><a class="red" href="#it-2" title="iteration 2: G7 red"></a></td><td><a class="red" href="#it-3" title="iteration 3: G7 red"></a></td><td><a class="red" href="#it-4" title="iteration 4: G7 red"></a></td><td><a class="red" href="#it-5" title="iteration 5: G7 red"></a></td><td><a class="red" href="#it-6" title="iteration 6: G7 red"></a></td><td><a class="red" href="#it-7" title="iteration 7: G7 red"></a></td><td><a class="red" href="#it-8" title="iteration 8: G7 red"></a></td><td><a class="red" href="#it-9" title="iteration 9: G7 red"></a></td><td><a class="red" href="#it-10" title="iteration 10: G7 red"></a></td><td><a class="red" href="#it-11" title="iteration 11: G7 red"></a></td><td><a class="red" href="#it-12" title="iteration 12: G7 red"></a></td><td><a class="red" href="#it-13" title="iteration 13: G7 red"></a></td><td><a class="red" href="#it-14" title="iteration 14: G7 red"></a></td><td><a class="red" href="#it-15" title="iteration 15: G7 red"></a></td><td><a class="red" href="#it-16" title="iteration 16: G7 red"></a></td><td><a class="red" href="#it-17" title="iteration 17: G7 red"></a></td><td><a class="red" href="#it-18" title="iteration 18: G7 red"></a></td><td><a class="ok" href="#it-19" title="iteration 19: G7 ok"></a></td><td><a class="ok" href="#it-20" title="iteration 20: G7 ok"></a></td><td><a class="ok" href="#it-21" title="iteration 21: G7 ok"></a></td><td><a class="ok" href="#it-22" title="iteration 22: G7 ok"></a></td><td><a class="ok" href="#it-23" title="iteration 23: G7 ok"></a></td><td><a class="ok" href="#it-24" title="iteration 24: G7 ok"></a></td><td><a class="ok" href="#it-25" title="iteration 25: G7 ok"></a></td></tr><tr><th>G8 honest close</th><td><a class="pend" href="#it-1" title="iteration 1: G8 pend"></a></td><td><a class="pend" href="#it-2" title="iteration 2: G8 pend"></a></td><td><a class="pend" href="#it-3" title="iteration 3: G8 pend"></a></td><td><a class="pend" href="#it-4" title="iteration 4: G8 pend"></a></td><td><a class="pend" href="#it-5" title="iteration 5: G8 pend"></a></td><td><a class="pend" href="#it-6" title="iteration 6: G8 pend"></a></td><td><a class="pend" href="#it-7" title="iteration 7: G8 pend"></a></td><td><a class="pend" href="#it-8" title="iteration 8: G8 pend"></a></td><td><a class="pend" href="#it-9" title="iteration 9: G8 pend"></a></td><td><a class="pend" href="#it-10" title="iteration 10: G8 pend"></a></td><td><a class="pend" href="#it-11" title="iteration 11: G8 pend"></a></td><td><a class="pend" href="#it-12" title="iteration 12: G8 pend"></a></td><td><a class="pend" href="#it-13" title="iteration 13: G8 pend"></a></td><td><a class="pend" href="#it-14" title="iteration 14: G8 pend"></a></td><td><a class="pend" href="#it-15" title="iteration 15: G8 pend"></a></td><td><a class="pend" href="#it-16" title="iteration 16: G8 pend"></a></td><td><a class="pend" href="#it-17" title="iteration 17: G8 pend"></a></td><td><a class="pend" href="#it-18" title="iteration 18: G8 pend"></a></td><td><a class="pend" href="#it-19" title="iteration 19: G8 pend"></a></td><td><a class="red" href="#it-20" title="iteration 20: G8 red"></a></td><td><a class="red" href="#it-21" title="iteration 21: G8 red"></a></td><td><a class="pend" href="#it-22" title="iteration 22: G8 pend"></a></td><td><a class="pend" href="#it-23" title="iteration 23: G8 pend"></a></td><td><a class="red" href="#it-24" title="iteration 24: G8 red"></a></td><td><a class="ok" href="#it-25" title="iteration 25: G8 ok"></a></td></tr></table><p class="legend"><i class="ok"></i>passed<i class="red"></i>failed<i class="pend"></i>pending: G8 is judged when the model closes. One column per iteration; each cell links to it.</p></div><h2>Session</h2><ol class="timeline"><li class="panel" id="it-1"><div class="it-head"><b>Iteration 1</b><span>USD 0.008 · 327 s · 38,039 output tokens</span></div><div class="said md"><p>Designing your captive herringbone planetary — 60mm print-in-place set with 1/4&quot; hex drive.</p></div><ul class="calls"><li><code>scad_write</code> model.scad: 268 lines</li></ul></li><li class="panel" id="it-2"><div class="it-head"><b>Iteration 2</b><span>USD 0.001 · 7 s · 61 output tokens</span></div><ul class="calls"><li><code>scad_compile</code> ok=True, 6 echo, 0 warnings, 0 failed asserts, 0 errors</li></ul></li><li class="panel" id="it-3"><div class="it-head"><b>Iteration 3</b><span>USD 0.001 · 31 s · 2,807 output tokens</span></div><ul class="calls"><li><code>interference_check</code> 5 instances, 3 overlaps, G3 3 problems, G4 0, G5 29, 102.7 s<ul class="found"><li><b>G3</b>sun and planet1 overlap 0.902 mm³, 0.145 mm thick on average, in [[8.2, -3.635, 4.9], [9.8, 3.637, 5.1]]</li><li><b>G3</b>sun and planet2 overlap 0.902 mm³, 0.145 mm thick on average, in [[-7.7, 5.891, 4.9], [-1.302, 9.697, 5.1]]</li><li><b>G3</b>sun and planet3 overlap 0.902 mm³, 0.145 mm thick on average, in [[-7.691, -9.699, 4.9], [-1.308, -5.889, 5.1]]</li><li><b>G5</b>printed in place: ring and planet1 are 0.0 mm apart: printed in place they fuse (print_in_place asks for 0.3 mm or more)</li><li><b>G5</b>printed in place: ring and planet2 are 0.0 mm apart: printed in place they fuse (print_in_place asks for 0.3 mm or more)</li><li><b>G5</b>printed in place: ring and planet3 are 0.0 mm apart: printed in place they fuse (print_in_place asks for 0.3 mm or more)</li><li class="more">and 26 more</li></ul></li></ul></li><li class="panel" id="it-4"><div class="it-head"><b>Iteration 4</b><span>USD 0.004 · 119 s · 14,217 output tokens</span></div><div class="said md"><p>First print shows apex interference and tight mesh — adding relief and clearance.</p></div><ul class="calls"><li><code>scad_write</code> model.scad: 256 lines</li></ul></li><li class="panel" id="it-5"><div class="it-head"><b>Iteration 5</b><span>USD 0.003 · 47 s · 4,158 output tokens</span></div><ul class="calls"><li><code>scad_export</code> ok=True, watertight=True, bodies=1, bounds=[[-9.8, -9.8, 0.0], [9.8, 9.8, 10.1]], spec FAILS, sheet renders/sheet-005.png</li></ul><div class="images"><figure><a href="workspace/renders/sheet-005.png"><img loading="lazy" alt="scad_export (call 5)" src="workspace/renders/sheet-005.png"></a><figcaption>scad_export, call 5</figcaption></figure></div></li><li class="panel" id="it-6"><div class="it-head"><b>Iteration 6</b><span>USD 0.001 · 54 s · 4,727 output tokens</span></div><ul class="calls"><li><code>scad_patch</code> model.scad line 134: 256 lines</li></ul></li><li class="panel" id="it-7"><div class="it-head"><b>Iteration 7</b><span>USD 0.003 · 21 s · 1,193 output tokens</span></div><div class="said md"><p>Hex reads by equivalent diameter — correcting the spec callouts and groove boxes.</p></div><ul class="calls"><li><code>scad_patch</code> model.scad line 195: 256 lines</li></ul></li><li class="panel" id="it-8"><div class="it-head"><b>Iteration 8</b><span>USD 0.000 · 9 s · 370 output tokens</span></div><ul class="calls"><li><code>scad_export</code> ok=True, watertight=True, bodies=1, bounds=[[-9.8, -9.8, 0.0], [9.8, 9.8, 10.0]], spec FAILS, sheet renders/sheet-008.png</li><li><code>scad_export</code> ok=True, watertight=True, bodies=1, bounds=[[-9.8, -9.8, 0.0], [9.8, 9.8, 10.0]], spec ok, sheet renders/sheet-009.png</li><li><code>scad_export</code> ok=True, watertight=True, bodies=1, bounds=[[-30.0, -30.0, 0.0], [30.0, 30.0, 10.0]], spec ok, sheet renders/sheet-010.png</li></ul><div class="images"><figure><a href="workspace/renders/sheet-008.png"><img loading="lazy" alt="scad_export (call 8)" src="workspace/renders/sheet-008.png"></a><figcaption>scad_export, call 8</figcaption></figure><figure><a href="workspace/renders/sheet-009.png"><img loading="lazy" alt="scad_export (call 9)" src="workspace/renders/sheet-009.png"></a><figcaption>scad_export, call 9</figcaption></figure><figure><a href="workspace/renders/sheet-010.png"><img loading="lazy" alt="scad_export (call 10)" src="workspace/renders/sheet-010.png"></a><figcaption>scad_export, call 10</figcaption></figure></div></li><li class="panel" id="it-9"><div class="it-head"><b>Iteration 9</b><span>USD 0.003 · 107 s · 8,956 output tokens</span></div><ul class="calls"><li><code>scad_patch</code> model.scad line 13: 256 lines</li><li><code>scad_patch</code> model.scad line 170: 257 lines</li><li><code>scad_patch</code> model.scad line 196: 257 lines</li><li><code>scad_patch</code> model.scad line 249: 257 lines</li></ul></li><li class="panel" id="it-10"><div class="it-head"><b>Iteration 10</b><span>USD 0.003 · 6 s · 48 output tokens</span></div><ul class="calls"><li><code>interference_check</code> 5 instances, 3 overlaps, G3 3 problems, G4 0, G5 0, 105.37 s<ul class="found"><li><b>G3</b>ring and planet1 overlap 30.738 mm³, 0.448 mm thick on average, in [[25.399, -6.425, 0.0], [27.8, 6.38, 10.0]]</li><li><b>G3</b>ring and planet2 overlap 30.738 mm³, 0.448 mm thick on average, in [[-18.244, 18.826, 0.0], [-7.135, 25.388, 10.0]]</li><li><b>G3</b>ring and planet3 overlap 30.738 mm³, 0.448 mm thick on average, in [[-18.264, -25.388, 0.0], [-7.193, -18.784, 10.0]]</li></ul></li></ul></li><li class="panel" id="it-11"><div class="it-head"><b>Iteration 11</b><span>USD 0.001 · 32 s · 2,096 output tokens</span></div><div class="said md"><p>Found it — internal clearance was inverted and the phasing was off. Fixing both.</p></div><ul class="calls"><li><code>scad_patch</code> model.scad line 107: 257 lines</li></ul></li><li class="panel" id="it-12"><div class="it-head"><b>Iteration 12</b><span>USD 0.005 · 7 s · 244 output tokens</span></div><ul class="calls"><li><code>scad_patch</code> model.scad line 171: 256 lines</li></ul></li><li class="panel" id="it-13"><div class="it-head"><b>Iteration 13</b><span>USD 0.003 · 7 s · 48 output tokens</span></div><ul class="calls"><li><code>interference_check</code> 5 instances, 3 overlaps, G3 3 problems, G4 0, G5 0, 107.26 s<ul class="found"><li><b>G3</b>ring and planet1 overlap 0.439 mm³, 0.032 mm thick on average, in [[25.985, -2.896, 0.0], [27.787, 3.353, 10.0]]</li><li><b>G3</b>ring and planet2 overlap 0.439 mm³, 0.032 mm thick on average, in [[-15.936, 20.827, 0.0], [-10.828, 25.117, 10.0]]</li><li><b>G3</b>ring and planet3 overlap 0.439 mm³, 0.032 mm thick on average, in [[-16.106, -24.863, 0.0], [-10.088, -21.456, 10.0]]</li></ul></li></ul></li><li class="panel" id="it-14"><div class="it-head"><b>Iteration 14</b><span>USD 0.001 · 12 s · 527 output tokens</span></div><div class="said md"><p>Fixing the last ring-planet interference with added mesh clearance.</p></div><ul class="calls"><li><code>scad_patch</code> model.scad line 13: 256 lines</li></ul></li><li class="panel" id="it-15"><div class="it-head"><b>Iteration 15</b><span>USD 0.000 · 10 s · 366 output tokens</span></div><div class="said md"><p>Clearance increased — verifying all parts and the full assembly now.</p></div><ul class="calls"><li><code>scad_export</code> ok=True, watertight=True, bodies=1, bounds=[[-9.8, -9.8, 0.0], [9.8, 9.8, 10.0]], spec ok, sheet renders/sheet-020.png</li><li><code>scad_export</code> ok=True, watertight=True, bodies=1, bounds=[[-9.8, -9.8, 0.0], [9.8, 9.8, 10.0]], spec ok, sheet renders/sheet-021.png</li><li><code>scad_export</code> ok=True, watertight=False, bodies=1, bounds=[[-30.0, -30.0, 0.0], [30.0, 30.0, 10.0]], spec FAILS, sheet renders/sheet-022.png</li><li><code>interference_check</code> 5 instances, 3 overlaps, G3 3 problems, G4 0, G5 0, 136.85 s<ul class="found"><li><b>G3</b>ring and planet1 overlap 0.439 mm³, 0.032 mm thick on average, in [[25.977, -2.802, 0.0], [27.791, 3.414, 10.0]]</li><li><b>G3</b>ring and planet2 overlap 0.439 mm³, 0.032 mm thick on average, in [[-15.981, 20.789, 0.0], [-10.906, 25.091, 10.0]]</li><li><b>G3</b>ring and planet3 overlap 0.439 mm³, 0.032 mm thick on average, in [[-16.031, -24.827, 0.0], [-10.031, -21.393, 10.0]]</li></ul></li></ul><div class="images"><figure><a href="workspace/renders/sheet-020.png"><img loading="lazy" alt="scad_export (call 20)" src="workspace/renders/sheet-020.png"></a><figcaption>scad_export, call 20</figcaption></figure><figure><a href="workspace/renders/sheet-021.png"><img loading="lazy" alt="scad_export (call 21)" src="workspace/renders/sheet-021.png"></a><figcaption>scad_export, call 21</figcaption></figure><figure><a href="workspace/renders/sheet-022.png"><img loading="lazy" alt="scad_export (call 22)" src="workspace/renders/sheet-022.png"></a><figcaption>scad_export, call 22</figcaption></figure></div></li><li class="panel" id="it-16"><div class="it-head"><b>Iteration 16</b><span>USD 0.002 · 29 s · 1,769 output tokens</span></div><div class="said md"><p>Ring went non-manifold — the groove bore wall coincides with the tooth-root surface. Fixing that plus the internal-clearance sign.</p></div><ul class="calls"><li><code>scad_patch</code> model.scad line 107: 256 lines</li></ul></li><li class="panel" id="it-17"><div class="it-head"><b>Iteration 17</b><span>USD 0.002 · 23 s · 1,747 output tokens</span></div><div class="said md"><p>Combining the manifold fix with full verification to save session turns.</p></div><ul class="calls"><li><code>scad_patch</code> model.scad line 175: 256 lines</li></ul></li><li class="panel" id="it-18"><div class="it-head"><b>Iteration 18</b><span>USD 0.001 · 26 s · 2,232 output tokens</span></div><div class="said md"><p>Applying the captive herringbone fix and verifying everything together.</p></div><ul class="calls"><li><code>scad_export</code> ok=True, watertight=True, bodies=1, bounds=[[-9.8, -9.8, 0.0], [9.8, 9.8, 10.0]], spec ok</li><li><code>scad_export</code> ok=True, watertight=True, bodies=1, bounds=[[-9.8, -9.8, 0.0], [9.8, 9.8, 10.0]], spec ok</li><li><code>scad_export</code> ok=True, watertight=True, bodies=1, bounds=[[-30.0, -30.0, 0.0], [30.0, 30.0, 10.0]], spec ok, sheet renders/sheet-028.png</li><li><code>interference_check</code> 5 instances, 0 overlaps, G3 0 problems, G4 0, G5 0, 71.56 s</li></ul><div class="images"><figure><a href="workspace/renders/sheet-028.png"><img loading="lazy" alt="scad_export (call 28)" src="workspace/renders/sheet-028.png"></a><figcaption>scad_export, call 28</figcaption></figure></div></li><li class="panel" id="it-19"><div class="it-head"><b>Iteration 19</b><span>USD 0.002 · 16 s · 1,502 output tokens</span></div><div class="said md"><p>All green on interference — capturing the required close-up verification views now.</p></div><ul class="calls"><li><code>render_view</code> renders/view-030.png: camera, highlight</li><li><code>render_view</code> renders/view-031.png: camera, zoom, highlight</li><li><code>render_view</code> renders/view-032.png: camera, zoom, highlight</li><li><code>render_view</code> renders/view-033.png: camera, zoom, highlight</li><li><code>printability_report</code> zones=30, undeclared=0, fits the bed=True</li><li><code>printability_report</code> zones=30, undeclared=0, fits the bed=True</li><li><code>printability_report</code> zones=1, undeclared=0, fits the bed=True</li></ul><div class="images"><figure><a href="workspace/renders/view-030.png"><img loading="lazy" alt="render_view (call 30)" src="workspace/renders/view-030.png"></a><figcaption>render_view, call 30</figcaption></figure><figure><a href="workspace/renders/view-031.png"><img loading="lazy" alt="render_view (call 31)" src="workspace/renders/view-031.png"></a><figcaption>render_view, call 31</figcaption></figure><figure><a href="workspace/renders/view-032.png"><img loading="lazy" alt="render_view (call 32)" src="workspace/renders/view-032.png"></a><figcaption>render_view, call 32</figcaption></figure><figure><a href="workspace/renders/view-033.png"><img loading="lazy" alt="render_view (call 33)" src="workspace/renders/view-033.png"></a><figcaption>render_view, call 33</figcaption></figure></div></li><li class="panel" id="it-20"><div class="it-head"><b>Iteration 20</b><span>USD 0.004 · 46 s · 3,687 output tokens</span><span class="badge red">close refused</span></div><div class="said md"><p><strong>Print-in-place herringbone planetary — 60×60×10mm</strong></p><p>One-piece print: ring + sun + 3× planets in place, no supports, no assembly. Herringbone (two 4.4mm halves + 1.2mm centre groove) makes gears captive axially. Module 1.0, 20° PA: Sun 18T, Planet 18T ×3, Ring 54T. 1/4-in hex in sun.</p><p>Print: +Z up, flat on bed, PLA, 0.4mm nozzle, Bambu Lab A1.</p><p class="h">Verified</p><ul><li>Gear set as assembly <span class="cite">assembly</span>: measured bounds [[-30,-30,0],[30,30,10]] 60.0×60.0×10.0mm, one group, base on bed <span class="cite">assembly/bed</span> 1304.1mm².</li><li>Parts present with copies: sun 1 <span class="cite">sun</span>, ring 1 <span class="cite">ring</span>, planet 3 placed 3 <span class="cite">planet</span>; each instance congruent to its part (volume/area/inertia 0 diff).</li><li>No overlap: G3 0 interferences; gaps ring-sun 1.01mm, ring-planet 0.449mm ×3, sun-planet 0.45mm ×3 — all ≥0.3mm print clearance <span class="cite">print_in_place</span>.</li><li>Captive: held <span class="cite">sun</span>, <span class="cite">planet1</span>, <span class="cite">planet2</span>, <span class="cite">planet3</span>, <span class="cite">ring</span> all <code>free:[]</code> — cannot leave straight in any direction.</li><li>Motion sun <span class="cite">sun</span>: <code>rotate [0,0,1] [0,120]</code>deg of sun+3 planets, drives sun ratio 3, planets ratio -3, swept 361 steps, ok, no collision.</li><li>Assembly order <span class="cite">assembly_order</span>: single step all instances, ok.</li><li>Print-in-place <span class="cite">print_in_place</span>: min gap 0.3mm met, fits Bambu A1 256mm (margin 98mm), zmin 0, base 1437.8/1304.1mm², no parts in air.</li><li>Overhangs/bridges <span class="cite">G5</span>: all &gt;45° declared as <code>herringbone apex bridges</code>, coverage 0.1451 &lt;0.5; worst bridge 4.2mm &lt;10mm; per-part: sun 34.09mm² <span class="cite">sun</span>, planet 34.09mm² <span class="cite">planet</span>, ring 142.79mm² <span class="cite">ring</span>, all declared, max bridge 4.1mm.</li><li>Sun <span class="cite">sun</span>: watertight, 0 bad edges, 1 body, 1 through_hole; bounds 19.6×19.6×10.0; bed <span class="cite">sun/bed</span> 183.8mm²; hex <span class="cite">sun/hex</span> Ø7.036 eq-area both ends (0 and 9mm depth) through; body thickness <span class="cite">sun/body</span> 10.0mm; groove void <span class="cite">sun/groove</span> 56% empty; apex view <span class="cite">sun/apex</span> touches surface, seen close.</li><li>Planet <span class="cite">planet</span>: watertight, 0 bad edges, 1 body, 0 holes; bounds 19.6×19.6×10.0; bed <span class="cite">planet/bed</span> 222.6mm²; body <span class="cite">planet/body</span> 10.0mm; apex <span class="cite">planet/apex</span> close view touches surface.</li><li>Ring <span class="cite">ring</span>: watertight, 0 bad edges, 1 body, 1 through_hole; bounds 60×60×10.0; bed <span class="cite">ring/bed</span> 452.4mm²; rim <span class="cite">ring/rim</span> 10.0mm; teeth view <span class="cite">ring/teeth</span> touches surface, seen close.</li><li>Sheets seen for final meshes + assembly iso with all 5 instances + close views of apex/teeth.</li></ul><p class="h">Not verified</p><ul><li>Real PLA fusing, stringing, elephant foot, dimensional shrinkage, tooth wear, torque capacity, noise, efficiency, and whether 0.45mm mesh gaps free up on first turn on your printer/material — not measured by harness.</li><li>Looks / feel of herringbone apex and groove — geometry only, no aesthetic check.</li><li>1/4-in bit fit is clearance fit: hex drawn 6.7mm flats, harness measures Ø7.036 eq-area circle <span class="cite">sun/hex</span>; actual wrench fit depends on printer tolerance.</li><li>Spec adjustments made to match measurement/physics, design unchanged in intent: backlash 0.30→0.60mm arc to get ~0.45mm mesh gaps for 0.4mm nozzle; ring internal tooth thinning sign corrected (was thickening, caused 30mm³ overlap); ring groove bore +0.06mm to avoid coincident wall/non-manifold; hex spec 6.7→7.04 eq-diameter because checker measures area-equivalent Ø; groove void box narrowed to part radius; added <code>held</code> ring and assembly <code>overhangs_allowed</code> bridge box to cover mid-plane herringbone ceilings.</li></ul></div><ul class="detail"><li><b>G8</b><span class="cite">sun</span> is ambiguous (the part sun; the motion sun): use <span class="cite">part/name</span></li><li><b>G8</b><span class="cite">planet1</span> names nothing the harness verified in the final version (the names are: G1, G2, G3, G4, G5, G7, apex, assembly, assembly/bed, assembly_order, bed, body, groove, hex, planet, planet/apex, planet/bed, planet/body, print_in_place, rim, ring, ring/bed, ring/rim, ring/teeth, sun, sun/apex, sun/bed, sun/body, sun/groove, sun/hex, teeth)</li><li><b>G8</b><span class="cite">planet2</span> names nothing the harness verified in the final version (the names are: G1, G2, G3, G4, G5, G7, apex, assembly, assembly/bed, assembly_order, bed, body, groove, hex, planet, planet/apex, planet/bed, planet/body, print_in_place, rim, ring, ring/bed, ring/rim, ring/teeth, sun, sun/apex, sun/bed, sun/body, sun/groove, sun/hex, teeth)</li><li><b>G8</b><span class="cite">planet3</span> names nothing the harness verified in the final version (the names are: G1, G2, G3, G4, G5, G7, apex, assembly, assembly/bed, assembly_order, bed, body, groove, hex, planet, planet/apex, planet/bed, planet/body, print_in_place, rim, ring, ring/bed, ring/rim, ring/teeth, sun, sun/apex, sun/bed, sun/body, sun/groove, sun/hex, teeth)</li></ul></li><li class="panel" id="it-21"><div class="it-head"><b>Iteration 21</b><span>USD 0.003 · 32 s · 3,503 output tokens</span><span class="badge red">close refused</span></div><div class="said md"><p><strong>Print-in-place herringbone planetary — 60x60x10mm</strong></p><p>One-piece print: ring + sun + 3x planets in place, no supports. Herringbone two 4.4mm halves + 1.2mm centre groove makes gears captive axially. Module 1.0, 20deg PA: Sun 18T, Planet 18T x3, Ring 54T. 1/4-in hex in sun. Print +Z up flat on bed, PLA 0.4mm nozzle, Bambu Lab A1.</p><p class="h">Verified</p><ul><li>Gear set as assembly <span class="cite">assembly</span>: measured bounds [[-30,-30,0],[30,30,10]] 60.0x60.0x10.0mm, one group, base on bed <span class="cite">assembly/bed</span> 1304.1mm2.</li><li>Parts present with copies <span class="cite">G3</span>: sun 1 <span class="cite">part/sun</span>, ring 1 <span class="cite">ring</span>, planet 3 placed 3 <span class="cite">planet</span>; each instance congruent to its part.</li><li>No overlap <span class="cite">G3</span>: 0 interferences; gaps ring-sun 1.01mm, ring-planet 0.449mm x3, sun-planet 0.45mm x3 — all &gt;=0.3mm print clearance <span class="cite">print_in_place</span>.</li><li>Captive <span class="cite">G3</span>: all instances held free:[] — cannot leave straight in any direction; covers sun, all three planets and ring.</li><li>Sun-turns-with-planets motion sweeps 0-120deg clean <span class="cite">G4</span>: sun ratio 3, planets ratio -3, 361 steps, no collision.</li><li>Assembly order <span class="cite">assembly_order</span>: single step all instances, ok.</li><li>Print-in-place <span class="cite">print_in_place</span>: min gap 0.3mm met, fits Bambu A1 256mm margin 98mm, zmin 0, no parts in air <span class="cite">G5</span>.</li><li>Overhangs/bridges <span class="cite">G5</span>: all &gt;45deg declared as herringbone apex bridges, coverage 0.1451 &lt;0.5; worst bridge 4.2mm &lt;10mm; per-part declared, max bridge 4.1mm.</li><li>Sun part <span class="cite">part/sun</span>: watertight 0 bad edges 1 body 1 through-hole <span class="cite">G2</span>; bounds 19.6x19.6x10.0 <span class="cite">G7</span>; bed <span class="cite">sun/bed</span> 183.8mm2; hex <span class="cite">sun/hex</span> equ-area dia 7.036 both ends 0 and 9mm depth through; body thickness <span class="cite">sun/body</span> 10.0mm; groove void <span class="cite">sun/groove</span> 56% empty; apex view <span class="cite">sun/apex</span> touches surface seen close.</li><li>Planet part <span class="cite">planet</span>: watertight 0 bad edges 1 body 0 holes <span class="cite">G2</span>; bounds 19.6x19.6x10.0 <span class="cite">G7</span>; bed <span class="cite">planet/bed</span> 222.6mm2; body <span class="cite">planet/body</span> 10.0mm; apex <span class="cite">planet/apex</span> close view touches surface.</li><li>Ring part <span class="cite">ring</span>: watertight 0 bad edges 1 body 1 through-hole <span class="cite">G2</span>; bounds 60x60x10.0 <span class="cite">G7</span>; bed <span class="cite">ring/bed</span> 452.4mm2; rim <span class="cite">ring/rim</span> 10.0mm; teeth view <span class="cite">ring/teeth</span> touches surface seen close.</li><li>Sheets seen for final meshes plus assembly iso with all 5 instances plus close views of apex/teeth <span class="cite">G7</span>; compile clean <span class="cite">G1</span>.</li></ul><p class="h">Not verified</p><ul><li>Real PLA fusing, stringing, elephant foot, shrinkage, tooth wear, torque, noise, efficiency, whether 0.45mm mesh gaps free on first turn — not measured.</li><li>Looks/feel of apex and groove — geometry only.</li><li>1/4-in bit fit is clearance: hex drawn 6.7mm flats, checker measures equ-area circle dia 7.036 <span class="cite">sun/hex</span>; actual wrench fit depends on tolerance.</li><li>Spec adjustments to match measurement/physics, design intent unchanged: backlash 0.30 to 0.60mm arc for ~0.45mm mesh gaps for 0.4mm nozzle; ring internal thinning sign corrected was thickening caused 30mm3 overlap; ring groove bore +0.06mm to avoid coincident wall/non-manifold; hex spec 6.7 to 7.04 eq-diameter because checker measures area-equivalent dia; groove void box narrowed to part radius; added held ring and assembly overhang bridge box for mid-plane herringbone ceilings.</li></ul></div><ul class="detail"><li><b>G8</b><span class="cite">part/sun</span> names nothing the harness verified in the final version (the names are: G1, G2, G3, G4, G5, G7, apex, assembly, assembly/bed, assembly_order, bed, body, groove, hex, planet, planet/apex, planet/bed, planet/body, print_in_place, rim, ring, ring/bed, ring/rim, ring/teeth, sun, sun/apex, sun/bed, sun/body, sun/groove, sun/hex, teeth)</li></ul></li><li class="panel" id="it-22"><div class="it-head"><b>Iteration 22</b><span>USD 0.008 · 16 s · 1,061 output tokens</span></div><div class="said md"><p>Renaming the motion to remove the part/motion name clash, then re-verifying.</p></div><ul class="calls"><li><code>scad_patch</code> model.scad line 238: 256 lines</li></ul></li><li class="panel" id="it-23"><div class="it-head"><b>Iteration 23</b><span>USD 0.000 · 7 s · 261 output tokens</span></div><div class="said md"><p>Motion renamed — final verification across parts and assembly.</p></div><ul class="calls"><li><code>scad_export</code> ok=True, watertight=True, bodies=1, bounds=[[-9.8, -9.8, 0.0], [9.8, 9.8, 10.0]], spec ok</li><li><code>scad_export</code> ok=True, watertight=True, bodies=1, bounds=[[-9.8, -9.8, 0.0], [9.8, 9.8, 10.0]], spec ok</li><li><code>scad_export</code> ok=True, watertight=True, bodies=1, bounds=[[-30.0, -30.0, 0.0], [30.0, 30.0, 10.0]], spec ok</li><li><code>interference_check</code> 5 instances, 0 overlaps, G3 0 problems, G4 0, G5 0, 73.66 s</li></ul></li><li class="panel" id="it-24"><div class="it-head"><b>Iteration 24</b><span>USD 0.002 · 21 s · 2,059 output tokens</span><span class="badge red">close refused</span></div><div class="said md"><p><strong>Print-in-place herringbone planetary — 60x60x10mm</strong></p><p>One-piece print: ring + sun + 3x planets in place, no supports. Herringbone two 4.4mm halves + 1.2mm centre groove makes gears captive axially. Module 1.0, 20deg PA: Sun 18T, Planet 18T x3, Ring 54T. 1/4-in hex in sun. Print +Z up flat on bed, PLA 0.4mm nozzle, Bambu Lab A1.</p><p class="h">Verified</p><ul><li>Gear set as assembly <span class="cite">assembly</span>: measured bounds [[-30,-30,0],[30,30,10]] 60.0x60.0x10.0mm, one group <span class="cite">G3</span>, base on bed <span class="cite">assembly/bed</span> 1304.1mm2.</li><li>Parts present with copies <span class="cite">G3</span>: sun 1 <span class="cite">sun</span>, ring 1 <span class="cite">ring</span>, planet 3 placed 3 <span class="cite">planet</span>; each instance congruent to its part.</li><li>No overlap <span class="cite">G3</span>: 0 interferences; gaps ring-sun 1.01mm, ring-planet 0.449mm x3, sun-planet 0.45mm x3 — all &gt;=0.3mm print clearance <span class="cite">print_in_place</span>.</li><li>Captive <span class="cite">G3</span>: all instances held free:[] — cannot leave straight in any direction; covers sun, all three planets and ring <span class="cite">assembly</span>.</li><li>Sun-turns-with-planets motion sweeps 0-120deg clean <span class="cite">drive</span> <span class="cite">G4</span>: sun ratio 3, planets ratio -3, 361 steps, no collision.</li><li>Assembly order <span class="cite">assembly_order</span> <span class="cite">G4</span>: single step all instances, ok.</li><li>Print-in-place <span class="cite">print_in_place</span> <span class="cite">G5</span>: min gap 0.3mm met, fits Bambu A1 256mm margin 98mm, zmin 0, no parts in air.</li><li>Overhangs/bridges <span class="cite">G5</span>: all &gt;45deg declared as herringbone apex bridges, coverage 0.1451 &lt;0.5; worst bridge 4.2mm &lt;10mm; per-part declared, max bridge 4.1mm.</li><li>Sun part <span class="cite">sun</span> <span class="cite">G2</span> <span class="cite">G7</span>: watertight 0 bad edges 1 body 1 through-hole; bounds 19.6x19.6x10.0; bed <span class="cite">sun/bed</span> 183.8mm2; hex <span class="cite">sun/hex</span> equ-area dia 7.036 both ends 0 and 9mm depth through; body thickness <span class="cite">sun/body</span> 10.0mm; groove void <span class="cite">sun/groove</span> 56% empty; apex view <span class="cite">sun/apex</span> touches surface seen close <span class="cite">G7</span>.</li><li>Planet part <span class="cite">planet</span> <span class="cite">G2</span> <span class="cite">G7</span>: watertight 0 bad edges 1 body 0 holes; bounds 19.6x19.6x10.0; bed <span class="cite">planet/bed</span> 222.6mm2; body <span class="cite">planet/body</span> 10.0mm; apex <span class="cite">planet/apex</span> close view touches surface.</li><li>Ring part <span class="cite">ring</span> <span class="cite">G2</span> <span class="cite">G7</span>: watertight 0 bad edges 1 body 1 through-hole; bounds 60x60x10.0; bed <span class="cite">ring/bed</span> 452.4mm2; rim <span class="cite">ring/rim</span> 10.0mm; teeth view <span class="cite">ring/teeth</span> touches surface seen close.</li><li>Sheets seen for final meshes plus assembly iso with all 5 instances plus close views of apex/teeth <span class="cite">G7</span>; compile clean <span class="cite">G1</span>.</li></ul><p class="h">Not verified</p><ul><li>Real PLA fusing, stringing, elephant foot, shrinkage, tooth wear, torque, noise, efficiency, whether 0.45mm mesh gaps free on first turn — not measured.</li><li>Looks/feel of apex and groove — geometry only.</li><li>1/4-in bit fit is clearance: hex drawn 6.7mm flats, checker measures equ-area circle dia 7.036 <span class="cite">sun/hex</span>; actual wrench fit depends on tolerance.</li><li>Spec adjustments to match measurement/physics, design intent unchanged: backlash 0.30 to 0.60mm arc for ~0.45mm mesh gaps for 0.4mm nozzle; ring internal thinning sign corrected was thickening caused 30mm3 overlap; ring groove bore +0.06mm to avoid coincident wall/non-manifold; hex spec 6.7 to 7.04 eq-diameter because checker measures area-equivalent dia; groove void box narrowed to part radius; added held ring and assembly overhang bridge box for mid-plane herringbone ceilings; renamed motion sun to drive to remove part/motion ambiguity.</li></ul></div><ul class="detail"><li><b>G8</b>unsupported claim: per-part declared, max bridge 4.1mm: VERIFIED per-part printability lists declared overhang zones but gives no per-part bridge_mm measurements; G5 only backs bridges of at most 10 mm, and the assembly&#x27;s worst bridge is 4.2 mm, so a per-part maximum of 4.1 mm is not backed.</li></ul></li><li class="panel" id="it-25"><div class="it-head"><b>Iteration 25</b><span>USD 0.001 · 20 s · 2,295 output tokens</span><span class="badge ok">accepted</span></div><div class="said md"><p><strong>Print-in-place herringbone planetary — 60x60x10mm</strong></p><p>One-piece print: ring + sun + 3x planets in place, no supports. Herringbone two 4.4mm halves + 1.2mm centre groove makes gears captive axially. Module 1.0, 20deg PA: Sun 18T, Planet 18T x3, Ring 54T. 1/4-in hex in sun. Print +Z up flat on bed, PLA 0.4mm nozzle, Bambu Lab A1.</p><p class="h">Verified</p><ul><li>Gear set as assembly <span class="cite">assembly</span>: measured bounds [[-30,-30,0],[30,30,10]] 60.0x60.0x10.0mm, one group <span class="cite">G3</span>, base on bed <span class="cite">assembly/bed</span> 1304.1mm2.</li><li>Parts present with copies <span class="cite">G3</span>: sun 1 <span class="cite">sun</span>, ring 1 <span class="cite">ring</span>, planet 3 placed 3 <span class="cite">planet</span>; each instance congruent to its part.</li><li>No overlap <span class="cite">G3</span>: 0 interferences; gaps ring-sun 1.01mm, ring-planet 0.449mm x3, sun-planet 0.45mm x3 — all &gt;=0.3mm print clearance <span class="cite">print_in_place</span>.</li><li>Captive <span class="cite">G3</span>: all instances held free:[] — cannot leave straight in any direction; covers sun, all three planets and ring <span class="cite">assembly</span>.</li><li>Sun-turns-with-planets motion sweeps 0-120deg clean <span class="cite">drive</span> <span class="cite">G4</span>: sun ratio 3, planets ratio -3, 361 steps, no collision.</li><li>Assembly order <span class="cite">assembly_order</span> <span class="cite">G4</span>: single step all instances, ok.</li><li>Print-in-place <span class="cite">print_in_place</span> <span class="cite">G5</span>: min gap 0.3mm met, fits Bambu A1 256mm margin 98mm, zmin 0, no parts in air.</li><li>Overhangs/bridges <span class="cite">G5</span>: all &gt;45deg zones declared, coverage under half, bridges within 10mm limit.</li><li>Sun part <span class="cite">sun</span> <span class="cite">G2</span> <span class="cite">G7</span>: watertight 0 bad edges 1 body 1 through-hole; bounds 19.6x19.6x10.0; bed <span class="cite">sun/bed</span> 183.8mm2; hex <span class="cite">sun/hex</span> equ-area dia 7.036 both ends 0 and 9mm depth through; body thickness <span class="cite">sun/body</span> 10.0mm; groove void <span class="cite">sun/groove</span> 56% empty; apex view <span class="cite">sun/apex</span> touches surface seen close <span class="cite">G7</span>.</li><li>Planet part <span class="cite">planet</span> <span class="cite">G2</span> <span class="cite">G7</span>: watertight 0 bad edges 1 body 0 holes; bounds 19.6x19.6x10.0; bed <span class="cite">planet/bed</span> 222.6mm2; body <span class="cite">planet/body</span> 10.0mm; apex <span class="cite">planet/apex</span> close view touches surface.</li><li>Ring part <span class="cite">ring</span> <span class="cite">G2</span> <span class="cite">G7</span>: watertight 0 bad edges 1 body 1 through-hole; bounds 60x60x10.0; bed <span class="cite">ring/bed</span> 452.4mm2; rim <span class="cite">ring/rim</span> 10.0mm; teeth view <span class="cite">ring/teeth</span> touches surface seen close.</li><li>Sheets seen for final meshes plus assembly iso with all 5 instances plus close views of apex/teeth <span class="cite">G7</span>; compile clean <span class="cite">G1</span>.</li></ul><p class="h">Not verified</p><ul><li>Real PLA fusing, stringing, elephant foot, shrinkage, tooth wear, torque, noise, efficiency, whether 0.45mm mesh gaps free on first turn — not measured.</li><li>Looks/feel of apex and groove — geometry only.</li><li>1/4-in bit fit is clearance: hex drawn 6.7mm flats, checker measures equ-area circle dia 7.036 <span class="cite">sun/hex</span>; actual wrench fit depends on tolerance.</li><li>Spec adjustments to match measurement/physics, design intent unchanged: backlash 0.30 to 0.60mm arc for ~0.45mm mesh gaps for 0.4mm nozzle; ring internal thinning sign corrected was thickening caused 30mm3 overlap; ring groove bore +0.06mm to avoid coincident wall/non-manifold; hex spec 6.7 to 7.04 eq-diameter because checker measures area-equivalent dia; groove void box narrowed to part radius; added held ring and assembly overhang bridge box for mid-plane herringbone ceilings; renamed motion sun to drive to remove part/motion ambiguity.</li></ul></div></li></ol><h2>Final verification</h2><div class="chips"><span class="badge ok">G1 compiles clean</span><span class="badge ok">G2 closed meshes</span><span class="badge ok">G3 assembly</span><span class="badge ok">G4 motion</span><span class="badge ok">G5 printable</span><span class="badge ok">G7 spec held, all seen</span><span class="badge ok">G8 honest close</span></div><h2>Source</h2><details class="panel"><summary>model.scad</summary><pre class="code">// Planetary gear set printed in place - herringbone with center groove, 60mm x 10mm
+// Sun 18T, Planets 18T x3, Ring 54T, module 1.0
+part = &quot;assembly&quot;; // [sun, planet, ring, assembly]
+
+m = 1.0;
+Zs = 18;
+Zp = 18;
+Zr = 54;
+pa = 20;
+H = 10;
+groove = 1.2;
+Hb = (H-groove)/2; // 4.4 half height
+backlash = 0.60; // tooth thinning per gear (mm arc)
+tipC = 0.20;
+shift = 0.8; // herringbone shift at pitch radius over Hb
+AF = 6.7;
+outerR = 30;
+
+rp_s = m*Zs/2;
+rb_s = rp_s*cos(pa);
+ra_s = rp_s + m - tipC;
+rd_s = rp_s - 1.25*m;
+
+rp_p = m*Zp/2;
+rb_p = rp_p*cos(pa);
+ra_p = rp_p + m - tipC;
+rd_p = rp_p - 1.25*m;
+
+rp_r = m*Zr/2;
+rb_r = rp_r*cos(pa);
+rt_r = rp_r - m + tipC;
+rr_r = rp_r + 1.25*m;
+
+Ts = shift / rp_s * 180/PI;
+Tp = shift / rp_p * 180/PI;
+Tr = shift / rp_r * 180/PI;
+
+Dorbit = (Zs+Zp)*m/2;
+
+function inv_deg(phi) = (tan(phi) - phi*PI/180)*180/PI;
+function inv_pa_val(pa_) = (tan(pa_) - pa_*PI/180)*180/PI;
+function half_deg(z, rp) = 90/z - (backlash/(2*rp))*180/PI;
+function phi_of(rb, r) = acos(rb/r);
+function ext_a(r, half, invpa, rb) = half + invpa - inv_deg(phi_of(rb, r));
+function int_a(r, half, invpa, rb) = half - invpa + inv_deg(phi_of(rb, r));
+function polar(r, a) = [r*cos(a), r*sin(a)];
+
+function ext_left_mid(z, rp, rb, ra, rd, half, invpa, k, j, Nf) =
+  let(base=k*360/z, rj = rb + (ra-rb)*j/Nf, aj = ext_a(rj, half, invpa, rb))
+    polar(rj, base - aj);
+function ext_right_mid(z, rp, rb, ra, rd, half, invpa, k, j, Nf) =
+  let(base=k*360/z, rj = rb + (ra-rb)*j/Nf, aj = ext_a(rj, half, invpa, rb))
+    polar(rj, base + aj);
+function int_left_mid(z, rp, rb, rt, rr, half, invpa, k, j, Nf) =
+  let(base=k*360/z, rj = rt + (rr-rt)*j/Nf, aj = int_a(rj, half, invpa, rb))
+    polar(rj, base - aj);
+function int_right_mid(z, rp, rb, rt, rr, half, invpa, k, j, Nf) =
+  let(base=k*360/z, rj = rt + (rr-rt)*j/Nf, aj = int_a(rj, half, invpa, rb))
+    polar(rj, base + aj);
+
+module sun_2d(Nf=4) {
+  half = half_deg(Zs, rp_s);
+  invpa = inv_pa_val(pa);
+  a_tip = ext_a(ra_s, half, invpa, rb_s);
+  a_base = half + invpa;
+  pitch = 360/Zs;
+  pts = [
+    for (k=[0:Zs-1])
+      let(base=k*pitch)
+      for (s=[0:2*Nf+5])
+        s==0 ? polar(rd_s, base - a_base) :
+        s==1 ? polar(rb_s, base - a_base) :
+        s&gt;=2 &amp;&amp; s&lt;=Nf ? ext_left_mid(Zs, rp_s, rb_s, ra_s, rd_s, half, invpa, k, s-1, Nf) :
+        s==Nf+1 ? polar(ra_s, base - a_tip) :
+        s==Nf+2 ? polar(ra_s, base) :
+        s==Nf+3 ? polar(ra_s, base + a_tip) :
+        s&gt;=Nf+4 &amp;&amp; s&lt;=2*Nf+2 ? ext_right_mid(Zs, rp_s, rb_s, ra_s, rd_s, half, invpa, k, 2*Nf+3-s, Nf) :
+        s==2*Nf+3 ? polar(rb_s, base + a_base) :
+        s==2*Nf+4 ? polar(rd_s, base + a_base) :
+        polar(rd_s, base + pitch/2)
+  ];
+  polygon(pts);
+}
+module planet_2d(Nf=4) {
+  half = half_deg(Zp, rp_p);
+  invpa = inv_pa_val(pa);
+  a_tip = ext_a(ra_p, half, invpa, rb_p);
+  a_base = half + invpa;
+  pitch = 360/Zp;
+  pts = [
+    for (k=[0:Zp-1])
+      let(base=k*pitch)
+      for (s=[0:2*Nf+5])
+        s==0 ? polar(rd_p, base - a_base) :
+        s==1 ? polar(rb_p, base - a_base) :
+        s&gt;=2 &amp;&amp; s&lt;=Nf ? ext_left_mid(Zp, rp_p, rb_p, ra_p, rd_p, half, invpa, k, s-1, Nf) :
+        s==Nf+1 ? polar(ra_p, base - a_tip) :
+        s==Nf+2 ? polar(ra_p, base) :
+        s==Nf+3 ? polar(ra_p, base + a_tip) :
+        s&gt;=Nf+4 &amp;&amp; s&lt;=2*Nf+2 ? ext_right_mid(Zp, rp_p, rb_p, ra_p, rd_p, half, invpa, k, 2*Nf+3-s, Nf) :
+        s==2*Nf+3 ? polar(rb_p, base + a_base) :
+        s==2*Nf+4 ? polar(rd_p, base + a_base) :
+        polar(rd_p, base + pitch/2)
+  ];
+  polygon(pts);
+}
+module ring_void_2d(Nf=4) {
+  half = 90/Zr - (backlash/(2*rp_r))*180/PI;
+  invpa = inv_pa_val(pa);
+  a_tip = int_a(rt_r, half, invpa, rb_r);
+  a_root = int_a(rr_r, half, invpa, rb_r);
+  pitch = 360/Zr;
+  pts = [
+    for (k=[0:Zr-1])
+      let(base=k*pitch)
+      for (s=[0:2*Nf+5])
+        s==0 ? polar(rr_r, base - a_root) :
+        s&gt;=1 &amp;&amp; s&lt;=Nf-1 ? int_left_mid(Zr, rp_r, rb_r, rt_r, rr_r, half, invpa, k, Nf-s, Nf) :
+        s==Nf ? polar(rt_r, base - a_tip) :
+        s==Nf+1 ? polar(rt_r, base) :
+        s==Nf+2 ? polar(rt_r, base + a_tip) :
+        s&gt;=Nf+3 &amp;&amp; s&lt;=2*Nf+1 ? int_right_mid(Zr, rp_r, rb_r, rt_r, rr_r, half, invpa, k, s-(Nf+2), Nf) :
+        s==2*Nf+2 ? polar(rr_r, base + a_root) :
+        polar(rr_r, base + pitch/2)
+  ];
+  polygon(pts);
+}
+
+Rhex = AF/sqrt(3);
+module hex_2d() {
+  polygon([for (i=[0:5]) let(a=30+i*60) polar(Rhex, a)]);
+}
+
+module sun_half_bot() {
+  rotate([0,0,-Ts]) linear_extrude(height=Hb, twist=Ts, slices=8) sun_2d();
+}
+module sun_half_top() {
+  translate([0,0,H-Hb]) linear_extrude(height=Hb, twist=-Ts, slices=8) sun_2d();
+}
+module planet_half_bot() {
+  rotate([0,0,Tp]) linear_extrude(height=Hb, twist=-Tp, slices=8) planet_2d();
+}
+module planet_half_top() {
+  translate([0,0,H-Hb]) linear_extrude(height=Hb, twist=Tp, slices=8) planet_2d();
+}
+module ring_void_bot() {
+  translate([0,0,-0.6]) rotate([0,0,Tr]) linear_extrude(height=Hb+0.7, twist=-Tr, slices=8) ring_void_2d();
+}
+module ring_void_top() {
+  translate([0,0,H-Hb-0.1]) linear_extrude(height=Hb+0.7, twist=Tr, slices=8) ring_void_2d();
+}
+
+module sun_gear() {
+  difference() {
+    union() {
+      cylinder(r=rd_s, h=H, $fn=96);
+      sun_half_bot();
+      sun_half_top();
+    }
+    translate([0,0,-0.6]) linear_extrude(height=H+1.2) hex_2d();
+  }
+}
+module planet_gear() {
+  union() {
+    cylinder(r=rd_p, h=H, $fn=96);
+    planet_half_bot();
+    planet_half_top();
+  }
+}
+module ring_gear() {
+  difference() {
+    cylinder(r=outerR, h=H, $fn=180);
+    ring_void_bot();
+    ring_void_top();
+    // center groove bore just outside root radius (avoids coincident walls)
+    translate([0,0,Hb]) cylinder(r=rr_r+0.06, h=groove+0.2, $fn=180);
+  }
+}
+
+cadverify_only = &quot;&quot;;
+module instance(name, part, unit = 1) {
+    echo(cadverify_instance = [name, part, unit]);
+    if (cadverify_only == &quot;&quot; || cadverify_only == name) children();
+}
+
+if (part == &quot;sun&quot;) {
+  echo(cadverify_spec = [
+    [&quot;bounds&quot;, [[-ra_s, -ra_s, 0], [ra_s, ra_s, H]]],
+    [&quot;bodies&quot;, 1],
+    [&quot;through_holes&quot;, 1],
+    [&quot;support_faces&quot;, [[&quot;bed&quot;, &quot;-z&quot;, 50]]],
+    [&quot;overhangs_allowed&quot;, [[&quot;herringbone groove bridges&quot;, [[-ra_s, -ra_s, Hb-0.2], [ra_s, ra_s, H-Hb+0.2]]]]],
+    [&quot;copies&quot;, 1],
+    [&quot;details&quot;, [
+      [&quot;hex&quot;, &quot;hole&quot;, [0, 0, H+2], [0, 0, -1], [[0, 7.04], [9, 7.04]]],
+      [&quot;body&quot;, &quot;thickness&quot;, [5, 0, H+2], [0, 0, -1], H],
+      [&quot;groove&quot;, &quot;void&quot;, [[-ra_s, -2, Hb], [ra_s, 2, H-Hb]], 0.5],
+      [&quot;apex&quot;, &quot;view&quot;, [[7, -2, Hb-1], [ra_s+0.5, 2, H-Hb+1]]]
+    ]]
+  ]);
+  sun_gear();
+} else if (part == &quot;planet&quot;) {
+  echo(cadverify_spec = [
+    [&quot;bounds&quot;, [[-ra_p, -ra_p, 0], [ra_p, ra_p, H]]],
+    [&quot;bodies&quot;, 1],
+    [&quot;through_holes&quot;, 0],
+    [&quot;support_faces&quot;, [[&quot;bed&quot;, &quot;-z&quot;, 50]]],
+    [&quot;overhangs_allowed&quot;, [[&quot;herringbone groove bridges&quot;, [[-ra_p, -ra_p, Hb-0.2], [ra_p, ra_p, H-Hb+0.2]]]]],
+    [&quot;copies&quot;, 3],
+    [&quot;details&quot;, [
+      [&quot;body&quot;, &quot;thickness&quot;, [5, 0, H+2], [0, 0, -1], H],
+      [&quot;apex&quot;, &quot;view&quot;, [[7, -2, Hb-1], [ra_p+0.5, 2, H-Hb+1]]]
+    ]]
+  ]);
+  planet_gear();
+} else if (part == &quot;ring&quot;) {
+  echo(cadverify_spec = [
+    [&quot;bounds&quot;, [[-outerR, -outerR, 0], [outerR, outerR, H]]],
+    [&quot;bodies&quot;, 1],
+    [&quot;through_holes&quot;, 1],
+    [&quot;support_faces&quot;, [[&quot;bed&quot;, &quot;-z&quot;, 200]]],
+    [&quot;overhangs_allowed&quot;, [[&quot;herringbone groove bridges&quot;, [[-rr_r, -rr_r, Hb-0.2], [rr_r, rr_r, H-Hb+0.2]]]]],
+    [&quot;copies&quot;, 1],
+    [&quot;details&quot;, [
+      [&quot;rim&quot;, &quot;thickness&quot;, [29, 0, H+2], [0, 0, -1], H],
+      [&quot;teeth&quot;, &quot;view&quot;, [[24, -4, Hb-1], [29, 4, H-Hb+1]]]
+    ]]
+  ]);
+  ring_gear();
+} else if (part == &quot;assembly&quot;) {
+  echo(cadverify_spec = [
+    [&quot;bounds&quot;, [[-outerR, -outerR, 0], [outerR, outerR, H]]],
+    [&quot;support_faces&quot;, [[&quot;bed&quot;, &quot;-z&quot;, 500]]],
+    [&quot;overhangs_allowed&quot;, [[&quot;herringbone apex bridges&quot;, [[-28.5, -28.5, Hb-0.2], [28.5, 28.5, H-Hb+0.2]]]]],
+    [&quot;assembly_order&quot;, [
+      [[ &quot;ring&quot;, &quot;sun&quot;, &quot;planet1&quot;, &quot;planet2&quot;, &quot;planet3&quot;], [0, 0, 0]]
+    ]],
+    [&quot;motions&quot;, [
+      [&quot;drive&quot;, [&quot;sun&quot;, &quot;planet1&quot;, &quot;planet2&quot;, &quot;planet3&quot;], &quot;rotate&quot;, [0, 0, 0], [0, 0, 1], [0, 120],
+        [&quot;drives&quot;, [
+          [[&quot;sun&quot;], &quot;rotate&quot;, [0, 0, 0], [0, 0, 1], 3],
+          [[&quot;planet1&quot;], &quot;rotate&quot;, [Dorbit, 0, 0], [0, 0, 1], -3],
+          [[&quot;planet2&quot;], &quot;rotate&quot;, [Dorbit*cos(120), Dorbit*sin(120), 0], [0, 0, 1], -3],
+          [[&quot;planet3&quot;], &quot;rotate&quot;, [Dorbit*cos(240), Dorbit*sin(240), 0], [0, 0, 1], -3]
+        ]]
+      ]
+    ]],
+    [&quot;print_in_place&quot;, 0.3],
+    [&quot;held&quot;, [&quot;ring&quot;, &quot;sun&quot;, &quot;planet1&quot;, &quot;planet2&quot;, &quot;planet3&quot;]]
+  ]);
+  instance(&quot;ring&quot;, &quot;ring&quot;) ring_gear();
+  instance(&quot;sun&quot;, &quot;sun&quot;) sun_gear();
+  instance(&quot;planet1&quot;, &quot;planet&quot;) translate([Dorbit, 0, 0]) rotate([0,0,10]) planet_gear();
+  instance(&quot;planet2&quot;, &quot;planet&quot;) translate([Dorbit*cos(120), Dorbit*sin(120), 0]) rotate([0,0,10]) planet_gear();
+  instance(&quot;planet3&quot;, &quot;planet&quot;) translate([Dorbit*cos(240), Dorbit*sin(240), 0]) rotate([0,0,10]) planet_gear();
+}
+</pre></details></main></body></html>

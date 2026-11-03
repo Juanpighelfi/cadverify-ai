@@ -1,0 +1,37 @@
+{
+  "seq": 11,
+  "iteration": 6,
+  "name": "run_shell",
+  "arguments": {
+    "cmd": "sed -n 1,120p /work/model.scad",
+    "timeout_s": 30.0
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.006,
+    "stdout": "/* Weekly pill box with turning lid - PLA, no supports, 0.4 nozzle */\npart = \"assembly\"; // [base, lid, assembly]\n\n/* parameters */\nbase_wall_outer = 41.5;\nbase_wall_inner = 39.5;\nbase_h = 22;\nbase_bottom_t = 2;\nflange_outer = 42.6;\nflange_top = 19;\nflange_mid = 18.4;\nflange_bot = 17;\nhub_r = 8;\ndivider_t = 1.6;\ndivider_r0 = 7;\ndivider_r1 = 40;\nnotch_r = 40.5;\nnotch_rad = 1.3;\nbump_rad = 1.0;\nlid_outer = 45;\nlid_skirt_inner = 43;\nlid_disc_t = 2.8;\nlid_skirt_h = 7.0; // 2.8 to 9.8 in print\nlid_print_h = 9.8;\nlid_lip_tip_r = 42.2;\nlid_lip_low_z_print = 8.3; // sloped side at wall\nlid_lip_top_z_print = 9.8; // flat top\ncenter_hole_r = 8.4;\nopening_inner = 10;\nopening_outer = 38;\nopening_half_ang = 20;\nassembly_lid_top = 25;\nalign_ang = 360/14; // 25.7142857\n\ncadverify_only = \"\";\nmodule instance(name, part, unit = 1) {\n    echo(cadverify_instance = [name, part, unit]);\n    if (cadverify_only == \"\" || cadverify_only == name) children();\n}\n\nmodule base_geometry() {\n    // bottom disc + wall tube + flange + hub + dividers, then notch pits out\n    difference() {\n        union() {\n            // bottom disc\n            cylinder(r = base_wall_outer, h = base_bottom_t, $fn = 180);\n            // outer wall tube\n            difference() {\n                cylinder(r = base_wall_outer, h = base_h, $fn = 180);\n                translate([0,0,base_bottom_t - 0.5])\n                    cylinder(r = base_wall_inner, h = base_h, $fn = 180);\n            }\n            // flange ring with 45deg-chamfered underside\n            rotate_extrude($fn = 180)\n                polygon(points = [\n                    [base_wall_outer, flange_bot],\n                    [flange_outer, flange_mid],\n                    [flange_outer, flange_top],\n                    [base_wall_outer, flange_top]\n                ]);\n            // hub (kept solid: added after cavity so it survives)\n            cylinder(r = hub_r, h = base_h, $fn = 96);\n            // 7 dividers at k*360/7 (added after cavity so they survive)\n            for (k = [0:6]) {\n                rotate([0,0,k*360/7])\n                    translate([divider_r0, -divider_t/2, base_bottom_t])\n                        cube([divider_r1 - divider_r0, divider_t, base_h - base_bottom_t]);\n            }\n        }\n        // 7 notch pits (hemispherical) at compartment centres\n        for (k = [0:6]) {\n            ang = (k+0.5)*360/7;\n            translate([notch_r*cos(ang), notch_r*sin(ang), base_h])\n                sphere(r = notch_rad, $fn = 32);\n        }\n    }\n}\n\nmodule lid_geometry() {\n    // print orientation: use-top at z=0, skirt up to 9.8\n    difference() {\n        union() {\n            // disc\n            cylinder(r = lid_outer, h = lid_disc_t, $fn = 180);\n            // skirt tube\n            translate([0,0,lid_disc_t])\n                difference() {\n                    cylinder(r = lid_outer, h = lid_skirt_h, $fn = 180);\n                    translate([0,0,-0.5])\n                        cylinder(r = lid_skirt_inner, h = lid_skirt_h+1, $fn = 180);\n                }\n            // lip ring (triangle section)\n            rotate_extrude($fn = 180)\n                polygon(points = [\n                    [lid_skirt_inner, lid_lip_low_z_print],\n                    [lid_skirt_inner, lid_lip_top_z_print],\n                    [lid_lip_tip_r, lid_lip_top_z_print]\n                ]);\n            // detent bump (hemisphere up): full sphere centred on surface\n            translate([notch_r, 0, lid_disc_t])\n                sphere(r = bump_rad, $fn = 32);\n        }\n        // center hole\n        translate([0,0,-1])\n            cylinder(r = center_hole_r, h = lid_disc_t+2, $fn = 96);\n        // sector opening: wedge ^ outer minus inner, through disc\n        translate([0,0,-1])\n            difference() {\n                intersection() {\n                    linear_extrude(height = lid_disc_t+2)\n                        polygon(points = [\n                            [0,0],\n                            [50*cos(-opening_half_ang), 50*sin(-opening_half_ang)],\n                            [50*cos(opening_half_ang), 50*sin(opening_half_ang)]\n                        ]);\n                    cylinder(r = opening_outer, h = lid_disc_t+2, $fn = 128);\n                }\n                cylinder(r = opening_inner, h = lid_disc_t+4, $fn = 96);\n            }\n    }\n",
+    "stderr": "",
+    "stdout_bytes": 4322,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 0.427,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "25226ca66bea5d1c"
+}

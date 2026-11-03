@@ -1,0 +1,35 @@
+{
+  "seq": 31,
+  "iteration": 33,
+  "name": "scad_patch",
+  "arguments": {
+    "new": "// ---- shaft (external, pot D-shaft) ----\nmodule shaft() {\n    intersection() {\n        cylinder(d=shaft_d, h=shaft_len, $fn=64);\n        translate([-10,-10,0]) cube([(shaft_flat+10), 20, shaft_len]);\n    }\n}\n\n// ---- set screw (external, M3 grub: 3 mm dia, tip on the shaft flat) ----\nscrew_d_out = 3.0;\nscrew_tip_x = 1.5;      // tip face coplanar with the shaft flat\nscrew_tail_x = 7.5;     // tail buried in the nut, inside the pocket\nmodule screw() {\n    translate([screw_tip_x, 0, screw_z])\n        rotate([0,90,0])\n            cylinder(d=screw_d_out, h=screw_tail_x-screw_tip_x, $fn=24);\n}\n\n// ---- assembly placement ----\nmodule assembly() {\n    // knob elevated so shaft bottom sits at z=0\n    instance(\"knob\", \"knob\") translate([0,0,assy_base]) knob();\n    // shaft fully inserted: top flush with bore ceiling (assy_base+15=25)\n    instance(\"shaft\", \"external\") shaft();\n    // nut in pocket, axis along X, inner face at nut_inner\n    instance(\"nut\", \"standard:m3_nut\") translate([nut_inner, 0, assy_base+screw_z]) rotate([0,90,0]) rotate([0,0,30]) m3_nut();\n    // set screw through the nut, tip touching the shaft flat\n    instance(\"screw\", \"external\") translate([0, 0, assy_base]) screw();\n}",
+    "old": "// ---- shaft (external, pot D-shaft) ----\nmodule shaft() {\n    intersection() {\n        cylinder(d=shaft_d, h=shaft_len, $fn=64);\n        translate([-10,-10,0]) cube([(shaft_flat+10), 20, shaft_len]);\n    }\n}\n\n// ---- assembly placement ----\nmodule assembly() {\n    // knob elevated so shaft bottom sits at z=0\n    instance(\"knob\", \"knob\") translate([0,0,assy_base]) knob();\n    // shaft fully inserted: top flush with bore ceiling (assy_base+15=25)\n    instance(\"shaft\", \"external\") shaft();\n    // nut in pocket, axis along X, inner face at nut_inner\n    instance(\"nut\", \"standard:m3_nut\") translate([nut_inner, 0, assy_base+screw_z]) rotate([0,90,0]) rotate([0,0,30]) m3_nut();\n}",
+    "path": "model.scad"
+  },
+  "result": {
+    "ok": true,
+    "path": "model.scad",
+    "line": 115,
+    "lines_removed": 17,
+    "lines_added": 29,
+    "bytes": 6610,
+    "lines": 186,
+    "sha256": "72f532fddeaed6edd123d50e970c2954127e04352ae65e6da1adb131bcf5a960"
+  },
+  "seconds": 0.361,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [
+      "model.scad"
+    ],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [
+    "model.scad"
+  ],
+  "rule": null,
+  "source": "30c75f0f46b3af55"
+}

@@ -1,0 +1,37 @@
+{
+  "seq": 18,
+  "iteration": 13,
+  "name": "run_shell",
+  "arguments": {
+    "cmd": "ls -la exports/ checks/assembly/ 2>&1; python3 -c \"\nimport trimesh, numpy as np\nw=trimesh.load('exports/model.wheel.675d7f4a.stl')\nb=trimesh.load('exports/model.base.87e59dfb.stl')\nprint('wheel bounds',w.bounds)\nprint('base bounds',b.bounds)\n# transform wheel to assembly: translate z4 + rotate -37.333 about z\nimport math\na=math.radians(-37.3333333)\nT=np.eye(4); c,s=math.cos(a),math.sin(a)\nT[:2,:2]=[[c,-s],[s,c]]; T[2,3]=4\nw2=w.copy(); w2.apply_transform(T)\nprint('wheel asm bounds',w2.bounds)\n# intersect with base finger region? boolean check via section? use trimesh boolean? try manifold\ntry:\n  from manifold3d import Manifold, CrossSection\n  print('manifold available')\nexcept Exception as e:\n  print(e)\n# quick: sample points of wheel inside base?\n\"\n",
+    "timeout_s": 60.0
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.826,
+    "stdout": "checks/assembly/:\ntotal 412\ndrwxr-xr-x 2 23764 23764    120 Nov  3 03:53 .\ndrwxr-xr-x 3 23764 23764     60 Nov  3 03:53 ..\n-rw-r--r-- 1 23764 23764 113827 Nov  3 03:53 model.assembly.1d428528.stl\n-rw-r--r-- 1 23764 23764 101715 Nov  3 03:53 model.assembly.57cfb177.stl\n-rw-r--r-- 1 23764 23764 101715 Nov  3 03:53 model.base.87e59dfb.stl\n-rw-r--r-- 1 23764 23764 101880 Nov  3 03:53 model.wheel.675d7f4a.stl\n\nexports/:\ntotal 416\ndrwxr-xr-x 2 23764 23764    100 Nov  3 03:53 .\ndrwx------ 5 23764 23764    120 Nov  3 03:53 ..\n-rw-r--r-- 1 23764 23764 217557 Nov  3 03:52 model.assembly.8a16e71a.stl\n-rw-r--r-- 1 23764 23764 101715 Nov  3 03:52 model.base.87e59dfb.stl\n-rw-r--r-- 1 23764 23764 101880 Nov  3 03:53 model.wheel.675d7f4a.stl\nwheel bounds [[-24.90486746 -24.90486746   0.        ]\n [ 24.90486746  24.90486746   6.        ]]\nbase bounds [[-40. -30.   0.]\n [ 40.  30.  14.]]\nwheel asm bounds [[-24.42303683 -24.42303683   4.        ]\n [ 24.42303683  24.42303683  10.        ]]\nmanifold available\n",
+    "stderr": "",
+    "stdout_bytes": 1004,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 1.174,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "a1c3e6cd649abb7e"
+}

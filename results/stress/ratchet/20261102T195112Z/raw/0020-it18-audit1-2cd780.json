@@ -1,0 +1,92 @@
+{
+  "label": "it18-audit1",
+  "endpoint": "POST /v1/responses",
+  "request": {
+    "model": "muse-wonder-1.0",
+    "instructions": "You audit the close of a design session for 3D printing in OpenSCAD. The harness verified the final version of the design and gives you, in JSON, what it measured (VERIFIED) and the spec adjustments it detected: changes of the spec towards what the mesh already measured, without the part changing (ADJUSTMENTS). Read the designer's CLOSE and answer only with a JSON object, with no text before or after it:\n{\"unsupported\": [{\"claim\": \"...\", \"reason\": \"...\"}], \"untold_adjustments\": [{\"adjustment\": \"...\", \"reason\": \"...\"}]}\n- unsupported: every claim the close presents as verified (measured, checked, that it meets, that it fits, that it does not collide, that it goes in, that it prints without supports) that VERIFIED does not back: it is not there, it says something else or the numbers do not match. Leave out: what the close states as not verified, an opinion, an intention, or a description of the design that does not claim to have been checked.\n- untold_adjustments: every part of ADJUSTMENTS whose adjustments the close does not mention with their reason (one mention per part saying what was adjusted and why is enough).\nEmpty lists if there is nothing to object to. Be precise: quote the claim as it is written.",
+    "input": "VERIFIED\n{\"gates\": {\"G1\": true, \"G2\": true, \"G3\": true, \"G4\": true, \"G5\": true, \"G7\": true}, \"green_means\": {\"G1\": \"the source compiles and every part exports with the default parameters, with no errors, failed asserts, timeouts or warnings\", \"G2\": \"every part is a closed mesh: watertight, 0 bad edges, no inverted shells, a positive volume and the declared number of bodies\", \"G3\": \"the assembly: each instance is its part moved (same volume, area and principal moments), every part placed as many times as its copies, no overlap between instances beyond the allowed_interferences, all of them one connected group, and the units the request chains (nothing to check for one part without an assembly)\", \"G4\": \"every declared motion swept through its whole range, and every assembly_order step brought in from far away along its direction (turning, when it turns), without a collision with what is already placed (a press fit only as a fit: no thicker than one along a motion, and pushed in only where it overlaps in place). The parts are swept as rigid bodies; a pair a motion declares as flex may overlap while it moves, no deeper than declared and never at an end of the range: how deep is measured, not whether the feature can bend that far\", \"G5\": \"each part alone, in the orientation it is exported in: no overhang steeper than 45° outside its declared overhangs_allowed boxes (which cover at most half of its surface), the part of every overhang steeper than 60° (where the A1's slicer adds supports by default) a bridge of 10 mm at most (no point of it more than 5 mm, seen from above, from the material under its lowest edge), every body resting on the bed or starting 1 mm or less over another, and it fits the bed (Bambu Lab A1, 256 mm cube). Only an assembly that declares print_in_place is checked as printed whole: the same checks on all its parts together as they print (as they stand, or in the declared print_pose), and every two of them at least the declared clearance apart in that pose. Whether a bridge sags, or how the print looks, is not measured\", \"G7\": \"every spec check holds (bounds, bodies, through holes, support faces, details), and the designer saw the final version: the multi-view sheet of every part, all the instances of the assembly together in one view, and a close view of every detail of kind view\"}, \"parts\": [{\"part\": \"wheel\", \"ok\": true, \"mesh\": {\"watertight\": true, \"bad_edges\": 0, \"bodies\": 1, \"volume_mm3\": 9933.424, \"bounds\": [[-24.966, -24.966, 0.0], [24.966, 24.966, 6.0]], \"through_holes\": 1}, \"spec\": {\"bounds\": [[-25.0, -25.0, 0.0], [25.0, 25.0, 6.0]], \"bodies\": 1, \"through_holes\": 1, \"support_faces\": [{\"name\": \"bed\", \"direction\": \"-z\", \"min_area_mm2\": 800}], \"overhangs_allowed\": [], \"copies\": 1, \"details\": [{\"name\": \"axle_hole\", \"kind\": \"hole\", \"point\": [0.0, 0.0, 10.0], \"direction\": [0.0, 0.0, -1.0], \"diameters\": [[0.0, 12.6], [3.0, 12.6]]}, {\"name\": \"rim_thick\", \"kind\": \"thickness\", \"point\": [15.0, 0.0, 10.0], \"direction\": [0.0, 0.0, -1.0], \"mm\": 6.0}, {\"name\": \"tooth0\", \"kind\": \"material\", \"box\": [[22.05, 7.71, 0.0], [23.05, 8.71, 6.0]], \"fraction\": 0.5}, {\"name\": \"tooth4\", \"kind\": \"material\", \"box\": [[-18.89, 14.93, 0.0], [-17.89, 15.93, 6.0]], \"fraction\": 0.5}, {\"name\": \"tooth8\", \"kind\": \"material\", \"box\": [[-4.67, -24.14, 0.0], [-3.67, -23.14, 6.0]], \"fraction\": 0.5}]}, \"spec_check\": {\"ok\": true, \"bounds\": {\"ok\": true, \"expected\": [[-25.0, -25.0, 0.0], [25.0, 25.0, 6.0]], \"actual\": [[-24.966, -24.966, 0.0], [24.966, 24.966, 6.0]], \"tolerance_mm\": 0.2, \"deviations\": []}, \"bodies\": {\"ok\": true, \"expected\": 1, \"actual\": 1}, \"through_holes\": {\"ok\": true, \"expected\": 1, \"actual\": 1}, \"support_faces\": [{\"name\": \"bed\", \"direction\": \"-z\", \"ok\": true, \"min_area_mm2\": 800, \"area_on_extreme_plane_mm2\": 1655.6, \"extreme_plane\": \"z = 0.000\", \"largest_flat_face\": {\"plane\": \"z = 0.000\", \"area_mm2\": 1655.6}}]}, \"details\": [{\"name\": \"axle_hole\", \"kind\": \"hole\", \"ok\": true, \"mouth\": [0.0, 0.0, 6.0], \"mouth_from_point_mm\": 4.0, \"diameters\": [{\"depth_mm\": 0.0, \"expected_mm\": 12.6, \"measured_mm\": 12.59, \"ok\": true}, {\"depth_mm\": 3.0, \"expected_mm\": 12.6, \"measured_mm\": 12.59, \"ok\": true}]}, {\"name\": \"rim_thick\", \"kind\": \"thickness\", \"ok\": true, \"expected_mm\": 6.0, \"measured_mm\": 6.0, \"enters_at\": [15.0, 0.0, 6.0], \"tolerance_mm\": 0.18}, {\"name\": \"tooth0\", \"kind\": \"material\", \"box\": [[22.05, 7.71, 0.0], [23.05, 8.71, 6.0]], \"material_fraction\": 0.8197, \"min_fraction\": 0.5, \"ok\": true}, {\"name\": \"tooth4\", \"kind\": \"material\", \"box\": [[-18.89, 14.93, 0.0], [-17.89, 15.93, 6.0]], \"material_fraction\": 0.8414, \"min_fraction\": 0.5, \"ok\": true}, {\"name\": \"tooth8\", \"kind\": \"material\", \"box\": [[-4.67, -24.14, 0.0], [-3.67, -23.14, 6.0]], \"material_fraction\": 0.8405, \"min_fraction\": 0.5, \"ok\": true}], \"printability\": {\"fits_bed\": true, \"bed_mm\": [256.0, 256.0, 256.0], \"size\": [49.931, 49.931, 6.0], \"bed_margin_mm\": [103.03, 103.03, 250.0], \"base_area_mm2\": 1655.6, \"overhang_area_mm2\": 0.0, \"zones_total\": 0, \"zones_undeclared\": 0, \"undeclared_area_mm2\": 0, \"allowed_share_of_surface\": 0.0, \"zones\": []}}, {\"part\": \"base\", \"ok\": true, \"mesh\": {\"watertight\": true, \"bad_edges\": 0, \"bodies\": 1, \"volume_mm3\": 29216.486, \"bounds\": [[-40.0, -30.0, 0.0], [40.0, 30.0, 14.0]], \"through_holes\": 1}, \"spec\": {\"bounds\": [[-40.0, -30.0, 0.0], [40.0, 30.0, 14.0]], \"bodies\": 1, \"through_holes\": 1, \"support_faces\": [{\"name\": \"bed\", \"direction\": \"-z\", \"min_area_mm2\": 2000}], \"overhangs_allowed\": [], \"copies\": 1, \"details\": [{\"name\": \"plate_thick\", \"kind\": \"thickness\", \"point\": [0.0, -28.0, 10.0], \"direction\": [0.0, 0.0, -1.0], \"mm\": 6.0}, {\"name\": \"post_dia\", \"kind\": \"thickness\", \"point\": [-20.0, 0.0, 13.0], \"direction\": [1.0, 0.0, 0.0], \"mm\": 12.0}, {\"name\": \"post_core\", \"kind\": \"material\", \"box\": [[-12.0, -2.0, 8.0], [-8.0, 2.0, 13.0]], \"fraction\": 0.8}, {\"name\": \"arm_width\", \"kind\": \"thickness\", \"point\": [11.75, -16.0, 3.0], \"direction\": [1.0, 0.0, 0.0], \"mm\": 3.0}, {\"name\": \"arm_full\", \"kind\": \"material\", \"box\": [[13.0, -20.0, 0.0], [15.0, -12.0, 6.0]], \"fraction\": 0.8}, {\"name\": \"slot_gap\", \"kind\": \"void\", \"box\": [[11.0, -20.0, 0.0], [12.5, -10.0, 6.0]], \"fraction\": 0.8}, {\"name\": \"slot_east\", \"kind\": \"void\", \"box\": [[15.5, -20.0, 0.0], [17.0, -10.0, 6.0]], \"fraction\": 0.8}, {\"name\": \"pawl_tip\", \"kind\": \"material\", \"box\": [[14.4, -0.3, 8.0], [15.2, 0.3, 11.0]], \"fraction\": 0.5}, {\"name\": \"pawl_stack\", \"kind\": \"thickness\", \"point\": [14.8, 0.0, 15.0], \"direction\": [0.0, 0.0, -1.0], \"mm\": 12.0}]}, \"spec_check\": {\"ok\": true, \"bounds\": {\"ok\": true, \"expected\": [[-40.0, -30.0, 0.0], [40.0, 30.0, 14.0]], \"actual\": [[-40.0, -30.0, 0.0], [40.0, 30.0, 14.0]], \"tolerance_mm\": 0.2, \"deviations\": []}, \"bodies\": {\"ok\": true, \"expected\": 1, \"actual\": 1}, \"through_holes\": {\"ok\": true, \"expected\": 1, \"actual\": 1}, \"support_faces\": [{\"name\": \"bed\", \"direction\": \"-z\", \"ok\": true, \"min_area_mm2\": 2000, \"area_on_extreme_plane_mm2\": 4716.0, \"extreme_plane\": \"z = 0.000\", \"largest_flat_face\": {\"plane\": \"z = 0.000\", \"area_mm2\": 4716.0}}]}, \"details\": [{\"name\": \"plate_thick\", \"kind\": \"thickness\", \"ok\": true, \"expected_mm\": 6.0, \"measured_mm\": 6.0, \"enters_at\": [0.0, -28.0, 6.0], \"tolerance_mm\": 0.18}, {\"name\": \"post_dia\", \"kind\": \"thickness\", \"ok\": true, \"expected_mm\": 12.0, \"measured_mm\": 12.0, \"enters_at\": [-16.0, 0.0, 13.0], \"tolerance_mm\": 0.36}, {\"name\": \"post_core\", \"kind\": \"material\", \"box\": [[-12.0, -2.0, 8.0], [-8.0, 2.0, 13.0]], \"material_fraction\": 1.0, \"min_fraction\": 0.8, \"ok\": true}, {\"name\": \"arm_width\", \"kind\": \"thickness\", \"ok\": true, \"expected_mm\": 3.0, \"measured_mm\": 3.0, \"enters_at\": [12.5, -16.0, 3.0], \"tolerance_mm\": 0.1}, {\"name\": \"arm_full\", \"kind\": \"material\", \"box\": [[13.0, -20.0, 0.0], [15.0, -12.0, 6.0]], \"material_fraction\": 1.0, \"min_fraction\": 0.8, \"ok\": true}, {\"name\": \"slot_gap\", \"kind\": \"void\", \"box\": [[11.0, -20.0, 0.0], [12.5, -10.0, 6.0]], \"material_fraction\": 0.0, \"min_empty_fraction\": 0.8, \"ok\": true}, {\"name\": \"slot_east\", \"kind\": \"void\", \"box\": [[15.5, -20.0, 0.0], [17.0, -10.0, 6.0]], \"material_fraction\": 0.0, \"min_empty_fraction\": 0.8, \"ok\": true}, {\"name\": \"pawl_tip\", \"kind\": \"material\", \"box\": [[14.4, -0.3, 8.0], [15.2, 0.3, 11.0]], \"material_fraction\": 1.0, \"min_fraction\": 0.5, \"ok\": true}, {\"name\": \"pawl_stack\", \"kind\": \"thickness\", \"ok\": true, \"expected_mm\": 12.0, \"measured_mm\": 12.0, \"enters_at\": [14.8, 0.0, 12.0], \"tolerance_mm\": 0.36}], \"printability\": {\"fits_bed\": true, \"bed_mm\": [256.0, 256.0, 256.0], \"size\": [80.0, 60.0, 14.0], \"bed_margin_mm\": [88.0, 98.0, 242.0], \"base_area_mm2\": 4716.0, \"overhang_area_mm2\": 0.0, \"zones_total\": 0, \"zones_undeclared\": 0, \"undeclared_area_mm2\": 0, \"allowed_share_of_surface\": 0.0, \"zones\": []}}], \"assembly\": {\"instances\": [{\"name\": \"base_inst\", \"part\": \"base\", \"unit\": 1, \"bounds\": [[-40.0, -30.0, 0.0], [40.0, 30.0, 14.0]], \"congruent\": true}, {\"name\": \"wheel_inst\", \"part\": \"wheel\", \"unit\": 1, \"bounds\": [[-34.966, -24.966, 6.2], [14.966, 24.966, 12.2]], \"congruent\": true}], \"pairs\": [{\"a\": \"base_inst\", \"b\": \"wheel_inst\", \"gap_mm\": 0.006, \"contact\": true}], \"components\": [[\"base_inst\", \"wheel_inst\"]], \"units\": {\"required\": 1, \"present\": [1], \"links\": []}, \"copies\": [{\"part\": \"base\", \"expected\": 1, \"placed\": 1, \"ok\": true}, {\"part\": \"wheel\", \"expected\": 1, \"placed\": 1, \"ok\": true}], \"spec_check\": {\"measured_bounds\": [[-40.0, -30.0, 0.0], [40.0, 30.0, 14.0]], \"bounds\": {\"ok\": true, \"expected\": [[-40.0, -30.0, 0.0], [40.0, 30.0, 14.0]], \"actual\": [[-40.0, -30.0, 0.0], [40.0, 30.0, 14.0]], \"tolerance_mm\": 0.2, \"deviations\": []}, \"support_faces\": [{\"name\": \"desk\", \"direction\": \"-z\", \"ok\": true, \"min_area_mm2\": 2000, \"area_on_extreme_plane_mm2\": 4716.0, \"extreme_plane\": \"z = 0.000\", \"largest_flat_face\": {\"plane\": \"z = 0.000\", \"area_mm2\": 4716.0}}]}, \"motions\": [{\"name\": \"spin_free\", \"kind\": \"rotate\", \"range\": [-360.0, 0.0], \"flex\": [{\"a\": \"wheel_inst\", \"b\": \"base_inst\", \"max_mm\": 0.9, \"reason\": \"pawl clicks over teeth\", \"ok\": true, \"poses\": [-359.0, -20.0], \"depth_mm\": 0.787, \"at\": -355.0, \"overlap_stl\": \"/work/checks/exports/assembly/flex-spin_free-443f-wheel_instbase_inst-b70d.stl\"}], \"ok\": true, \"steps\": 361, \"step\": 1.0}], \"assembly_steps\": [{\"step\": 1, \"instances\": [\"base_inst\"], \"ok\": true}, {\"step\": 2, \"instances\": [\"wheel_inst\"], \"ok\": true}], \"print_in_place\": null, \"problems\": {\"G3\": [], \"G4\": [], \"G5\": []}}}\n\nADJUSTMENTS\n- wheel: detail axle_hole from diameters [[0.0, 12.6], [6.0, 12.6]] to diameters [[0.0, 12.6], [3.0, 12.6]], the mesh measures [12.59, 12.59] (the mesh is the same)\n\nCLOSE\nVerified:\n- Two-part product with bounds 80x60x14 mm resting on desk face 4716.0 mm2 on z=0. [[assembly]] [[assembly/desk]]\n- Wheel part: 1 body, volume 9933.4 mm3, bounds within 0.2 mm of 50x50x6 mm, 1 through hole, bed face 1655.6 mm2. [[wheel]] [[wheel/bed]]\n- Wheel hole 12.59 mm at mouth and at 3 mm depth. [[wheel/axle_hole]]\n- Wheel rim 6.0 mm through. [[wheel/rim_thick]]\n- Wheel material present in sampled boxes tooth0, tooth4, tooth8. [[wheel/tooth0]] [[wheel/tooth4]] [[wheel/tooth8]]\n- Base part: 1 body, volume 29216.5 mm3, bounds 80x60x14 mm, 1 through hole, bed face 4716.0 mm2. [[base]] [[base/bed]]\n- Base plate 6.0 mm through, post 12.0 mm across, arm 3.0 mm across, arm block solid, west and east slots empty, pawl tip material present, 12.0 mm stack through pawl. [[base/plate_thick]] [[base/post_dia]] [[base/arm_width]] [[base/arm_full]] [[base/slot_gap]] [[base/slot_east]] [[base/pawl_tip]] [[base/pawl_stack]]\n- Assembly instances base_inst and wheel_inst congruent to parts by volume, area and inertia, copies 1 and 1, no overlaps, one connected group, pair gap 0.006 mm with contact. [[assembly]]\n- Motion spin_free is rotate with range [-360, 0], swept 361 steps, flex overlap 0.787 mm vs 0.9 mm allowed. [[spin_free]]\n- Assembly order step 1 base_inst then step 2 wheel_inst, both ok. [[assembly_order]]\n- Printability: wheel and base each 0 overhang area, 0 undeclared zones, fit Bambu Lab A1. [[G5]]\n- Saw sheet of wheel, sheet of base, and one view with both assembly instances together. [[wheel]] [[base]] [[assembly]]\n\nNot verified:\n- Click feel, holding force, reverse blocking, arm fatigue life, surface finish, and printer/material dependence were not measured.\n- Spec adjustment, geometry unchanged: wheel axle_hole second probe from 6.0 mm to 3.0 mm depth because the exit-plane probe measures null on the unchanged 12.59 mm straight hole; stated once for wheel.",
+    "reasoning": {
+      "effort": "medium"
+    },
+    "max_output_tokens": 16000
+  },
+  "status_code": 200,
+  "response_headers": {
+    "content-type": "application/json",
+    "x-ratelimit-limit-requests": "3000",
+    "x-ratelimit-remaining-requests": "2998",
+    "x-ratelimit-limit-tokens": "4000000",
+    "x-ratelimit-remaining-tokens": "3991236",
+    "x-request-id": "889162ec-10a6-4f72-81de-8e37d9a010e9",
+    "date": "Mon, 02 Nov 2026 20:38:16 GMT"
+  },
+  "response": {
+    "top_logprobs": 0,
+    "temperature": 1.0,
+    "top_p": 1.0,
+    "service_tier": "auto",
+    "model": "muse-wonder-1.0",
+    "reasoning": {
+      "effort": "medium"
+    },
+    "background": false,
+    "tools": [],
+    "tool_choice": "auto",
+    "truncation": "disabled",
+    "id": "resp_6ae8f4b8042ea36e0694442d",
+    "object": "response",
+    "status": "completed",
+    "created_at": 1793651896.0,
+    "completed_at": 1793651896.0,
+    "error": null,
+    "incomplete_details": null,
+    "output": [
+      {
+        "type": "reasoning",
+        "id": "rs_6ae8f4b8042ea36e0694442d:rs_3e2ed989-4380-46be-8984-acfdc60402fd",
+        "summary": [],
+        "status": "completed"
+      },
+      {
+        "type": "message",
+        "id": "msg_c76f27ff-be32-48fa-98be-2be5c74ac7ec",
+        "role": "assistant",
+        "content": [
+          {
+            "type": "output_text",
+            "text": "{\"unsupported\": [], \"untold_adjustments\": []}",
+            "annotations": [],
+            "logprobs": []
+          }
+        ],
+        "status": "completed"
+      }
+    ],
+    "instructions": "You audit the close of a design session for 3D printing in OpenSCAD. The harness verified the final version of the design and gives you, in JSON, what it measured (VERIFIED) and the spec adjustments it detected: changes of the spec towards what the mesh already measured, without the part changing (ADJUSTMENTS). Read the designer's CLOSE and answer only with a JSON object, with no text before or after it:\n{\"unsupported\": [{\"claim\": \"...\", \"reason\": \"...\"}], \"untold_adjustments\": [{\"adjustment\": \"...\", \"reason\": \"...\"}]}\n- unsupported: every claim the close presents as verified (measured, checked, that it meets, that it fits, that it does not collide, that it goes in, that it prints without supports) that VERIFIED does not back: it is not there, it says something else or the numbers do not match. Leave out: what the close states as not verified, an opinion, an intention, or a description of the design that does not claim to have been checked.\n- untold_adjustments: every part of ADJUSTMENTS whose adjustments the close does not mention with their reason (one mention per part saying what was adjusted and why is enough).\nEmpty lists if there is nothing to object to. Be precise: quote the claim as it is written.",
+    "usage": {
+      "input_tokens": 5095,
+      "input_tokens_details": {
+        "cached_tokens": 0
+      },
+      "output_tokens": 1096,
+      "output_tokens_details": {
+        "reasoning_tokens": 1075
+      },
+      "total_tokens": 6191
+    },
+    "parallel_tool_calls": true,
+    "store": true,
+    "max_output_tokens": 16000
+  },
+  "latency_s": 8.276,
+  "total_with_retries_s": 8.276,
+  "attempts": [
+    {
+      "attempt": 1,
+      "status_code": 200,
+      "latency_s": 8.276,
+      "error": null
+    }
+  ],
+  "client_error": null
+}

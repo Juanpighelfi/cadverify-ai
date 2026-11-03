@@ -1,0 +1,37 @@
+{
+  "seq": 54,
+  "iteration": 44,
+  "name": "run_shell",
+  "arguments": {
+    "cmd": "grep -n \"def rotation\" -B5 -A10 /opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/assembly.py | head -30; grep -n \"def transform\" -A 20 /opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/section.py | head -40; grep -n \"to_manifold\" -A 25 /opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/section.py | head -60",
+    "timeout_s": 60.0
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.021,
+    "stdout": "635-\n636-\n637-# ---- G4 -----------------------------------------------------------------------------------\n638-\n639-\n640:def rotation(point, axis, degrees: float) -> np.ndarray:\n641-    \"\"\"4 × 4 rotation by `degrees` about the axis through `point` (right hand rule).\"\"\"\n642-    return trimesh.transformations.rotation_matrix(math.radians(degrees), axis, point)\n643-\n644-\n645-def translation(direction, mm: float) -> np.ndarray:\n646-    matrix = np.eye(4)\n647-    matrix[:3, 3] = np.asarray(direction, float) * mm\n648-    return matrix\n649-\n650-\n117:def to_manifold(mesh: trimesh.Trimesh) -> manifold3d.Manifold | None:\n118-    \"\"\"The mesh as a Manifold, or None when manifold3d does not accept it.\n119-\n120-    manifold3d accepts a closed shell listed inside out and then cuts it as empty space (a box\n121-    with its faces reversed gives a section of 0 mm²), so a shell of negative volume is\n122-    rejected here too.\n123-    \"\"\"\n124-    if len(mesh.faces) == 0:\n125-        return None\n126-    solid = manifold3d.Manifold(\n127-        manifold3d.Mesh64(\n128-            vert_properties=np.array(mesh.vertices, dtype=np.float64, order=\"C\"),\n129-            tri_verts=np.array(mesh.faces, dtype=np.uint64, order=\"C\"),\n130-        )\n131-    )\n132-    if solid.status() != manifold3d.Error.NoError or solid.is_empty():\n133-        return None\n134-    if any(part.volume() <= 0 for part in solid.decompose()):\n135-        return None\n136-    return solid\n137-\n138-\n139-def profile(mesh: trimesh.Trimesh, origin, normal, engine: str = \"auto\", solid=None) -> Profile:\n140-    \"\"\"The section of `mesh` by the plane through `origin` with `normal`.\n141-\n142-    `solid` is the mesh as a Manifold when the caller already has it.\n--\n149:        solid = solid if solid is not None else to_manifold(mesh)\n150-        if solid is not None:\n151-            polygons = _manifold_profile(solid, origin, basis)\n152-            return Profile(origin, basis, polygons, \"manifold\", 0, time.perf_counter() - t0)\n153-        if engine == \"manifold\":\n154-            raise ValueError(NOT_MANIFOLD)\n155-        note = FALLBACK\n156-    lines = trimesh.intersections.mesh_plane(mesh, basis[2], origin)\n157-    uv = (np.asarray(lines).reshape(-1, 3) - origin) @ basis[:2].T\n158-    polygons, open_chains = polygons_from_segments(uv.reshape(-1, 2, 2))\n159-    return Profile(origin, basis, polygons, \"trimesh\", open_chains, time.perf_counter() - t0, note)\n160-\n161-\n162-def cut(mesh: trimesh.Trimesh, origin, normal, engine: str = \"auto\") -> Cut:\n163-    \"\"\"Remove the half-space the normal points to; the cap faces face +normal.\"\"\"\n164-    t0 = time.perf_counter()\n165-    origin = np.asarray(origin, float)\n166-    basis = frame(normal)\n167-    n = basis[2]\n168:    solid = to_manifold(mesh) if engine != \"trimesh\" else None\n169-    if solid is None and engine == \"manifold\":\n170-        raise ValueError(NOT_MANIFOLD)\n171-    prof = profile(mesh, origin, n, \"manifold\" if solid is not None else \"trimesh\", solid)\n172-    if solid is None and engine == \"auto\":\n173-        prof.note = FALLBACK\n174-    if solid is not None:\n175-        kept = solid.trim_by_plane(tuple(-n), float(-n @ origin)).to_mesh64()\n176-        part = trimesh.Trimesh(\n177-            np.asarray(kept.vert_properties)[:, :3], np.asarray(kept.tri_verts), process=False\n178-        )\n179-        distance = (part.vertices - origin) @ n\n180-        on_plane = np.all(np.abs(distance[part.faces]) < ON_PLANE_MM, axis=1)\n181-        cap = on_plane & (part.face_normals @ n > 0.999)\n",
+    "stderr": "",
+    "stdout_bytes": 3529,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 0.611,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "a1c3e6cd649abb7e"
+}

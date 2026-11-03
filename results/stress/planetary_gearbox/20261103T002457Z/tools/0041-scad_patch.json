@@ -1,0 +1,35 @@
+{
+  "seq": 41,
+  "iteration": 16,
+  "name": "scad_patch",
+  "arguments": {
+    "new": "function gear_outline2(Z, Rp, Rb, Rt, Rr, tooth_th, flank) =",
+    "old": "function gear_outline(Z, Rp, Rb, Rt, Rr, tooth_th, flank) =\n  let(half0 = (tooth_th/Rp)/2,\n      inv_pa = inv_rad(pa_deg),\n      pitch = 360/Z)\n  [for(i=[0:Z-1]) for(pt =\n    concat(\n      [for(j=[0:flank]) let(R = Rr+(Rt-Rr)*j/flank, hr = half_at_rad(R,Rp,Rb,half0,inv_pa), ang = i*pitch - hr*180/PI) [R*cos(ang), R*sin(ang)]],\n      let(hrtip = half_at_rad(Rt,Rp,Rb,half0,inv_pa), ang2 = i*pitch + hrtip*180/PI) [[Rt*cos(ang2), Rt*sin(ang2)]],\n      [for(j=[flank-1:-1:0]) let(R = Rr+(Rt-Rr)*j/flank, hr = half_at_rad(R,Rp,Rb,half0,inv_pa), ang = i*pitch + hrtip*180/PI) [[Rt*cos(ang2), Rt*sin(ang2)]] .x, 0]\n    )) pt\n  ];\n\n// corrected outline (explicit tip point then mirrored flank)\nfunction gear_outline2(Z, Rp, Rb, Rt, Rr, tooth_th, flank) =",
+    "path": "model.scad"
+  },
+  "result": {
+    "ok": true,
+    "path": "model.scad",
+    "line": 54,
+    "lines_removed": 14,
+    "lines_added": 1,
+    "bytes": 6504,
+    "lines": 173,
+    "sha256": "f1eeb629b8eb9b9e15ed69f06778bcb43c949027e8a9ce56e92313adae129f5d"
+  },
+  "seconds": 0.527,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [
+      "model.scad"
+    ],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [
+    "model.scad"
+  ],
+  "rule": null,
+  "source": "8e5531f2df058063"
+}

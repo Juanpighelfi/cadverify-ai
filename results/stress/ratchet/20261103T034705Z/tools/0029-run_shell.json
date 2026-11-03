@@ -1,0 +1,37 @@
+{
+  "seq": 29,
+  "iteration": 19,
+  "name": "run_shell",
+  "arguments": {
+    "cmd": "python3 -c \"\nimport trimesh, numpy as np, math\nfrom manifold3d import Manifold, Mesh\nw=trimesh.load('exports/model.wheel.675d7f4a.stl')\nb=trimesh.load('exports/model.base.87e59dfb.stl')\ndef to_manifold(tm):\n    v=np.ascontiguousarray(tm.vertices, dtype=np.float32); f=np.ascontiguousarray(tm.faces, dtype=np.uint32)\n    return Manifold(Mesh(vert_properties=v, tri_verts=f))\nbm=to_manifold(b); wm=to_manifold(w)\ngap=37.3333333\ndef overlap(m):\n    wm2=wm.rotate([0,0,-gap+m]).translate([0,0,4])\n    ov=bm ^ wm2\n    return ov.volume(), ov.num_vert() if hasattr(ov,'num_vert') else ''\nfor m in [0,-5,-10,-13,-15,-17,-20,-25,-30,2,4,6,8,10,12,14]:\n    v,n=overlap(m)\n    print(m, round(v,4))\n\"\n",
+    "timeout_s": 120.0
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.88,
+    "stdout": "0 -0.0\n-5 -0.0\n-10 -0.0\n-13 0.1489\n-15 2.0244\n-17 4.4202\n-20 0.3027\n-25 0.0\n-30 -0.0\n2 0.0\n4 0.0\n6 -0.0\n8 0.0\n10 0.3027\n12 3.5033\n14 3.782\n",
+    "stderr": "",
+    "stdout_bytes": 139,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 1.229,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "a1c3e6cd649abb7e"
+}

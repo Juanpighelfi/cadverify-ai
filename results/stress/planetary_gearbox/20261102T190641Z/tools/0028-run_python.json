@@ -1,0 +1,36 @@
+{
+  "seq": 28,
+  "iteration": 28,
+  "name": "run_python",
+  "arguments": {
+    "code": "import math\nm=1.2; Zp=12; Zs=18; Zr=42; pa_deg=20; pa=math.radians(pa_deg)\nadd=0.8*m; ded=1.0*m\ndef inv(a): return math.tan(a)-a\ninv_pa=inv(pa)\ndef half_ext(Z,rk,rb,r):\n    if rk>=rb:\n        ak=math.acos(rb/rk)\n        inv_ak=inv(ak)\n    else:\n        inv_ak=0\n    return 90/Z + (inv_pa-inv_ak)*180/math.pi\ndef half_int(Z,rk,rb,R):\n    if rk>=rb:\n        ak=math.acos(rb/rk)\n        inv_ak=inv(ak)\n    else:\n        inv_ak=0\n    return 90/Z - (inv_pa-inv_ak)*180/math.pi\n\nfor Z,R in [(42,25.2)]:\n    rb=R*math.cos(pa)\n    Rt=R-add; Rr=R+ded\n    print(\"R\",R,\"rb\",rb,\"Rt\",Rt,\"Rr\",Rr)\n    for rk in [Rt,R,(Rt+Rr)/2,Rr]:\n        print(f\" rk={rk:.3f} half_ext={half_ext(Z,rk,rb,R):.3f} half_int={half_int(Z,rk,rb,R):.3f} pitch_half={90/Z:.3f}\")\nprint(\"---sun---\")\nZ=18; r=m*Z/2; rb=r*math.cos(pa); ra=r+add; rf=r-ded\nprint(r,rb,ra,rf)\nfor rk in [rf,r,ra]:\n    print(rk, half_ext(Z,rk,rb,r))\nprint(\"---planet---\")\nZ=12; r=m*Z/2; rb=r*math.cos(pa); ra=r+add; rf=r-ded\nprint(r,rb,ra,rf)\nfor rk in [rf,r,ra]:\n    print(rk, half_ext(Z,rk,rb,r))\n"
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.027,
+    "stdout": "R 25.2 rb 23.68025404380489 Rt 24.24 Rr 26.4\n rk=24.240 half_ext=2.803 half_int=1.483 pitch_half=2.143\n rk=25.200 half_ext=2.143 half_int=2.143 pitch_half=2.143\n rk=25.320 half_ext=2.042 half_int=2.244 pitch_half=2.143\n rk=26.400 half_ext=0.995 half_int=3.291 pitch_half=2.143\n---sun---\n10.799999999999999 10.14868030448781 11.759999999999998 9.6\n9.6 5.85395829184125\n10.799999999999999 5.0\n11.759999999999998 2.6569919417997143\n---planet---\n7.199999999999999 6.76578686965854 8.16 5.999999999999999\n5.999999999999999 8.35395829184125\n7.199999999999999 7.5\n8.16 3.7122660809231647\n",
+    "stderr": "",
+    "stdout_bytes": 581,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 0.515,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "f6b0e937bf029663"
+}

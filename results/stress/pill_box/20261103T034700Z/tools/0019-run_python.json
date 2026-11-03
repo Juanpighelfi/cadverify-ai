@@ -1,0 +1,36 @@
+{
+  "seq": 19,
+  "iteration": 11,
+  "name": "run_python",
+  "arguments": {
+    "code": "import trimesh, numpy as np, glob, os\nprint(sorted(glob.glob('checks/assembly/*.stl')))\nbase = trimesh.load('checks/assembly/model.assembly.d405b650.stl')\nlid  = trimesh.load('checks/assembly/model.assembly.bae6cd58.stl')\nprint('base bounds', base.bounds, 'lid bounds', lid.bounds)\nfor ang in [0, 10, 25.714, 51.4286]:\n    R = trimesh.transformations.rotation_matrix(np.radians(ang), [0,0,1])\n    l2 = lid.copy(); l2.apply_transform(R)\n    try:\n        inter = trimesh.boolean.intersection([base, l2], engine='manifold')\n        print(ang, 'intersection:', None if inter is None else (inter.volume, inter.bounds))\n    except Exception as e:\n        print(ang, 'ERR', e)\n"
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 1.228,
+    "stdout": "['checks/assembly/model.assembly.bae6cd58.stl', 'checks/assembly/model.assembly.d405b650.stl', 'checks/assembly/model.base.87e59dfb.stl', 'checks/assembly/model.lid.6029fe16.stl', 'checks/assembly/overlap-base_main-4790-lid_main-1c5d.stl']\nbase bounds [[-43. -43.   0.]\n [ 43.  43.  22.]] lid bounds [[-45.  -45.    9.8]\n [ 45.   45.   25. ]]\n0 intersection: (np.float64(0.03036454808049364), array([[42.3571434 , -1.75437844, 11.13333321],\n       [42.5       ,  1.75437844, 11.438941  ]]))\n10 intersection: (np.float64(1.7117797585291423), array([[41.26939392,  5.65023899, 11.14513016],\n       [42.11225128,  9.09039879, 13.03530407]]))\n25.714 intersection: (np.float64(1.7038381063281876), array([[37.45361328, 16.84508324, 11.13455296],\n       [39.00732422, 20.0140152 , 13.04075241]]))\n51.4286 intersection: (np.float64(0.030885755840518225), array([[25.09897423, 32.10230637, 11.13821125],\n       [27.83191299, 34.29002762, 11.44068241]]))\n",
+    "stderr": "",
+    "stdout_bytes": 946,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 1.64,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "75cb63f5fe0062b5"
+}

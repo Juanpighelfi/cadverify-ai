@@ -1,0 +1,37 @@
+{
+  "seq": 24,
+  "iteration": 14,
+  "name": "run_python",
+  "arguments": {
+    "code": "import trimesh, numpy as np\nm=trimesh.load(\"exports/model.arm_upper.6773311f.stl\")\n# sample grid inside detail box\nxs=np.linspace(91.5,92.8,8); ys=np.linspace(8,12,8); zs=np.linspace(4.4,5.0,5)\npts=np.array(np.meshgrid(xs,ys,zs)).reshape(3,-1).T\ninside=m.contains(pts)\nprint(\"inside fraction\", inside.mean(), \"total\", len(pts))\n# check individual\nprint(m.bounds)\n# ray check thickness?\nfor x in [91.5,92.0,92.8]:\n    for z in [4.5,4.9]:\n        p=np.array([[x,10.0,z]])\n        print(x,z,m.contains(p))\n# is lip actually there? bounds of lip region: slice\nprint(\"volume\", m.volume)\n",
+    "timeout_s": 60.0
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.886,
+    "stdout": "inside fraction 1.0 total 320\n[[  0.    0.    0. ]\n [111.   20.    5.2]]\n91.5 4.5 [ True]\n91.5 4.9 [ True]\n92.0 4.5 [ True]\n92.0 4.9 [ True]\n92.8 4.5 [ True]\n92.8 4.9 [ True]\nvolume 6785.200000000002\n",
+    "stderr": "",
+    "stdout_bytes": 200,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 1.304,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "c53adc75b38805c8"
+}

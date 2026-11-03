@@ -1,0 +1,35 @@
+{
+  "seq": 20,
+  "iteration": 12,
+  "name": "scad_patch",
+  "arguments": {
+    "path": "model.scad",
+    "old": "    // Floor at x=41.85, opens through the r=42.5 detent band.\n    for (i = [0:6])\n        rotate([0, 0, i * step])\n            translate([41.85, 0, 12.2])\n                rotate([0, 90, 0])\n                    linear_extrude(height = 2.6)\n                        polygon(points = [\n                            [0.9, -1.6], [0.9, 1.6], [0, 2.6],\n                            [-0.9, 1.6], [-0.9, -1.6], [0, -2.6]]);",
+    "new": "    // Floor at x=41.85, opens through the r=42.5 detent band. The hex cut\n    // sweeps ~+/-2.2 deg of arc at the notch floor, which would hide the\n    // rising detent bump near each rest; the wider hex recess below is the\n    // notch (cut deeper into the band surface, +/-8 deg), and the hex cut\n    // alone forms the deep centre the bump tip drops into.\n    for (i = [0:6])\n        rotate([0, 0, i * step]) {\n            annular_sector(41.9, 42.8, -8, 8, 11.1, 2.2);\n            translate([41.85, 0, 12.2])\n                rotate([0, 90, 0])\n                    linear_extrude(height = 2.6)\n                        polygon(points = [\n                            [0.9, -1.6], [0.9, 1.6], [0, 2.6],\n                            [-0.9, 1.6], [-0.9, -1.6], [0, -2.6]]);\n        }"
+  },
+  "result": {
+    "ok": true,
+    "path": "model.scad",
+    "line": 61,
+    "lines_removed": 9,
+    "lines_added": 15,
+    "bytes": 9651,
+    "lines": 226,
+    "sha256": "b99bca86cc1c60d7955aac03f3dfaa59d9751ebcf33ce9554e35112aefb21704"
+  },
+  "seconds": 0.42,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [
+      "model.scad"
+    ],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [
+    "model.scad"
+  ],
+  "rule": null,
+  "source": "0bb017e947723acc"
+}

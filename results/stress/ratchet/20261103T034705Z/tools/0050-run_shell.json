@@ -1,0 +1,37 @@
+{
+  "seq": 50,
+  "iteration": 40,
+  "name": "run_shell",
+  "arguments": {
+    "cmd": "python3 -c \"\nimport numpy as np, trimesh\nfrom cadverify.cadcheck.mesh import load_exact\nfrom cadverify.cadcheck import section\nfrom cadverify.cadcheck.assembly import _poses, _step, _sweep, _box_gap, overlap\nw = load_exact('checks/assembly/model.assembly.1d428528.stl')\nb = load_exact('checks/assembly/model.assembly.57cfb177.stl')\nnames = {'wheel1': {'name':'wheel1','_mesh':w,'_solid':section.to_manifold(w)}, 'base1': {'name':'base1','_mesh':b,'_solid':section.to_manifold(b)}}\nmotion = {'name':'free','kind':'rotate','point':[0,0,4],'axis':[0,0,1],'range':[0,-30],'instances':['wheel1']}\nprint('step', _step(motion, names))\npairs = [(names['wheel1'], names['base1'])]\nimport math\nlo,hi=-30.0,0.0\nstep=_step(motion,names); count=min(360,max(1,math.ceil((hi-lo)/step))); vals=np.linspace(lo,hi,count+1)\nprint('count',count,'n',len(vals))\nposes=[(float(v),_poses(motion,float(v))) for v in vals]\nprint('pose at idx30', vals[30], poses[30][1]['wheel1'][:2,:])\nhits=_sweep(pairs, poses)\nprint('hits', len(hits))\nfor h in hits[:20]: print(round(h['pose'],3), h['volume_mm3'], h['thickness_mm'])\n\"\n",
+    "timeout_s": 180.0
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 1.19,
+    "stdout": "step 0.5729577950658532\ncount 53 n 54\npose at idx30 -13.018867924528301 [[ 0.97429593  0.22527191  0.          0.        ]\n [-0.22527191  0.97429593  0.          0.        ]]\nhits 0\n",
+    "stderr": "",
+    "stdout_bytes": 182,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 1.615,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "a1c3e6cd649abb7e"
+}

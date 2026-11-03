@@ -1,0 +1,37 @@
+{
+  "seq": 53,
+  "iteration": 43,
+  "name": "run_shell",
+  "arguments": {
+    "cmd": "python3 -c \"\nimport numpy as np, trimesh, math\nfrom cadverify.cadcheck.mesh import load_exact\nfrom cadverify.cadcheck import section\nfrom cadverify.cadcheck.assembly import _poses, _box_gap, overlap\nw = load_exact('checks/assembly/model.assembly.1d428528.stl')\nb = load_exact('checks/assembly/model.assembly.57cfb177.stl')\nnames = {'wheel1': {'name':'wheel1','_mesh':w,'_solid':section.to_manifold(w)}, 'base1': {'name':'base1','_mesh':b,'_solid':section.to_manifold(b)}}\npairs = [(names['wheel1'], names['base1'])]\nmotion = {'name':'free','kind':'rotate','point':[0,0,4],'axis':[0,0,1],'range':[0,-30],'instances':['wheel1']}\nlo,hi=-30.0,0.0; step=0.5729577950658532; count=min(360,max(1,math.ceil((hi-lo)/step))); vals=np.linspace(lo,hi,count+1)\n# replicate _sweep innards but debug each pose: box gap and overlap\nfrom cadverify.cadcheck import assembly as A\nrest = {n: (names[n]['_solid'], np.reshape(names[n]['_solid'].bounding_box(),(2,3))) for n in ['wheel1','base1']}\nfor i,v in enumerate(vals):\n    mats=_poses(motion,float(v))\n    placed=dict(rest)\n    for name,matrix in mats.items():\n        if name in rest:\n            solid=rest[name][0].transform(matrix[:3])\n            placed[name]=(solid, np.reshape(solid.bounding_box(),(2,3)))\n    (solid,box),(other,obox)=placed['wheel1'],placed['base1']\n    g=_box_gap(box,obox)\n    if g>0: print(i,round(float(v),3),'GAP',g); continue\n    hit=overlap(solid,other)\n    print(i,round(float(v),3),'hit' if hit else 'none', hit['volume_mm3'] if hit else '', hit['thickness_mm'] if hit else '')\n\" 2>&1 | head -70",
+    "timeout_s": 180.0
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 1.19,
+    "stdout": "0 -30.0 none  \n1 -29.434 none  \n2 -28.868 none  \n3 -28.302 none  \n4 -27.736 none  \n5 -27.17 none  \n6 -26.604 none  \n7 -26.038 none  \n8 -25.472 none  \n9 -24.906 none  \n10 -24.34 none  \n11 -23.774 none  \n12 -23.208 none  \n13 -22.642 none  \n14 -22.075 none  \n15 -21.509 none  \n16 -20.943 none  \n17 -20.377 none  \n18 -19.811 none  \n19 -19.245 none  \n20 -18.679 none  \n21 -18.113 none  \n22 -17.547 none  \n23 -16.981 none  \n24 -16.415 none  \n25 -15.849 none  \n26 -15.283 none  \n27 -14.717 none  \n28 -14.151 none  \n29 -13.585 none  \n30 -13.019 none  \n31 -12.453 none  \n32 -11.887 none  \n33 -11.321 none  \n34 -10.755 none  \n35 -10.189 none  \n36 -9.623 none  \n37 -9.057 none  \n38 -8.491 none  \n39 -7.925 none  \n40 -7.358 none  \n41 -6.792 none  \n42 -6.226 none  \n43 -5.66 none  \n44 -5.094 none  \n45 -4.528 none  \n46 -3.962 none  \n47 -3.396 none  \n48 -2.83 none  \n49 -2.264 none  \n50 -1.698 none  \n51 -1.132 none  \n52 -0.566 none  \n53 0.0 none  \n",
+    "stderr": "",
+    "stdout_bytes": 935,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 1.565,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "a1c3e6cd649abb7e"
+}

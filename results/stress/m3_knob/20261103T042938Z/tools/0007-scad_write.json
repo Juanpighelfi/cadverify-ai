@@ -1,0 +1,32 @@
+{
+  "seq": 7,
+  "iteration": 7,
+  "name": "scad_write",
+  "arguments": {
+    "content": "use <cadverify_parts.scad>\n\n// Knob for 6 mm D-shaft (4.5 across flat), M3 set screw in captive nut.\n// Print orientation: base (shaft side) on bed at z=0, pointer on top at z=18.\n\npart = \"knob\"; // [knob, assembly]\ncadverify_only = \"\";\n\nmodule instance(name, part, unit = 1) {\n    echo(cadverify_instance = [name, part, unit]);\n    if (cadverify_only == \"\" || cadverify_only == name) children();\n}\n\n/* Parameters (mm) */\nknob_d_body = 28;      // body diameter\nknob_h = 18;           // total height\ntop_cham_h = 2.0;      // top chamfer height\ntop_d = 25;            // top face diameter (chamfer ~37 deg from vertical)\nrib_n = 30;\nrib_w = 1.5;\nrib_r_in = 13.0;\nrib_r_out = 15.0;\nbore_d = 6.2;          // D bore diameter (6.0 shaft + 0.2)\nbore_flat_y = 1.6;     // flat plane: opposite wall -3.1, flat-to-wall 4.7 (shaft 4.5 + 0.2)\nbore_depth = 15;       // blind, from base\nscrew_z = 9;           // screw axis height\nscrew_d = 3.0;\npocket_af = 5.8;       // hex across flats (nut 5.5 + 0.3 slide)\npocket_y0 = 11.6;      // pocket bottom (nut inner face seat)\npocket_y1 = 16.0;      // past outer surface, open entry from side\npointer_x0 = 1.0;\npointer_x1 = 11.0;\npointer_w = 1.5;\npointer_depth = 1.0;\n\nmodule knob_part() {\n    difference() {\n        union() {\n            cylinder(d = knob_d_body, h = knob_h - top_cham_h, $fn = 128);\n            translate([0, 0, knob_h - top_cham_h])\n                cylinder(d1 = knob_d_body, d2 = top_d, h = top_cham_h, $fn = 128);\n            // knurl ribs, straight vertical; gap at +Y for the nut entry\n            for (i = [0 : rib_n - 1]) {\n                ang = i * 360 / rib_n;\n                ad = min(abs(ang - 90), 360 - abs(ang - 90));\n                if (ad > 20)\n                    rotate([0, 0, ang])\n                        translate([(rib_r_in + rib_r_out) / 2, 0, (knob_h - top_cham_h) / 2])\n                            cube([rib_r_out - rib_r_in, rib_w, knob_h - top_cham_h], center = true);\n            }\n        }\n        // pointer groove on top, along +X\n        translate([pointer_x0, -pointer_w / 2, knob_h - pointer_depth])\n            cube([pointer_x1 - pointer_x0, pointer_w, pointer_depth + 1]);\n        // D bore, blind from base\n        intersection() {\n            translate([0, 0, -1]) cylinder(d = bore_d, h = bore_depth + 1, $fn = 64);\n            translate([-10, -10, -1]) cube([20, bore_flat_y + 10, bore_depth + 1]);\n        }\n        // hex nut pocket, axis Y, flat on top\n        translate([0, (pocket_y0 + pocket_y1) / 2, screw_z])\n            rotate([90, 0, 0])\n                cylinder(d = pocket_af / cos(30), h = pocket_y1 - pocket_y0, $fn = 6, center = true);\n        // 3 mm screw hole, pocket bottom to bore\n        translate([0, 5.9, screw_z])\n            rotate([90, 0, 0])\n                cylinder(d = screw_d, h = 11.8, $fn = 32, center = true);\n    }\n}\n\n// external D shaft: 6 mm dia, flat faces +Y at y=1.5, z from -10 to 14.8\nmodule shaft_ext() {\n    intersection() {\n        cylinder(d = 6.0, h = 24.8, $fn = 48);\n        translate([-10, -10, 0]) cube([20, 1.5 + 10, 24.8]);\n    }\n}\n\nif (part == \"knob\") {\n    echo(cadverify_spec = [\n        [\"bounds\", [[-15, -15, 0], [15, 15, 18]]],\n        [\"bodies\", 1],\n        [\"support_faces\", [[\"bed\", \"-z\", 400]]],\n        [\"overhangs_allowed\", [\n            [\"d_bore_ceiling\", [[-4, -4, 13.5], [4, 4, 15.5]]],\n            [\"nut_pocket_ceiling\", [[-3.5, 11.0, 6.0], [3.5, 16.5, 12.5]]],\n            [\"screw_hole_top\", [[-2, -0.5, 7.0], [2, 12.0, 11.0]]]\n        ]],\n        [\"copies\", 1],\n        [\"details\", [\n            [\"knurl_rib\", \"material\", [[13.0, -0.75, 4], [15.0, 0.75, 12]], 0.8],\n            [\"pointer_groove\", \"void\", [[1.0, -0.75, 17.0], [11.0, 0.75, 18.01]], 0.9],\n            [\"nut_pocket\", \"void\", [[-1.5, 12.0, 7.5], [1.5, 14.0, 10.5]], 0.9],\n            [\"d_bore\", \"void\", [[-2.0, -2.0, 1.0], [2.0, 1.0, 14.0]], 0.9],\n            [\"screw_hole\", \"hole\", [0, 20, 9], [0, -1, 0], [[0, 6.1], [3, 3.0], [8, 3.0]]],\n            [\"top_floor\", \"thickness\", [0, 0, 20], [0, 0, -1], 3.0],\n            [\"pointer_view\", \"view\", [[1.0, -1.5, 16.8], [11.0, 1.5, 18.2]]]\n        ]]\n    ]);\n    knob_part();\n} else if (part == \"assembly\") {\n    echo(cadverify_spec = [\n        [\"bounds\", [[-15, -15, -10], [15, 15, 18]]],\n        [\"assembly_order\", [\n            [[\"knob\"], [0, 0, 0]],\n            [[\"nut\"], [0, -1, 0]],\n            [[\"shaft\"], [0, 0, 1]]\n        ]]\n    ]);\n    instance(\"knob\", \"knob\") knob_part();\n    instance(\"nut\", \"standard:m3_nut\") translate([0, 14.0, 9]) rotate([90, 0, 0]) m3_nut();\n    instance(\"shaft\", \"external\") translate([0, 0, -10]) shaft_ext();\n}\n",
+    "path": "model.scad"
+  },
+  "result": {
+    "ok": true,
+    "path": "model.scad",
+    "replaced": true,
+    "bytes": 4625,
+    "lines": 113,
+    "sha256": "3c13c5492691d6bf80e971714dfefdca1600d80edc3471f515eae642d6c84437"
+  },
+  "seconds": 0.816,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [
+      "model.scad"
+    ],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [
+    "model.scad"
+  ],
+  "rule": null,
+  "source": "a8afe4b58587ba61"
+}

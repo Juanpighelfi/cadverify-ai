@@ -1,0 +1,32 @@
+{
+  "seq": 1,
+  "iteration": 1,
+  "name": "scad_write",
+  "arguments": {
+    "content": "// Gridfinity bin, 2x1 x 3U tall\n// Outside 83.5 x 41.5 mm, height 21 mm (3x7mm), PLA, 0.4mm nozzle, no supports\n// Print orientation: +Z up, bottom (foot bottoms) on bed at z=0\n\nLx = 83.5;\nLy = 41.5;\nH = 21;\nfoot_z0 = 0;\nfoot_z1 = 0.8;\nfoot_z2 = 2.6;   // 0.8+1.8\nfoot_z3 = 4.75;  // 0.8+1.8+2.15\nfoot_btm = 35.6; // 41.5-5.9\nfoot_mid = 37.2; // 35.6+1.6\nfoot_top = 41.5;\nwall_t = 1.6;\nfloor_z = 6.0;\nlip_z = 19.5;\nlip_inset = 0.6;\n\necho(cadverify_spec = [\n    [\"bounds\", [[-41.75, -20.75, 0], [41.75, 20.75, 21]]],\n    [\"bodies\", 1],\n    [\"through_holes\", 0],\n    [\"support_faces\", [[\"bed\", \"-z\", 2000]]],\n    [\"overhangs_allowed\", []],\n    [\"copies\", 1],\n    [\"details\", [\n        [\"foot_left\", \"material\", [[-30, -10, 0.1], [-12, 10, 0.7]], 0.9],\n        [\"foot_right\", \"material\", [[12, -10, 0.1], [30, 10, 0.7]], 0.9],\n        [\"stack_lip\", \"material\", [[-20, 19.3, 19.6], [20, 20.0, 20.9]], 0.9],\n        [\"label_shelf\", \"material\", [[-30, 16, 6.5], [30, 18.5, 8]], 0.9],\n        [\"scoop_void\", \"void\", [[40.5, -10, 14], [42.5, 10, 20]], 0.9],\n        [\"wall_side\", \"thickness\", [38, 22, 10], [0, -1, 0], 1.6],\n        [\"floor\", \"thickness\", [-21, 0, -5], [0, 0, 1], 6.0],\n        [\"foot_profile\", \"view\", [[-39, -18, 0], [-3, 18, 5]]],\n        [\"scoop_view\", \"view\", [[35, -15, 10], [43, 15, 22]]],\n        [\"label_view\", \"view\", [[-10, 12, 6], [10, 20, 13]]],\n        [\"lip_view\", \"view\", [[-15, 18.5, 18.5], [15, 21, 21.5]]]\n    ]]\n]);\n\nmodule foot(cx) {\n    translate([cx, 0, 0]) {\n        // bottom 45deg frustum: 35.6 -> 37.2 over 0.8\n        hull() {\n            translate([-foot_btm/2, -foot_btm/2, 0]) cube([foot_btm, foot_btm, 0.1]);\n            translate([-foot_mid/2, -foot_mid/2, foot_z1-0.1]) cube([foot_mid, foot_mid, 0.1]);\n        }\n        // vertical 1.8\n        translate([-foot_mid/2, -foot_mid/2, foot_z1]) cube([foot_mid, foot_mid, foot_z2-foot_z1]);\n        // top 45deg frustum: 37.2 -> 41.5 over 2.15\n        hull() {\n            translate([-foot_mid/2, -foot_mid/2, foot_z2]) cube([foot_mid, foot_mid, 0.1]);\n            translate([-foot_top/2, -foot_top/2, foot_z3-0.1]) cube([foot_top, foot_top, 0.1]);\n        }\n    }\n}\n\nmodule bin_solid() {\n    foot(-21);\n    foot(21);\n    // main outer body, overlap feet top by 0.1\n    translate([-Lx/2, -Ly/2, foot_z3-0.1]) cube([Lx, Ly, lip_z-(foot_z3-0.1)]);\n    // stacking lip: stepped inward 0.6 per side, no overhang\n    translate([-(Lx-2*lip_inset)/2, -(Ly-2*lip_inset)/2, lip_z]) cube([Lx-2*lip_inset, Ly-2*lip_inset, H-lip_z]);\n    // label shelf wedge along +Y inside, sits on floor against wall\n    // y_in=19.15, bottom from 13.15 to 19.35, top from 17.65 to 19.35\n    hull() {\n        translate([-35, 13.15, 5.9]) cube([70, 19.35-13.15, 0.2]);\n        translate([-35, 17.65, 11.9]) cube([70, 19.35-17.65, 0.2]);\n    }\n}\n\nmodule bin() {\n    difference() {\n        bin_solid();\n        // interior cavity, open top\n        translate([-(Lx-2*wall_t)/2, -(Ly-2*wall_t)/2, floor_z]) cube([Lx-2*wall_t, Ly-2*wall_t, H-floor_z+1]);\n        // scoop at +X front: cylinder axis X, R30 center z42 -> bottom 12 at center\n        translate([41.0, 0, 42]) rotate([0, 90, 0]) cylinder(r=30, h=12, center=true, $fn=128);\n    }\n}\n\nbin();\n",
+    "path": "model.scad"
+  },
+  "result": {
+    "ok": true,
+    "path": "model.scad",
+    "replaced": false,
+    "bytes": 3210,
+    "lines": 84,
+    "sha256": "602f3cce58eee7392520af5379ab9d35bacf1ff6376391989945d36d88306962"
+  },
+  "seconds": 0.672,
+  "image": null,
+  "files": {
+    "new": [
+      "model.scad"
+    ],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [
+    "model.scad"
+  ],
+  "rule": null,
+  "source": "45852d3ee1afcb74"
+}

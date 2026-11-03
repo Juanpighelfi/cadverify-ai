@@ -1,0 +1,37 @@
+{
+  "seq": 61,
+  "iteration": 51,
+  "name": "run_python",
+  "arguments": {
+    "code": "import math\nfrom shapely.geometry import Polygon, box\nRt=25; Rr=22; N=12; off=25\nverts=[((Rr if k%2==0 else Rt)*math.cos(math.radians((k//2)*360/N + (0 if k%2==0 else off))), (Rr if k%2==0 else Rt)*math.sin(math.radians((k//2)*360/N + (0 if k%2==0 else off)))) for k in range(2*N)]\nfor fx0 in [24.2, 23.2]:\n    rect=box(fx0,-0.75,28.5,0.75)\n    print('=== finger x0',fx0)\n    for gap in [37.3333333, 57.5, 27.5]:\n        def area(m):\n            rot=math.radians(-gap+m)\n            c,s=math.cos(rot),math.sin(rot)\n            vr=[(x*c-y*s, x*s+y*c) for x,y in verts]\n            return Polygon(vr).intersection(rect).area\n        frees=[round(area(m),3) for m in [0,-5,-10,-13,-15,-17,-20,-25,-30]]\n        locks=[round(area(m),3) for m in [0,2,4,6,8,10,12,14]]\n        print(f'gap {gap}: free {frees} lock {locks}')\n",
+    "timeout_s": 60.0
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.18,
+    "stdout": "=== finger x0 24.2\ngap 37.3333333: free [0.0, 0.0, 0.0, 0.025, 0.337, 0.737, 0.05, 0.0, 0.0] lock [0.0, 0.0, 0.0, 0.0, 0.0, 0.05, 0.584, 0.63]\ngap 57.5: free [0.027, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.38, 0.027] lock [0.027, 0.549, 0.676, 0.163, 0.0, 0.0, 0.0, 0.0]\ngap 27.5: free [0.027, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.38, 0.027] lock [0.027, 0.549, 0.676, 0.163, 0.0, 0.0, 0.0, 0.0]\n=== finger x0 23.2\ngap 37.3333333: free [0.0, 0.0, 0.455, 1.224, 1.812, 2.237, 0.652, 0.0, 0.0] lock [0.0, 0.0, 0.0, 0.0, 0.011, 0.652, 1.962, 2.13]\ngap 57.5: free [0.559, 0.0, 0.0, 0.0, 0.0, 0.03, 0.494, 1.864, 0.559] lock [0.559, 1.881, 2.176, 1.56, 0.997, 0.494, 0.122, 0.0]\ngap 27.5: free [0.559, 0.0, 0.0, 0.0, 0.0, 0.03, 0.494, 1.864, 0.559] lock [0.559, 1.881, 2.176, 1.56, 0.997, 0.494, 0.122, 0.0]\n",
+    "stderr": "",
+    "stdout_bytes": 790,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 0.653,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "a1c3e6cd649abb7e"
+}

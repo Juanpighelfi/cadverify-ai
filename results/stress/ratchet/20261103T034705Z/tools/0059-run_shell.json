@@ -1,0 +1,37 @@
+{
+  "seq": 59,
+  "iteration": 49,
+  "name": "run_shell",
+  "arguments": {
+    "cmd": "python3 -c \"\nimport numpy as np\nfrom cadverify.cadcheck.mesh import load_exact\nfrom cadverify.cadcheck import section\nfrom cadverify.cadcheck.assembly import _poses, _box_gap, overlap\nw = load_exact('checks/assembly/model.assembly.1d428528.stl')\nb = load_exact('checks/assembly/model.assembly.57cfb177.stl')\nnames = {'wheel1': {'name':'wheel1','_mesh':w,'_solid':section.to_manifold(w)}, 'base1': {'name':'base1','_mesh':b,'_solid':section.to_manifold(b)}}\nmotion = {'name':'free','kind':'rotate','point':[0,0,4],'axis':[0,0,1],'range':[0,-30],'instances':['wheel1']}\nrest = {n: (names[n]['_solid'], np.reshape(names[n]['_solid'].bounding_box(),(2,3))) for n in ['wheel1','base1']}\nmats=_poses(motion,-17.0)\nprint('matrix:'); print(mats['wheel1'])\nsolid=rest['wheel1'][0].transform(mats['wheel1'][:3])\nprint('solid vol', solid.volume(), 'bbox', np.reshape(solid.bounding_box(),(2,3)))\nother=rest['base1'][0]\nprint('overlap', overlap(solid, other))\n\"\n",
+    "timeout_s": 60.0
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.941,
+    "stdout": "matrix:\n[[ 0.95630476  0.2923717   0.          0.        ]\n [-0.2923717   0.95630476  0.          0.        ]\n [ 0.          0.          1.          0.        ]\n [ 0.          0.          0.          1.        ]]\nsolid vol 9564.419206303019 bbox [[-24.9983077 -24.9983077   4.       ]\n [ 24.9983077  24.9983077  10.       ]]\noverlap None\n",
+    "stderr": "",
+    "stdout_bytes": 338,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 1.311,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "a1c3e6cd649abb7e"
+}

@@ -1,0 +1,32 @@
+{
+  "seq": 1,
+  "iteration": 1,
+  "name": "scad_write",
+  "arguments": {
+    "content": "/* Bag clip with living hinge - PETG, 0.4mm nozzle, no supports\n   Printed open flat (single print, fuses into one piece), folds shut on 2mm folded bag.\n   Two verification parts (lower + upper) that fuse at hinge when printed together.\n   Assembly shows closed on bag, motion \"closing\" folds upper onto lower/bag.\n*/\n/* [Print] */\npart = \"lower\"; // [lower, upper, assembly]\n\ncadverify_only = \"\";\nmodule instance(name, part, unit = 1) {\n    echo(cadverify_instance = [name, part, unit]);\n    if (cadverify_only == \"\" || cadverify_only == name) children();\n}\n\n// ---- parameters (mm) ----\narm_len = 100;\narm_w = 24;\narm_t = 3;\nhinge_len = 6;\nhinge_t = 0.6;\ntab_len = 12;\nheel_len = 8;\ncatch_w = 5;\nlip = 0.8;\nlip_t = 0.7;\nbag_t = 2;\n\nlower_xmax = 106;      // 0..106\nupper_len_print = 112; // 0..112\nclosed_h = 8.2;\npivot_x = 103.05;\npivot_z = 4.1;\n\nmodule lower_geo() {\n    // base\n    cube([100, arm_w, arm_t]);\n    // catch block at free end (x 0..5), overlap into base\n    translate([0, 0, 2.98]) cube([5, arm_w, 2.02]);\n    // catch lip protruding +x, overlap into block\n    translate([4.98, 0, 4.3]) cube([0.82, arm_w, 0.7]);\n    // living hinge leaf, overlap into base\n    translate([99.98, 0, 0]) cube([6.02, arm_w, hinge_t]);\n}\n\nmodule upper_geo() {\n    // base 0..100\n    cube([100, arm_w, arm_t]);\n    // heel at hinge end on top\n    translate([0, 0, 2.98]) cube([8, arm_w, 2.02]);\n    // hook leg near free end on top\n    translate([92.2, 0, 2.98]) cube([2, arm_w, 1.82]);\n    // hook lip protruding +x from leg side\n    translate([94.18, 0, 4.1]) cube([0.82, arm_w, 0.7]);\n    // thumb tab extension beyond free end\n    translate([99.98, 0, 0]) cube([12.02, arm_w, arm_t]);\n}\n\nmodule bag_geo() {\n    translate([8, 0, 3]) cube([84, arm_w, bag_t]);\n}\n\nif (part == \"lower\") {\n    echo(cadverify_spec = [\n        [\"bounds\", [[0, 0, 0], [106, 24, 5]]],\n        [\"bodies\", 1],\n        [\"through_holes\", 0],\n        [\"support_faces\", [[\"bed\", \"-z\", 500]]],\n        [\"overhangs_allowed\", [[\"catch lip bridge\", [[4.5, 0, 4.0], [6.2, 24, 5.1]]]]],\n        [\"copies\", 1],\n        [\"details\", [\n            [\"base\", \"material\", [[10, 0, 0], [90, 24, 3]], 1],\n            [\"catch\", \"material\", [[0, 0, 3], [5, 24, 5]], 1],\n            [\"catch_lip\", \"material\", [[4.98, 0, 4.3], [5.8, 24, 5]], 1],\n            [\"hinge\", \"material\", [[99.98, 0, 0], [106, 24, 0.6]], 1],\n            [\"hook_space\", \"void\", [[5.8, 0, 3], [8.6, 24, 5.4]], 1],\n            [\"bag_space\", \"void\", [[8, 0, 5.1], [92, 24, 7]], 1],\n            [\"wall\", \"thickness\", [50, 12, 6], [0, 0, -1], 3],\n            [\"film\", \"thickness\", [103, 12, 2], [0, 0, -1], 0.6],\n            [\"hinge_top\", \"view\", [[99, 0, 0], [107, 24, 1]]]\n        ]]\n    ]);\n    lower_geo();\n} else if (part == \"upper\") {\n    echo(cadverify_spec = [\n        [\"bounds\", [[0, 0, 0], [112, 24, 5]]],\n        [\"bodies\", 1],\n        [\"through_holes\", 0],\n        [\"support_faces\", [[\"bed\", \"-z\", 500]]],\n        [\"overhangs_allowed\", [[\"hook lip bridge\", [[91.5, 0, 2.8], [96, 24, 5]]]]],\n        [\"copies\", 1],\n        [\"details\", [\n            [\"heel\", \"material\", [[0, 0, 3], [8, 24, 5]], 1],\n            [\"arm\", \"material\", [[10, 0, 0], [80, 24, 3]], 1],\n            [\"hook_leg\", \"material\", [[92.2, 0, 3], [94.2, 24, 4.8]], 1],\n            [\"hook_lip\", \"material\", [[94.18, 0, 4.1], [95, 24, 4.8]], 1],\n            [\"tab\", \"material\", [[100, 0, 0], [112, 24, 3]], 1],\n            [\"catch_space\", \"void\", [[95, 0, 3], [99.9, 24, 5]], 1],\n            [\"wall\", \"thickness\", [50, 12, 6], [0, 0, -1], 3],\n            [\"heel_wall\", \"thickness\", [4, 12, 7], [0, 0, -1], 5],\n            [\"thumb\", \"view\", [[99, 0, 0], [113, 24, 3.5]]]\n        ]]\n    ]);\n    upper_geo();\n} else if (part == \"assembly\") {\n    echo(cadverify_spec = [\n        [\"bounds\", [[-12, 0, 0], [106, 24, 8.2]]],\n        [\"support_faces\", [[\"bed\", \"-z\", 1000]]],\n        [\"motions\", [\n            [\"closing\", [\"upper\"], \"rotate\", [103.05, 12, 4.1], [0, 1, 0], [0, 180],\n                [\"flex\", [[\"upper\", \"lower\", 1, \"latch snap and heel clearance\"]]]]\n        ]],\n        [\"assembly_order\", [\n            [[[\"lower\"], [0, 0, 0]]],\n            [[[\"bag\"], [0, 0, -1]]],\n            [[[\"upper\"], [0, 0, -1], [\"flex\", [[\"upper\", \"lower\", 1, \"latch snap\"]]]]]\n        ]]\n    ]);\n    instance(\"lower\", \"lower\") lower_geo();\n    instance(\"upper\", \"upper\") translate([100, 0, 8.2]) rotate([0, 180, 0]) upper_geo();\n    instance(\"bag\", \"external\") bag_geo();\n}\n",
+    "path": "model.scad"
+  },
+  "result": {
+    "ok": true,
+    "path": "model.scad",
+    "replaced": false,
+    "bytes": 4455,
+    "lines": 121,
+    "sha256": "078eac1c2fbfe07536041c67ac34d5dde3792769728fc837ff03e514d5eac361"
+  },
+  "seconds": 0.371,
+  "image": null,
+  "files": {
+    "new": [
+      "model.scad"
+    ],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [
+    "model.scad"
+  ],
+  "rule": null,
+  "source": "7322b710cfdd9fc2"
+}

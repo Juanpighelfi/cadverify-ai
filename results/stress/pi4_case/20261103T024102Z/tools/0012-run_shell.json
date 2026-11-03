@@ -1,0 +1,36 @@
+{
+  "seq": 12,
+  "iteration": 12,
+  "name": "run_shell",
+  "arguments": {
+    "cmd": "sed -n 300,370p /opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/spec.py"
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.014,
+    "stdout": "                )\n        outside = [v for v in motion[\"rests\"] if not ends[0] - 1e-9 <= v <= ends[1] + 1e-9]\n        if outside:\n            raise SpecError(\n                f\"{where}: a rest is a value of the range it sweeps, {ends[0]:g} to {ends[1]:g}; \"\n                f\"got {outside[0]:g}\"\n            )\n        if motion[\"rests\"] and not motion[\"flex\"]:\n            raise SpecError(\n                f\"{where}: rests are where a detent holds the motion, so it needs the flex that \"\n                \"rides over something between them\"\n            )\n        driven = [n for d in motion[\"drives\"] for n in d[\"instances\"]]\n        if len(set(driven)) < len(driven):\n            raise SpecError(f\"{where}: an instance it drives is in one group of its drives only\")\n        motions.append({\"name\": name, \"instances\": moving, \"kind\": kind, **motion})\n    steps = []\n    for item in _list(pairs.get(\"assembly_order\", []), \"assembly_order\"):\n        usage = (\n            'assembly_order: each step is [[\"instance\", ...], direction it moves along as it '\n            'comes in] or, if it turns after it comes in, [[\"instance\", ...], direction, '\n            '[\"rotate\", point, axis, degrees]] or [[\"instance\", ...], direction, '\n            '[\"screw\", point, axis, pitch_mm, degrees]], with an optional [\"flex\", '\n            '[[\"instance\", \"instance\", mm, \"reason\"], ...]] at the end for what snaps in'\n        )\n        if not (isinstance(item, list) and len(item) in (2, 3, 4)):\n            raise SpecError(f\"{usage}; got {item!r}\")\n        where = f\"assembly_order {item[0]!r}\"\n        step = {\"instances\": _names(item[0], where), \"direction\": _vector(item[1], where)}\n        rest = item[2:]\n        if rest and isinstance(rest[-1], list) and rest[-1][:1] == [\"flex\"]:\n            step[\"flex\"] = _flex(rest[-1], where)\n            rest = rest[:-1]\n        if len(rest) > 1:\n            raise SpecError(f\"{usage}; got {item!r}\")\n        if rest:\n            turn = rest[0]\n            size = _size(turn, 0, {\"rotate\": 4, \"screw\": 5})\n            if not (size and len(turn) == size):\n                raise SpecError(f\"{usage}; got {item!r}\")\n            if not _number(turn[-1]):\n                raise SpecError(f\"{where}: the turn is a number of degrees\")\n            step[\"turn\"] = {**_movement(turn[:-1], where), \"degrees\": float(turn[-1])}\n        steps.append(step)\n    in_place = pairs.get(\"print_in_place\")\n    if in_place is not None:\n        lo, hi = PRINT_IN_PLACE_GAP_MM\n        if not (_number(in_place) and lo <= in_place <= hi):\n            raise SpecError(\n                f\"print_in_place is the smallest clearance between two parts printed together, \"\n                f\"from {lo} to {hi} mm (closer, they fuse); got {in_place!r}\"\n            )\n        in_place = {\"min_gap_mm\": float(in_place)}\n    held = _names(pairs[\"held\"], \"held\") if \"held\" in pairs else []\n    pose = _print_pose(pairs.get(\"print_pose\", []), motions)\n    if pose and in_place is None:\n        raise SpecError(\n            \"print_pose is the pose an assembly printed in place prints in: it needs print_in_place\"\n        )\n    return {\n        \"allowed_interferences\": allowed,\n        \"motions\": motions,\n        \"assembly_order\": steps,\n        \"print_in_place\": in_place,\n        \"print_pose\": pose,\n        \"held\": held,\n    }\n\n\ndef _print_pose(value: Any, motions: list[dict[str, Any]]) -> list[dict[str, Any]]:\n    \"\"\"The motions that take the assembly to the pose it prints in, each at a value.\"\"\"\n",
+    "stderr": "",
+    "stdout_bytes": 3493,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 0.429,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "e3b0c44298fc1c14"
+}

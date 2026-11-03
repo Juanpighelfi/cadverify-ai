@@ -1,0 +1,36 @@
+{
+  "seq": 17,
+  "iteration": 8,
+  "name": "run_python",
+  "arguments": {
+    "code": "import trimesh, numpy as np\nm = trimesh.load('/work/exports/model.bracket.5c3b1430.stl')\nn = m.face_normals; c = m.triangles_center; a = m.area_faces\n# down-facing faces near z=8 in the two flagged boxes\nsel = (n[:,2] < -0.7) & (np.abs(c[:,0])<4) & (np.abs(np.abs(c[:,1])-11.3)<1.2) & (np.abs(c[:,2]-8)<0.3)\nprint('down-face area near zones:', round(a[sel].sum(),2), 'count:', sel.sum())\nprint('z range:', c[sel][:,2].min(), c[sel][:,2].max())\n# hypothesis: circular segment of csk (center (0,15) r 4.25) cut by arm edge y=12\nimport math\nr, d = 4.25, 3.0  # center-line distance from (0,15) to cut line y=12 is 3\nseg = r*r*math.acos(d/r) - d*math.sqrt(r*r-d*d)\nprint('segment area hypothesis:', round(seg,2), ' chord half-width:', round(math.sqrt(r*r-d*d),2))\n# check the faces sit inside the csk circle around (0,15)\nd2 = np.sqrt(c[sel][:,0]**2 + (np.abs(c[sel][:,1])-15)**2)\nprint('max dist from hole center:', round(d2.max(),2), '(csk r 4.25)')\n"
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.835,
+    "stdout": "down-face area near zones: 10.29 count: 26\nz range: 8.01 8.01\nsegment area hypothesis: 5.19  chord half-width: 3.01\nmax dist from hole center: 4.24 (csk r 4.25)\n",
+    "stderr": "",
+    "stdout_bytes": 161,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 1.185,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "d43e7e935abff60c"
+}

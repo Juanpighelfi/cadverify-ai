@@ -1,0 +1,37 @@
+{
+  "seq": 46,
+  "iteration": 36,
+  "name": "run_shell",
+  "arguments": {
+    "cmd": "sed -n 1074,1135p /opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/assembly.py; grep -n \"def _transformed\\|def _posed_mesh\\|def _box_gap\" -A 15 /opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/assembly.py | head -60",
+    "timeout_s": 60.0
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.01,
+    "stdout": "def _poses(motion: dict, value: float) -> dict[str, np.ndarray]:\n    \"\"\"Where a motion at `value` takes each instance it moves: those it names by its own movement,\n    those it drives by theirs at its ratio (and then by the motion's, when it names them too).\"\"\"\n    own = _pose(motion, value)\n    out = {name: own for name in motion[\"instances\"]}\n    for drive in motion.get(\"drives\") or []:\n        matrix = _pose(drive, drive[\"ratio\"] * value)\n        for name in drive[\"instances\"]:\n            out[name] = out.get(name, np.eye(4)) @ matrix\n    return out\n\n\ndef _step(motion: dict, names: dict) -> float:\n    \"\"\"The step of a motion's sweep: no point of what it moves travels more than SWEEP_STEP_MM\n    or turns more than SWEEP_STEP_DEG in one, moved by the motion and by its drives.\"\"\"\n    turn, travel = _speed(motion, names)\n    return min(\n        SWEEP_STEP_DEG / turn if turn else math.inf, SWEEP_STEP_MM / travel if travel else math.inf\n    )\n\n\ndef _speed(motion: dict, names: dict) -> tuple[float, float]:\n    \"\"\"The most a motion turns (degrees) and moves (mm) any point of what it moves, for each\n    degree (or mm) of the motion, by its own movement and by its drives.\"\"\"\n    span = max(map(abs, motion[\"range\"]))\n    turn = travel = 0.0  # the most, for each degree (or mm) of the motion\n    for name, inst in names.items():\n        vertices = inst[\"_mesh\"].vertices\n        drive = next((d for d in motion.get(\"drives\") or [] if name in d[\"instances\"]), None)\n        t = d = shift = 0.0\n        if drive:\n            t, d, shift = _rates(drive, vertices, abs(drive[\"ratio\"]), span)\n        if name in motion[\"instances\"]:\n            own_t, own_d, _ = _rates(motion, vertices, 1.0, span, shift)\n            t, d = t + own_t, d + own_d\n        turn, travel = max(turn, t), max(travel, d)\n    return turn, travel\n\n\ndef _stops(\n    motion: dict,\n    pairs: list[tuple[dict, dict]],\n    names: dict,\n    pressed: set,\n    ends: tuple[float, float],\n    step: float,\n    problems: list[str],\n) -> list[dict]:\n    \"\"\"Each stop the motion declares: past that end of its range, before its fastest point has\n    moved STOP_TRAVEL_MM more, two instances collide (deeper than its flex, for a flex pair).\"\"\"\n    unit = \" mm\" if motion[\"kind\"] == \"slide\" else \"°\"\n    past = STOP_TRAVEL_MM / max(_speed(motion, names)[1], 1e-9)\n    flex = {frozenset((f[\"a\"], f[\"b\"])): f[\"max_mm\"] for f in motion.get(\"flex\") or []}\n    rows = []\n    for at in motion[\"stops\"]:\n        sign = 1.0 if at == ends[1] else -1.0\n        count = max(1, math.ceil(past / step))\n        values = at + sign * np.linspace(0.0, past, count + 1)[1:]\n        poses = [(float(v), _poses(motion, float(v))) for v in values]\n        hits = sorted(\n            _fits_left_out(_sweep(pairs, poses), pressed), key=lambda h: abs(h[\"pose\"] - at)\n        )\n1580:def _transformed(mesh: trimesh.Trimesh, matrix: np.ndarray) -> trimesh.Trimesh:\n1581-    out = mesh.copy()\n1582-    out.apply_transform(matrix)\n1583-    return out\n1584-\n1585-\n1586:def _posed_mesh(instances: list[dict], matrices: dict[str, np.ndarray]) -> trimesh.Trimesh:\n1587-    return trimesh.util.concatenate(\n1588-        [_transformed(i[\"_mesh\"], matrices.get(i[\"name\"], np.eye(4))) for i in instances]\n1589-    )\n1590-\n1591-\n1592:def _box_gap(a: np.ndarray, b: np.ndarray) -> float:\n1593-    return float(np.max(np.maximum(a[0] - b[1], b[0] - a[1]).clip(min=0)))\n1594-\n1595-\n1596-def _overlaps_2d(points: np.ndarray, lo: np.ndarray, hi: np.ndarray) -> bool:\n1597-    return bool(np.all(points.min(axis=0) <= hi) and np.all(points.max(axis=0) >= lo))\n1598-\n1599-\n1600-def _trimesh(solid: manifold3d.Manifold) -> trimesh.Trimesh:\n1601-    mesh = solid.to_mesh()\n1602-    return trimesh.Trimesh(np.asarray(mesh.vert_properties)[:, :3], np.asarray(mesh.tri_verts))\n1603-\n1604-\n1605-def _write_stl(solid: manifold3d.Manifold, path: Path) -> None:\n1606-    _write_mesh(_trimesh(solid), path)\n1607-\n",
+    "stderr": "",
+    "stdout_bytes": 3929,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 0.406,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "a1c3e6cd649abb7e"
+}

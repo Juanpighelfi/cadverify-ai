@@ -1,0 +1,36 @@
+{
+  "seq": 19,
+  "iteration": 19,
+  "name": "run_shell",
+  "arguments": {
+    "cmd": "sed -n 140,215p model.scad"
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.01,
+    "stdout": "module assembly() {\n    instance(\"base\", \"base\") translate([0, 0, 0]) base();\n    instance(\"batt_left\", \"standard:aa_cell\")\n        translate([-bx, batt_y0, batt_z]) rotate([-90, 0, 0]) aa_cell();\n    instance(\"batt_right\", \"standard:aa_cell\")\n        translate([bx, batt_y0, batt_z]) rotate([-90, 0, 0]) aa_cell();\n    instance(\"cover\", \"cover\")\n        translate([0, asm_cov_y, asm_cov_z]) rotate([0, 180, 0]) cover();\n}\n\n// ---------------- specs + dispatch ----------------\nif (part == \"base\") {\n    echo(cadverify_spec = [\n        [\"bounds\", [[-W_out/2, 0, 0], [W_out/2, L_out, wall_top]]],\n        [\"bodies\", 1],\n        [\"through_holes\", 2],\n        [\"support_faces\", [[\"bed\", \"-z\", 2000]]],\n        effect\" placeholder - do not use, [[-W_in/2, endc_t, floor_t], [-div_t/2, endc_t + L_in, floor_t + batt_d]], 0.9],\n            [\"bay_right\", \"void\", [[div_t/2, endc_t, floor_t], [W_in/2, endc_t + L_in, floor_t + batt_d]], 0.9],\n            [\"contact_spring\", \"void\", [[-W_in/2, endc_t, floor_t], [W_in/2, endc_t + 6, floor_t + batt_d]], 0.9],\n            [\"contact_pos\", \"void\", [[-W_in/2, endc_t + L_in - 3.5, floor_t], [W_in/2, endc_t + L_in, floor_t + batt_d]], 0.9],\n            [\"groove_left\", \"void\", [[-W_in/2 - groove_d, groove_y0, gb], [-W_in/2, L_out, ce_in]], 0.9],\n            [\"groove_right\", \"void\", [[W_in/2, groove_y0, gb], [W_in/2 + groove_d, L_out, ce_in]], 0.9],\n            [\"catch_pocket\", \"void\", [[-notch_x, notch_y0, notch_z0], [notch_x, notch_y1, notch_zt]], 0.9],\n            [\"wire_left\", \"hole\", [-bx, wire_y, -1], [0, 0, 1], [[0, wire_d]]],\n            [\"wire_right\", \"hole\", [bx, wire_y, -1], [0, 0, 1], [[0, wire_d]]],\n            [\"wall_side\", \"thickness\", [W_out/2 + 1, 30, 10], [-1, 0, 0], side_t],\n            [\"wall_end\", \"thickness\", [8.5, -1, 15], [0, 1, 0], endc_t],\n            [\"floor\", \"thickness\", [8, 30, -1], [0, 0, 1], floor_t],\n            [\"divider\", \"material\", [[-div_t/2, endc_t, div_h0], [div_t/2, endc_t + L_in, div_h1]], 0.9]\n        ]]\n    ]);\n    base();\n} else if (part == \"cover\") {\n    echo(cadverify_spec = [\n        [\"bounds\", [[-W_cov/2, 0, 0], [W_cov/2, L_cov, plate_t + tooth_h]]],\n        [\"bodies\", 1],\n        [\"through_holes\", 1],\n        [\"support_faces\", [[\"bed\", \"-z\", 1700]]],\n        [\"overhangs_allowed\", []],\n        [\"copies\", 1],\n        [\"details\", [\n            [\"plate\", \"material\", [[-W_cov/2, 0, 0], [W_cov/2, slot_y0, plate_t]], 0.9],\n            [\"tab\", \"material\", [[-slot_x0, slot_y0, 0], [slot_x0, L_cov, plate_t]], 0.8],\n            [\"tooth\", \"material\", [[-tooth_x, tooth_y0, plate_t], [tooth_x, tooth_y1, plate_t + tooth_h]], 0.7],\n            [\"slot_left\", \"void\", [[-slot_x1, slot_y0, 0], [-slot_x0, L_cov, plate_t]], 0.9],\n            [\"slot_right\", \"void\", [[slot_x0, slot_y0, 0], [slot_x1, L_cov, plate_t]], 0.9],\n            [\"finger\", \"hole\", [0, finger_y, -1], [0, 0, 1], [[0, finger_d]]],\n            [\"plate_thickness\", \"thickness\", [10, 10, 5], [0, 0, -1], plate_t]\n        ]]\n    ]);\n    cover();\n} else if (part == \"assembly\") {\n    echo(cadverify_spec = [\n        [\"bounds\", [[-W_out/2, 0, 0], [W_out/2, L_out, wall_top]]],\n        [\"support_faces\", [[\"bed\", \"-z\", 2000]]],\n        [\"allowed_interferences\", []],\n        [\"motions\", [\n            [\"slide_off\", [\"cover\"], \"slide\", [0, 1, 0], [0, 45],\n                [\"flex\", [[\"cover\", \"base\", 1.0, \"catch tooth rides over entry wall\"]]]]\n        ]],\n        [\"assembly_order\", [\n            [[\"base\"], [0, 0, 0]],\n            [[\"batt_left\"], [0, 0, -1]],\n            [[\"batt_right\"], [0, 0, -1]],\n            [[\"cover\"], [0, -1, 0],\n                [\"flex\", [[\"cover\", \"base\", 1.0, \"catch tooth rides over entry wall\"]]]]\n        ]],\n        [\"held\", [\"batt_left\", \"batt_right\"]]\n    ]);\n    assembly();\n}\n",
+    "stderr": "",
+    "stdout_bytes": 3769,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 0.428,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "3e0e1226a843d204"
+}

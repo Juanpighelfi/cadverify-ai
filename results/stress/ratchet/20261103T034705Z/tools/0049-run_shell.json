@@ -1,0 +1,37 @@
+{
+  "seq": 49,
+  "iteration": 39,
+  "name": "run_shell",
+  "arguments": {
+    "cmd": "python3 -c \"\nimport trimesh, numpy as np\nfrom cadverify.cadcheck.mesh import load_exact\nfrom cadverify.cadcheck import section\nw = load_exact('checks/assembly/model.assembly.1d428528.stl')\nb = load_exact('checks/assembly/model.assembly.57cfb177.stl')\nprint('trimesh vols', w.volume, b.volume)\nsw = section.to_manifold(w); sb = section.to_manifold(b)\nprint('manifold vols', sw.volume(), sb.volume())\nimport manifold3d\nprint('overlap type:', type(sw ^ sb), 'vol', (sw^sb).volume())\n# rotate wheel instance by -17 about [0,0,4]: replicate _pose matrix\nM = trimesh.transformations.rotation_matrix(np.radians(-17), [0,0,1], [0,0,4])\nprint('matrix sample', M[:2,:])\nsw2 = sw.transform(M[:3,:])\nprint('moved vol', sw2.volume(), 'overlap at -17:', (sb ^ sw2).volume())\n# also via trimesh meshes\nw2 = w.copy(); w2.apply_transform(M)\nprint('trimesh moved bounds', w2.bounds)\n\"\n",
+    "timeout_s": 120.0
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.963,
+    "stdout": "trimesh vols 9564.419206303022 20354.387550761716\nmanifold vols 9564.41920630302 20354.387550761716\noverlap type: <class 'manifold3d.Manifold'> vol -6.805320196257014e-14\nmatrix sample [[ 0.95630476  0.2923717   0.          0.        ]\n [-0.2923717   0.95630476  0.          0.        ]]\nmoved vol 9564.419206303019 overlap at -17: 4.420251830610022\ntrimesh moved bounds [[-24.9983077 -24.9983077   4.       ]\n [ 24.9983077  24.9983077  10.       ]]\n",
+    "stderr": "",
+    "stdout_bytes": 450,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 1.361,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "a1c3e6cd649abb7e"
+}

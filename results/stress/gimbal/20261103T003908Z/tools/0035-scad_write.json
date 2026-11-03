@@ -1,0 +1,32 @@
+{
+  "seq": 35,
+  "iteration": 23,
+  "name": "scad_write",
+  "arguments": {
+    "content": "/* Print-in-place gimbal: flat print, no supports.\n   Outer ring OD70 (R30/35) on two stand tabs, middle ring (R25.5/29.45) on one\n   X pin, inner disc (R24.95) on one Y pin. Concentric, 6 mm thick, bed at z=0.\n   Blind pivot bores open into the centre holes; short pins (0.75 engagement,\n   0.55 PLA clearance) snap down through Z assembly steps (flex 1).\n   Full 360 deg about X (middle+disc) and about Y (disc).\n*/\npart = \"assembly\"; // [frame:Frame, middle:Middle, disc:Disc, assembly:Assembly]\ncadverify_only = \"\";\nmodule instance(name, part, unit = 1) {\n    echo(cadverify_instance = [name, part, unit]);\n    if (cadverify_only == \"\" || cadverify_only == name) children();\n}\nRoi=30; Roo=35; Rmi=25.5; Rmo=29.45; Rd=24.95; T=6; Zc=3;\npinR=1.95; sockR=2.5;\n$fn=128;\nmodule frame0() {\n    difference(){\n        union(){\n            difference(){\n                cylinder(h=T, r=Roo);\n                translate([0,0,-0.1]) cylinder(h=T+0.2, r=Roi);\n            }\n            translate([-4,33,0]) cube([8,8,T]);\n            translate([-4,-41,0]) cube([8,8,T]);\n        }\n        // blind X bore, mouth at inner face (-30), for middle pin\n        translate([-31,0,Zc]) rotate([0,90,0]) cylinder(h=2, r=sockR, center=true, $fn=48);\n    }\n}\nmodule middle0() {\n    difference(){\n        union(){\n            difference(){\n                cylinder(h=T, r=Rmo);\n                translate([0,0,-0.1]) cylinder(h=T+0.2, r=Rmi);\n            }\n            // single X pin toward -X\n            translate([-28.875,0,Zc]) rotate([0,90,0]) cylinder(h=3.75, r=pinR, center=true, $fn=48);\n        }\n        // blind Y bore, mouth at inner face (-25.5), for disc pin\n        translate([0,-26.25,Zc]) rotate([90,0,0]) cylinder(h=1.5, r=sockR, center=true, $fn=48);\n    }\n}\nmodule disc0() {\n    union(){\n        cylinder(h=T, r=Rd);\n        // single Y pin toward -Y\n        translate([0,24.625,Zc]) rotate([90,0,0]) cylinder(h=3.25, r=pinR, center=true, $fn=48);\n    }\n}\nif (part==\"frame\") {\n    echo(cadverify_spec=[\n      [\"bounds\",[[-35,-41,0],[35,41,6]]],\n      [\"bodies\",1],\n      [\"through_holes\",1],\n      [\"support_faces\",[[\"bed\",\"-z\",800]]],\n      [\"overhangs_allowed\",[\n        [\"boreX\",[[-32.2,-2.6,2.5],[-29.8,2.6,5.6]]]\n      ]],\n      [\"copies\",1],\n      [\"details\",[\n        [\"stand+\",\"material\",[[-4,33,0],[4,41,6]],0.9],\n        [\"stand-\",\"material\",[[-4,-41,0],[4,-33,6]],0.9],\n        [\"gapRing\",\"void\",[[-1,29.4,0],[1,30.05,6]],0.8],\n        [\"sockX\",\"void\",[[-32.1,-2.4,0.6],[-29.9,2.4,5.4]],0.7],\n        [\"floorTab\",\"thickness\",[0,37,-1],[0,0,1],6],\n        [\"wallOut\",\"thickness\",[36,0,3],[-1,0,0],5]\n      ]]\n    ]);\n    frame0();\n} else if (part==\"middle\") {\n    echo(cadverify_spec=[\n      [\"bounds\",[[-30.75,-29.45,0],[29.45,29.45,6]]],\n      [\"bodies\",1],\n      [\"through_holes\",1],\n      [\"overhangs_allowed\",[\n        [\"pinX\",[[-31,-2,0.8],[-27,2,3.2]]],\n        [\"boreY\",[[-2.6,-27.2,2.5],[2.6,-25.3,5.6]]]\n      ]],\n      [\"copies\",1],\n      [\"details\",[\n        [\"pinX\",\"material\",[[-30.7,-1,2],[-27,1,4]],0.8],\n        [\"sockY\",\"void\",[[-2.4,-27.1,0.6],[2.4,-25.4,5.4]],0.7],\n        [\"gapDisc\",\"void\",[[-1,24.9,0],[1,25.55,6]],0.7],\n        [\"floorRing\",\"thickness\",[27,0,-1],[0,0,1],6]\n      ]]\n    ]);\n    middle0();\n} else if (part==\"disc\") {\n    echo(cadverify_spec=[\n      [\"bounds\",[[-24.95,-26.25,0],[24.95,26.25,6]]],\n      [\"bodies\",1],\n      [\"overhangs_allowed\",[\n        [\"pinY\",[[-2,22.8,0.8],[2,26.4,3.2]]]\n      ]],\n      [\"copies\",1],\n      [\"details\",[\n        [\"pinY\",\"material\",[[-1,23,2],[1,26.2,4]],0.8],\n        [\"floorDisc\",\"thickness\",[0,0,-1],[0,0,1],6],\n        [\"edgeX\",\"thickness\",[25.5,0,3],[-1,0,0],49.9]\n      ]]\n    ]);\n    disc0();\n} else if (part==\"assembly\") {\n    echo(cadverify_spec=[\n      [\"bounds\",[[-35,-41,0],[35,41,6]]],\n      [\"overhangs_allowed\",[\n        [\"boreX\",[[-32.2,-2.6,2.5],[-29.8,2.6,5.6]]],\n        [\"pinX\",[[-31,-2,0.8],[-27,2,3.2]]],\n        [\"boreY\",[[-2.6,-27.2,2.5],[2.6,-25.3,5.6]]],\n        [\"pinY\",[[-2,22.8,0.8],[2,26.4,3.2]]]\n      ]],\n      [\"motions\",[\n        [\"swing_middle\",[\"middle\",\"disc\"],\"rotate\",[0,0,3],[1,0,0],[0,360]],\n        [\"spin_disc\",[\"disc\"],\"rotate\",[0,0,3],[0,1,0],[0,360]]\n      ]],\n      [\"assembly_order\",[\n        [[[\"frame\"],[0,0,0]]],\n        [[[\"middle\"],[0,0,-1]],[\"flex\",[[\"middle\",\"frame\",1,\"pin snap\"]]]],\n        [[[\"disc\"],[0,0,-1]],[\"flex\",[[\"disc\",\"middle\",1,\"pin snap\"]]]]\n      ]],\n      [\"print_in_place\",0.5],\n      [\"held\",[\"middle\",\"disc\"]]\n    ]);\n    instance(\"frame\",\"frame\") frame0();\n    instance(\"middle\",\"middle\") middle0();\n    instance(\"disc\",\"disc\") disc0();\n}\n",
+    "path": "model.scad"
+  },
+  "result": {
+    "ok": true,
+    "path": "model.scad",
+    "replaced": true,
+    "bytes": 4600,
+    "lines": 129,
+    "sha256": "d7e77e01def44147ff00e98f4e2141a3971658b89ede090a064926d6088f522f"
+  },
+  "seconds": 0.472,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [
+      "model.scad"
+    ],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [
+    "model.scad"
+  ],
+  "rule": null,
+  "source": "aec2b83b276eb505"
+}

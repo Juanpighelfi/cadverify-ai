@@ -1,0 +1,32 @@
+{
+  "seq": 1,
+  "iteration": 1,
+  "name": "scad_write",
+  "arguments": {
+    "content": "// Gridfinity bin 2x1 x 3U tall\n// Outside 83.5 x 41.5, H=21, foot 0.8/1.8/2.15, stacking lip, label shelf, scoop\ngrid = 42;\nclr = 0.5;\nLx = 2*grid - clr; // 83.5\nLy = 1*grid - clr; // 41.5\nH = 3*7; // 21\nh1 = 0.8;\nh2 = 1.8;\nh3 = 2.15;\nHfoot = h1+h2+h3; // 4.75\nfoot_bot = Ly - 2*(h1+h3); // 35.6\nfoot_mid = foot_bot + 2*h1; // 37.2\nwt = 1.2;\nlipExtra = 0.5;\nfloorTop = 6.0;\nlipTrans0 = 17.5;\nlipTop0 = 18.0;\nfrontTop = 10;\nx0 = 15;\nxr0 = 12;\nrampTop = 9;\nshelfLen = 40;\nshelfCx = -15; // shelf x in [-35,5]\nshelf_y_wall = -(Ly/2 - wt); // -19.55\nshelf_y_tip = shelf_y_wall + 6; // -13.55\nshelf_z_bot = 9;\nshelf_z_top = 15;\nx1f = -grid/2;\nx2f = grid/2;\n\necho(cadverify_spec = [\n    [\"bounds\", [[-Lx/2, -Ly/2, 0], [Lx/2, Ly/2, H]]],\n    [\"bodies\", 1],\n    [\"through_holes\", 0],\n    [\"support_faces\", [[\"bed\", \"-z\", 2000]]],\n    [\"overhangs_allowed\", []],\n    [\"copies\", 1],\n    [\"details\", [\n        [\"foot_left\", \"material\", [[x1f-foot_bot/2, -foot_bot/2, 0.05], [x1f+foot_bot/2, foot_bot/2, 0.55]], 0.9],\n        [\"foot_right\", \"material\", [[x2f-foot_bot/2, -foot_bot/2, 0.05], [x2f+foot_bot/2, foot_bot/2, 0.55]], 0.9],\n        [\"lip_back\", \"material\", [[-30, Ly/2-wt-lipExtra, 19], [0, Ly/2, 21]], 0.9],\n        [\"label_shelf\", \"material\", [[-30, -19, 14.5], [0, -14.5, 15]], 0.9],\n        [\"scoop_void\", \"void\", [[30, -15, 10.5], [40.4, 15, 14]], 0.9],\n        [\"cavity\", \"void\", [[-20, -10, 10], [10, 10, 16]], 0.9],\n        [\"wall\", \"thickness\", [0, 25, 15], [0, -1, 0], 1.2],\n        [\"floor\", \"thickness\", [-21, 0, -5], [0, 0, 1], 6.0]\n    ]]\n]);\n\nmodule foot(cx) {\n    hull() {\n        translate([cx-foot_bot/2, -foot_bot/2, 0]) cube([foot_bot, foot_bot, 0.1]);\n        translate([cx-foot_mid/2, -foot_mid/2, h1-0.05]) cube([foot_mid, foot_mid, 0.1]);\n    }\n    translate([cx-foot_mid/2, -foot_mid/2, h1-0.05]) cube([foot_mid, foot_mid, h2+0.1]);\n    hull() {\n        translate([cx-foot_mid/2, -foot_mid/2, h1+h2-0.05]) cube([foot_mid, foot_mid, 0.1]);\n        translate([cx-Ly/2, -Ly/2, Hfoot]) cube([Ly, Ly, 0.1]);\n    }\n}\n\nmodule body_outer() {\n    foot(x1f);\n    foot(x2f);\n    translate([-Lx/2, -Ly/2, Hfoot-0.1]) cube([Lx, Ly, H-Hfoot+0.1]);\n}\n\nmodule cavity_solid() {\n    intL_low = Lx-2*wt;\n    intW_low = Ly-2*wt;\n    intL_up = Lx-2*(wt+lipExtra);\n    intW_up = Ly-2*(wt+lipExtra);\n    translate([-intL_low/2, -intW_low/2, floorTop-0.02]) cube([intL_low, intW_low, (lipTrans0-floorTop)+0.02]);\n    hull() {\n        translate([-intL_low/2, -intW_low/2, lipTrans0-0.02]) cube([intL_low, intW_low, 0.04]);\n        translate([-intL_up/2, -intW_up/2, lipTop0]) cube([intL_up, intW_up, 0.04]);\n    }\n    translate([-intL_up/2, -intW_up/2, lipTop0-0.02]) cube([intL_up, intW_up, (H+2-lipTop0)+0.02]);\n}\n\nmodule scoop_cut() {\n    W = Ly+2;\n    x1cut = Lx/2+1;\n    hull() {\n        translate([x0-0.1, -W/2, H]) cube([0.2, W, 2]);\n        translate([x1cut-0.1, -W/2, frontTop]) cube([0.2, W, (H+2-frontTop)]);\n    }\n}\n\nmodule scoop_ramp() {\n    intW = Ly-2*wt;\n    xr1 = Lx/2-wt;\n    hull() {\n        translate([xr0-0.1, -intW/2, floorTop-0.1]) cube([0.2, intW, 0.14]);\n        translate([xr1-0.1, -intW/2, floorTop-0.1]) cube([0.2, intW, (rampTop-floorTop)+0.1]);\n    }\n}\n\nmodule label_shelf_mod() {\n    hull() {\n        translate([shelfCx-shelfLen/2, shelf_y_wall-0.2, shelf_z_bot]) cube([shelfLen, 0.4, shelf_z_top-shelf_z_bot]);\n        translate([shelfCx-shelfLen/2, shelf_y_tip-0.1, shelf_z_top-0.1]) cube([shelfLen, 0.2, 0.2]);\n    }\n}\n\nmodule bin_part() {\n    difference() {\n        body_outer();\n        cavity_solid();\n        scoop_cut();\n    }\n}\n\nunion() {\n    bin_part();\n    scoop_ramp();\n    label_shelf_mod();\n}\n",
+    "path": "model.scad"
+  },
+  "result": {
+    "ok": true,
+    "path": "model.scad",
+    "replaced": false,
+    "bytes": 3636,
+    "lines": 119,
+    "sha256": "b65e8dbea01593dcff795fcb6551812f07447bf0a56e1f46fe3b2a8f96990089"
+  },
+  "seconds": 0.548,
+  "image": null,
+  "files": {
+    "new": [
+      "model.scad"
+    ],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [
+    "model.scad"
+  ],
+  "rule": null,
+  "source": "9ce9887177c587e5"
+}

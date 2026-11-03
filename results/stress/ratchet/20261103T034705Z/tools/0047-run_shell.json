@@ -1,0 +1,37 @@
+{
+  "seq": 47,
+  "iteration": 37,
+  "name": "run_shell",
+  "arguments": {
+    "cmd": "grep -n \"def _pose\\b\\|def _pose(\" -A 30 /opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/assembly.py | head -50; grep -n \"_solid.*transform\\|load_exact\\|Mesh(\" /opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/assembly.py | head -20",
+    "timeout_s": 60.0
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.015,
+    "stdout": "1064:def _pose(movement: dict, value: float) -> np.ndarray:\n1065-    \"\"\"The 4 × 4 matrix of a rotation, slide or screw at `value` (degrees; mm for a slide).\"\"\"\n1066-    if movement[\"kind\"] == \"slide\":\n1067-        return translation(movement[\"axis\"], value)\n1068-    matrix = rotation(movement[\"point\"], movement[\"axis\"], value)\n1069-    if movement[\"kind\"] == \"screw\":\n1070-        matrix = translation(movement[\"axis\"], movement[\"pitch_mm\"] * value / 360) @ matrix\n1071-    return matrix\n1072-\n1073-\n1074-def _poses(motion: dict, value: float) -> dict[str, np.ndarray]:\n1075-    \"\"\"Where a motion at `value` takes each instance it moves: those it names by its own movement,\n1076-    those it drives by theirs at its ratio (and then by the motion's, when it names them too).\"\"\"\n1077-    own = _pose(motion, value)\n1078-    out = {name: own for name in motion[\"instances\"]}\n1079-    for drive in motion.get(\"drives\") or []:\n1080-        matrix = _pose(drive, drive[\"ratio\"] * value)\n1081-        for name in drive[\"instances\"]:\n1082-            out[name] = out.get(name, np.eye(4)) @ matrix\n1083-    return out\n1084-\n1085-\n1086-def _step(motion: dict, names: dict) -> float:\n1087-    \"\"\"The step of a motion's sweep: no point of what it moves travels more than SWEEP_STEP_MM\n1088-    or turns more than SWEEP_STEP_DEG in one, moved by the motion and by its drives.\"\"\"\n1089-    turn, travel = _speed(motion, names)\n1090-    return min(\n1091-        SWEEP_STEP_DEG / turn if turn else math.inf, SWEEP_STEP_MM / travel if travel else math.inf\n1092-    )\n1093-\n1094-\n97:from cadverify.cadcheck.mesh import load_exact\n267:        mesh = load_exact(export[\"path\"])\n305:            cache[part] = _properties(load_exact(parts[part][\"path\"]))\n351:    return _properties(load_exact(export[\"path\"]))\n631:            \"_solid\": i[\"_solid\"].transform(matrix[i[\"name\"]][:3, :]),\n",
+    "stderr": "",
+    "stdout_bytes": 1865,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 0.46,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "a1c3e6cd649abb7e"
+}

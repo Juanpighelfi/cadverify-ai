@@ -1,0 +1,36 @@
+{
+  "seq": 27,
+  "iteration": 27,
+  "name": "run_shell",
+  "arguments": {
+    "cmd": "/opt/venv/bin/python3 -c \"\nimport sys; sys.path.insert(0,'/opt/venv/lib/python3.12/site-packages')\nfrom cadverify.cadcheck.mesh import load_exact\nimport trimesh, numpy as np\nm=load_exact('/work/exports/model.ring.dfe62771.stl')\nprint('faces',len(m.faces),'watertight',m.is_watertight)\n# shells\nfrom trimesh.graph import connected_components\nshells=connected_components(m.face_adjacency, nodes=np.arange(len(m.faces)), min_len=1)\nprint('shells',len(shells))\n# genus per shell using euler\ndef genus(faces):\n    f=m.faces[faces]\n    edges=np.unique(np.sort(f[:,[0,1,1,2,2,0]].reshape(-1,2),axis=1),axis=0)\n    euler=len(np.unique(f))-len(edges)+len(f)\n    return (2-euler)//2\nfor s in shells:\n    print('shell len',len(s),'genus',genus(s))\n# check bounds z histogram of face centers\nimport matplotlib\n\" 2>&1 | head -n 100"
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 1.335,
+    "stdout": "faces 25464 watertight True\nshells 1\nshell len 25464 genus 43\n",
+    "stderr": "",
+    "stdout_bytes": 62,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 1.726,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "f6b0e937bf029663"
+}

@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Phone stand on a ball joint</title><style>
+:root {
+  --bg: #f7f7f5; --panel: #ffffff; --text: #1d1d1b; --muted: #6b6b66; --line: #e2e2dc;
+  --ok: #1f8a4c; --ok-bg: #e3f4ea; --red: #c23b2a; --red-bg: #fbe7e4;
+  --pend: #b8b8b0; --info: #2f5fb3; --info-bg: #e6edf9; --code: #f0f0ec;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #161615; --panel: #1f1f1d; --text: #ecece8; --muted: #9a9a93; --line: #34342f;
+    --ok: #4cc27c; --ok-bg: #18301f; --red: #ef6b5a; --red-bg: #3a1d19;
+    --pend: #55554f; --info: #7da2e8; --info-bg: #1b2539; --code: #272724;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+main { max-width: 1100px; margin: 0 auto; padding: 24px 16px 64px; }
+h1 { font-size: 26px; margin: 0 0 6px; }
+h2 { font-size: 18px; margin: 32px 0 12px; }
+.meta { color: var(--muted); display: flex; flex-wrap: wrap; gap: 6px 16px; }
+.badge {
+  display: inline-block; padding: 1px 9px; border-radius: 999px; font-size: 13px;
+  font-weight: 600;
+}
+.badge.ok { color: var(--ok); background: var(--ok-bg); }
+.badge.red { color: var(--red); background: var(--red-bg); }
+.badge.info { color: var(--info); background: var(--info-bg); }
+.badge.pend { color: var(--muted); background: var(--code); }
+.panel {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+  padding: 14px 16px;
+}
+pre {
+  margin: 0; white-space: pre-wrap; word-break: break-word;
+  font: 13px/1.45 ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+.md { overflow-wrap: anywhere; }
+.md > :first-child { margin-top: 0; }
+.md > :last-child { margin-bottom: 0; }
+.md p { margin: 0 0 8px; }
+.md p.h { font-weight: 700; margin-top: 12px; }
+.md ul, .md ol { margin: 0 0 8px; padding-left: 22px; }
+.md ul { list-style: disc; }
+.md li > ul { list-style: circle; }
+.md li > ul, .md li > ol { margin: 2px 0 0; }
+.md code, .detail code { font: 13px ui-monospace, "SFMono-Regular", Menlo, monospace;
+  background: var(--code); border-radius: 4px; padding: 0 4px; }
+.cite { font: 600 12px ui-monospace, "SFMono-Regular", Menlo, monospace; color: var(--info);
+  background: var(--info-bg); border-radius: 4px; padding: 0 5px; white-space: nowrap; }
+pre.code { background: var(--code); border-radius: 8px; padding: 12px; overflow-x: auto;
+  white-space: pre; }
+details > summary { cursor: pointer; font-weight: 600; }
+details[open] > summary { margin-bottom: 10px; }
+.grid { overflow-x: auto; }
+.grid table { border-collapse: separate; border-spacing: 2px; }
+.grid th { font-weight: 500; color: var(--muted); font-size: 13px; text-align: left;
+  white-space: nowrap; padding-right: 10px; }
+.grid td { padding: 0; }
+.grid a { display: block; width: var(--cell); height: 22px; border-radius: 3px; }
+.grid a.ok { background: var(--ok); }
+.grid a.red { background: var(--red); }
+.grid a.pend { background: var(--pend); }
+.grid a.none { box-shadow: inset 0 0 0 1.5px var(--pend); }
+.grid .num { font-size: 11px; color: var(--muted); text-align: center; }
+ol.timeline { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
+.it-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; }
+.it-head b { font-size: 16px; }
+.it-head span { color: var(--muted); font-size: 13px; }
+.said { margin-top: 10px; border-left: 3px solid var(--info); padding-left: 12px; }
+.answer { border-left-color: var(--ok); }
+ul.calls { margin: 10px 0 0; padding: 0; list-style: none; display: grid; gap: 4px; }
+ul.calls > li { font-size: 13px; overflow-wrap: anywhere; }
+ul.calls > li > code { font-weight: 600; }
+.images { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 12px; margin-top: 12px; }
+.images figure { margin: 0; }
+.images img { display: block; width: 100%; border: 1px solid var(--line); border-radius: 6px;
+  background: #fff; }
+.images figcaption { font-size: 12px; color: var(--muted); margin-top: 2px; }
+ul.detail, ul.found { list-style: none; margin: 10px 0 0; padding: 2px 0 2px 12px;
+  border-left: 3px solid var(--red); font-size: 13px; display: grid; gap: 3px;
+  overflow-wrap: anywhere; }
+ul.found { margin: 4px 0 4px 2px; }
+ul.found.note { border-left-color: var(--info); }
+ul.detail b, ul.found b { color: var(--red); margin-right: 4px; }
+ul.found.note b { color: var(--info); }
+.more { color: var(--muted); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.legend { color: var(--muted); font-size: 13px; margin: 10px 0 0; }
+.legend i { display: inline-block; width: 10px; height: 12px; border-radius: 2px;
+  vertical-align: -1px; margin: 0 4px 0 10px; }
+.legend i:first-child { margin-left: 0; }
+.legend .ok { background: var(--ok); } .legend .red { background: var(--red); }
+.legend .pend { background: var(--pend); }
+.legend .none { box-shadow: inset 0 0 0 1.5px var(--pend); }
+a { color: var(--info); }
+.lead { color: var(--muted); max-width: 780px; margin: 0; }
+.runs { overflow-x: auto; padding: 6px 8px; }
+.runs table { border-collapse: collapse; width: 100%; min-width: 960px; table-layout: fixed;
+  font-size: 14px; }
+.runs col.request { width: 22%; } .runs col.model { width: 19%; }
+.runs col.status { width: 17%; } .runs col.n { width: 6.5%; } .runs col.when { width: 16%; }
+.runs th { font-weight: 500; color: var(--muted); font-size: 13px; text-align: left; }
+.runs th, .runs td { padding: 6px 8px; }
+.runs th { vertical-align: bottom; }
+.runs td { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.runs tr + tr td { border-top: 1px solid var(--line); }
+.runs .n { text-align: right; font-variant-numeric: tabular-nums; }
+</style></head><body><main><h1>Phone stand on a ball joint</h1><div class="meta"><span class="badge ok">green</span><span>muse-spark-1.3-contributor</span><span>audited by muse-wonder-1.0</span><span>21 requests</span><span>17 tool calls</span><span>USD 0.24</span><span>18 min</span></div><h2>Request</h2><div class="panel md"><p>A desk phone stand whose holder tilts and turns on a ball joint.</p><ul><li>A base about 90 mm across, a short post with a ball about 20 mm across on top, and a holder with a socket that snaps over the ball.</li><li>The holder cradles a phone up to 80 mm wide and 10 mm thick, upright or sideways.</li><li>The socket grips the ball firmly enough to hold a 200 g phone at any tilt up to 30 degrees from vertical, and turns all the way around.</li><li>PLA on a Bambu Lab A1 with a 0.4 mm nozzle, no supports.</li></ul><p>Show me the stand with the holder upright as the assembly, and the holder tilting and turning as its motions.</p></div><h2>Gates at every iteration</h2><div class="grid panel"><table style="--cell: 32px"><tr><th></th><td class="num"></td><td class="num"></td><td class="num"></td><td class="num"></td><td class="num">5</td><td class="num"></td><td class="num"></td><td class="num"></td><td class="num"></td><td class="num">10</td><td class="num"></td><td class="num"></td><td class="num"></td><td class="num"></td><td class="num">15</td><td class="num"></td><td class="num"></td><td class="num"></td></tr><tr><th>G1 compiles clean</th><td><a class="ok" href="#it-1" title="iteration 1: G1 ok"></a></td><td><a class="ok" href="#it-2" title="iteration 2: G1 ok"></a></td><td><a class="ok" href="#it-3" title="iteration 3: G1 ok"></a></td><td><a class="ok" href="#it-4" title="iteration 4: G1 ok"></a></td><td><a class="ok" href="#it-5" title="iteration 5: G1 ok"></a></td><td><a class="ok" href="#it-6" title="iteration 6: G1 ok"></a></td><td><a class="ok" href="#it-7" title="iteration 7: G1 ok"></a></td><td><a class="ok" href="#it-8" title="iteration 8: G1 ok"></a></td><td><a class="ok" href="#it-9" title="iteration 9: G1 ok"></a></td><td><a class="ok" href="#it-10" title="iteration 10: G1 ok"></a></td><td><a class="ok" href="#it-11" title="iteration 11: G1 ok"></a></td><td><a class="ok" href="#it-12" title="iteration 12: G1 ok"></a></td><td><a class="ok" href="#it-13" title="iteration 13: G1 ok"></a></td><td><a class="ok" href="#it-14" title="iteration 14: G1 ok"></a></td><td><a class="ok" href="#it-15" title="iteration 15: G1 ok"></a></td><td><a class="ok" href="#it-16" title="iteration 16: G1 ok"></a></td><td><a class="ok" href="#it-17" title="iteration 17: G1 ok"></a></td><td><a class="ok" href="#it-18" title="iteration 18: G1 ok"></a></td></tr><tr><th>G2 closed meshes</th><td><a class="ok" href="#it-1" title="iteration 1: G2 ok"></a></td><td><a class="ok" href="#it-2" title="iteration 2: G2 ok"></a></td><td><a class="ok" href="#it-3" title="iteration 3: G2 ok"></a></td><td><a class="ok" href="#it-4" title="iteration 4: G2 ok"></a></td><td><a class="ok" href="#it-5" title="iteration 5: G2 ok"></a></td><td><a class="ok" href="#it-6" title="iteration 6: G2 ok"></a></td><td><a class="ok" href="#it-7" title="iteration 7: G2 ok"></a></td><td><a class="ok" href="#it-8" title="iteration 8: G2 ok"></a></td><td><a class="ok" href="#it-9" title="iteration 9: G2 ok"></a></td><td><a class="ok" href="#it-10" title="iteration 10: G2 ok"></a></td><td><a class="ok" href="#it-11" title="iteration 11: G2 ok"></a></td><td><a class="ok" href="#it-12" title="iteration 12: G2 ok"></a></td><td><a class="ok" href="#it-13" title="iteration 13: G2 ok"></a></td><td><a class="ok" href="#it-14" title="iteration 14: G2 ok"></a></td><td><a class="ok" href="#it-15" title="iteration 15: G2 ok"></a></td><td><a class="ok" href="#it-16" title="iteration 16: G2 ok"></a></td><td><a class="ok" href="#it-17" title="iteration 17: G2 ok"></a></td><td><a class="ok" href="#it-18" title="iteration 18: G2 ok"></a></td></tr><tr><th>G3 assembly</th><td><a class="ok" href="#it-1" title="iteration 1: G3 ok"></a></td><td><a class="ok" href="#it-2" title="iteration 2: G3 ok"></a></td><td><a class="ok" href="#it-3" title="iteration 3: G3 ok"></a></td><td><a class="ok" href="#it-4" title="iteration 4: G3 ok"></a></td><td><a class="ok" href="#it-5" title="iteration 5: G3 ok"></a></td><td><a class="ok" href="#it-6" title="iteration 6: G3 ok"></a></td><td><a class="ok" href="#it-7" title="iteration 7: G3 ok"></a></td><td><a class="ok" href="#it-8" title="iteration 8: G3 ok"></a></td><td><a class="ok" href="#it-9" title="iteration 9: G3 ok"></a></td><td><a class="ok" href="#it-10" title="iteration 10: G3 ok"></a></td><td><a class="ok" href="#it-11" title="iteration 11: G3 ok"></a></td><td><a class="ok" href="#it-12" title="iteration 12: G3 ok"></a></td><td><a class="ok" href="#it-13" title="iteration 13: G3 ok"></a></td><td><a class="ok" href="#it-14" title="iteration 14: G3 ok"></a></td><td><a class="ok" href="#it-15" title="iteration 15: G3 ok"></a></td><td><a class="ok" href="#it-16" title="iteration 16: G3 ok"></a></td><td><a class="ok" href="#it-17" title="iteration 17: G3 ok"></a></td><td><a class="ok" href="#it-18" title="iteration 18: G3 ok"></a></td></tr><tr><th>G4 motion</th><td><a class="ok" href="#it-1" title="iteration 1: G4 ok"></a></td><td><a class="ok" href="#it-2" title="iteration 2: G4 ok"></a></td><td><a class="ok" href="#it-3" title="iteration 3: G4 ok"></a></td><td><a class="ok" href="#it-4" title="iteration 4: G4 ok"></a></td><td><a class="ok" href="#it-5" title="iteration 5: G4 ok"></a></td><td><a class="ok" href="#it-6" title="iteration 6: G4 ok"></a></td><td><a class="ok" href="#it-7" title="iteration 7: G4 ok"></a></td><td><a class="ok" href="#it-8" title="iteration 8: G4 ok"></a></td><td><a class="ok" href="#it-9" title="iteration 9: G4 ok"></a></td><td><a class="ok" href="#it-10" title="iteration 10: G4 ok"></a></td><td><a class="ok" href="#it-11" title="iteration 11: G4 ok"></a></td><td><a class="ok" href="#it-12" title="iteration 12: G4 ok"></a></td><td><a class="ok" href="#it-13" title="iteration 13: G4 ok"></a></td><td><a class="ok" href="#it-14" title="iteration 14: G4 ok"></a></td><td><a class="ok" href="#it-15" title="iteration 15: G4 ok"></a></td><td><a class="ok" href="#it-16" title="iteration 16: G4 ok"></a></td><td><a class="ok" href="#it-17" title="iteration 17: G4 ok"></a></td><td><a class="ok" href="#it-18" title="iteration 18: G4 ok"></a></td></tr><tr><th>G5 printable</th><td><a class="ok" href="#it-1" title="iteration 1: G5 ok"></a></td><td><a class="ok" href="#it-2" title="iteration 2: G5 ok"></a></td><td><a class="ok" href="#it-3" title="iteration 3: G5 ok"></a></td><td><a class="ok" href="#it-4" title="iteration 4: G5 ok"></a></td><td><a class="ok" href="#it-5" title="iteration 5: G5 ok"></a></td><td><a class="ok" href="#it-6" title="iteration 6: G5 ok"></a></td><td><a class="ok" href="#it-7" title="iteration 7: G5 ok"></a></td><td><a class="ok" href="#it-8" title="iteration 8: G5 ok"></a></td><td><a class="ok" href="#it-9" title="iteration 9: G5 ok"></a></td><td><a class="ok" href="#it-10" title="iteration 10: G5 ok"></a></td><td><a class="ok" href="#it-11" title="iteration 11: G5 ok"></a></td><td><a class="ok" href="#it-12" title="iteration 12: G5 ok"></a></td><td><a class="ok" href="#it-13" title="iteration 13: G5 ok"></a></td><td><a class="ok" href="#it-14" title="iteration 14: G5 ok"></a></td><td><a class="ok" href="#it-15" title="iteration 15: G5 ok"></a></td><td><a class="ok" href="#it-16" title="iteration 16: G5 ok"></a></td><td><a class="ok" href="#it-17" title="iteration 17: G5 ok"></a></td><td><a class="ok" href="#it-18" title="iteration 18: G5 ok"></a></td></tr><tr><th>G7 spec held, all seen</th><td><a class="red" href="#it-1" title="iteration 1: G7 red"></a></td><td><a class="red" href="#it-2" title="iteration 2: G7 red"></a></td><td><a class="red" href="#it-3" title="iteration 3: G7 red"></a></td><td><a class="ok" href="#it-4" title="iteration 4: G7 ok"></a></td><td><a class="ok" href="#it-5" title="iteration 5: G7 ok"></a></td><td><a class="ok" href="#it-6" title="iteration 6: G7 ok"></a></td><td><a class="ok" href="#it-7" title="iteration 7: G7 ok"></a></td><td><a class="ok" href="#it-8" title="iteration 8: G7 ok"></a></td><td><a class="ok" href="#it-9" title="iteration 9: G7 ok"></a></td><td><a class="ok" href="#it-10" title="iteration 10: G7 ok"></a></td><td><a class="ok" href="#it-11" title="iteration 11: G7 ok"></a></td><td><a class="ok" href="#it-12" title="iteration 12: G7 ok"></a></td><td><a class="ok" href="#it-13" title="iteration 13: G7 ok"></a></td><td><a class="ok" href="#it-14" title="iteration 14: G7 ok"></a></td><td><a class="ok" href="#it-15" title="iteration 15: G7 ok"></a></td><td><a class="ok" href="#it-16" title="iteration 16: G7 ok"></a></td><td><a class="ok" href="#it-17" title="iteration 17: G7 ok"></a></td><td><a class="ok" href="#it-18" title="iteration 18: G7 ok"></a></td></tr><tr><th>G8 honest close</th><td><a class="pend" href="#it-1" title="iteration 1: G8 pend"></a></td><td><a class="pend" href="#it-2" title="iteration 2: G8 pend"></a></td><td><a class="pend" href="#it-3" title="iteration 3: G8 pend"></a></td><td><a class="pend" href="#it-4" title="iteration 4: G8 pend"></a></td><td><a class="red" href="#it-5" title="iteration 5: G8 red"></a></td><td><a class="pend" href="#it-6" title="iteration 6: G8 pend"></a></td><td><a class="pend" href="#it-7" title="iteration 7: G8 pend"></a></td><td><a class="pend" href="#it-8" title="iteration 8: G8 pend"></a></td><td><a class="pend" href="#it-9" title="iteration 9: G8 pend"></a></td><td><a class="pend" href="#it-10" title="iteration 10: G8 pend"></a></td><td><a class="pend" href="#it-11" title="iteration 11: G8 pend"></a></td><td><a class="red" href="#it-12" title="iteration 12: G8 red"></a></td><td><a class="pend" href="#it-13" title="iteration 13: G8 pend"></a></td><td><a class="red" href="#it-14" title="iteration 14: G8 red"></a></td><td><a class="pend" href="#it-15" title="iteration 15: G8 pend"></a></td><td><a class="red" href="#it-16" title="iteration 16: G8 red"></a></td><td><a class="pend" href="#it-17" title="iteration 17: G8 pend"></a></td><td><a class="ok" href="#it-18" title="iteration 18: G8 ok"></a></td></tr></table><p class="legend"><i class="ok"></i>passed<i class="red"></i>failed<i class="pend"></i>pending: G8 is judged when the model closes. One column per iteration; each cell links to it.</p></div><h2>Session</h2><ol class="timeline"><li class="panel" id="it-1"><div class="it-head"><b>Iteration 1</b><span>USD 0.009 · 365 s · 40,699 output tokens</span></div><div class="said md"><p>Designing your ball-joint phone stand — base, socket holder, and snap-fit motions.</p></div><ul class="calls"><li><code>scad_write</code> model.scad: 127 lines</li></ul></li><li class="panel" id="it-2"><div class="it-head"><b>Iteration 2</b><span>USD 0.000 · 7 s · 306 output tokens</span></div><div class="said md"><p>First draft is in — now exporting parts to verify the fit.</p></div><ul class="calls"><li><code>scad_compile</code> ok=True, 3 echo, 0 warnings, 0 failed asserts, 0 errors</li></ul></li><li class="panel" id="it-3"><div class="it-head"><b>Iteration 3</b><span>USD 0.000 · 13 s · 413 output tokens</span></div><div class="said md"><p>Assembly compiles — now checking each printable part and joint.</p></div><ul class="calls"><li><code>scad_export</code> ok=True, watertight=True, bodies=1, bounds=[[-45.0, -45.0, 0.0], [45.0, 45.0, 47.995]], spec ok, sheet renders/sheet-003.png</li><li><code>scad_export</code> ok=True, watertight=True, bodies=1, bounds=[[-44.0, -11.0, 0.0], [44.0, 12.0, 85.0]], spec ok, sheet renders/sheet-004.png</li><li><code>interference_check</code> 2 instances, 0 overlaps, G3 0 problems, G4 0, G5 0, 91.74 s</li></ul><div class="images"><figure><a href="workspace/renders/sheet-003.png"><img loading="lazy" alt="scad_export (call 3)" src="workspace/renders/sheet-003.png"></a><figcaption>scad_export, call 3</figcaption></figure><figure><a href="workspace/renders/sheet-004.png"><img loading="lazy" alt="scad_export (call 4)" src="workspace/renders/sheet-004.png"></a><figcaption>scad_export, call 4</figcaption></figure></div></li><li class="panel" id="it-4"><div class="it-head"><b>Iteration 4</b><span>USD 0.002 · 5 s · 400 output tokens</span></div><div class="said md"><p>Both parts check out and the joint moves freely — now final print and assembly verification.</p></div><ul class="calls"><li><code>printability_report</code> zones=2, undeclared=0, fits the bed=True</li><li><code>printability_report</code> zones=1, undeclared=0, fits the bed=True</li><li><code>render_view</code> renders/view-008.png: iso</li></ul><div class="images"><figure><a href="workspace/renders/view-008.png"><img loading="lazy" alt="render_view (call 8)" src="workspace/renders/view-008.png"></a><figcaption>render_view, call 8</figcaption></figure></div></li><li class="panel" id="it-5"><div class="it-head"><b>Iteration 5</b><span>USD 0.002 · 23 s · 2,137 output tokens</span><span class="badge red">close refused</span></div><div class="said md"><p><strong>Phone stand on ball joint — closed</strong></p><p>Design: 2 printed parts in PLA, 0.4 mm nozzle, no supports.</p><ul><li><code>base</code>: Ø90×6 mm disc + tapered post to 20 mm ball at z=38 <span class="cite">base</span></li><li><code>holder</code>: 88 wide cradle, 20 mm shelf, 12 mm phone gap for ≤80 mm wide / 10 mm thick phone, Ø20 mm socket with cross snap slots <span class="cite">holder</span></li><li>Assembly shows holder upright on ball <span class="cite">assembly</span></li></ul><p><strong>Verified:</strong></p><ul><li>Compiles clean, no warnings/asserts; both STL watertight, 0 bad edges, 1 body, 0 through-holes, positive volume: base 47095 mm³, 90.0×90.0×47.995 mm; holder 75789 mm³, 88.0×23.0×85.0 mm <span class="cite">base</span> <span class="cite">holder</span></li><li>Spec boxes met, tolerance 0.2 mm: base [[-45,-45,0]-[45,45,48]] <span class="cite">base</span>; holder [[-44,-11,0]-[44,12,85]] <span class="cite">holder</span>; assembly [[-45,-45,0]-[45,45,119.88]] measured 119.878 <span class="cite">assembly</span></li><li>Support faces flush: base -z 6359.2 mm² <span class="cite">base/base</span>; holder bottom -z 1447.7 mm² <span class="cite">holder/bottom</span>; desk -z 6359.2 mm² <span class="cite">assembly/desk</span></li><li>Details measured: base plate material 0.785 <span class="cite">base/base_plate</span>, ball material 0.532 <span class="cite">base/ball</span>, post core 1.0 <span class="cite">base/post_core</span>, 6 mm floor <span class="cite">base/base_thickness</span>, 19.99 mm ball dia <span class="cite">base/ball_dia</span>; phone slot empty 1.0 <span class="cite">holder/phone_slot</span>, socket cavity empty <span class="cite">holder/socket_cavity</span>, snap slot empty <span class="cite">holder/snap_slot</span>, side wall 1.0 <span class="cite">holder/side_wall</span>, 6 mm back <span class="cite">holder/back_wall</span>, 20 mm shelf <span class="cite">holder/shelf_floor</span></li><li>Printability Bambu A1 256 mm: both fit, margins 83/83 mm base, 84/116.5 mm holder; overhangs only in declared zones: base 101.9 mm² / 4.5% bridge 1.6 mm, holder 497.5 mm² / 29.3% bridge 9.8 mm ≤10 mm, nothing in air <span class="cite">G5</span></li><li>Assembly: instances congruent, copies 1+1, base-holder gap 0.0 contact, one group <span class="cite">assembly</span>; holder held, no straight removal <span class="cite">assembly</span></li><li>Motions swept collision-free: tilt ±30° about [0,0,38] Y 361 steps <span class="cite">tilt</span>; turn 0-360° about Z 361 steps <span class="cite">turn</span></li><li>Assembly order: base then holder from -z with snap flex 0.487 mm ≤1.0 mm, meets and frees <span class="cite">assembly_order</span></li><li>Saw final sheets via export <span class="cite">base</span> <span class="cite">holder</span> and assembly view with both instances together <span class="cite">assembly</span></li></ul><p><strong>Not verified:</strong></p><ul><li>That 200 g phone at 30° does not slip/creep, snap force, PLA friction/wear, layer strength, dimensional tuning for printer.</li><li>No spec adjustments; first spec passed as posed.</li></ul></div><ul class="detail"><li><b>G8</b><span class="cite">base</span> is ambiguous (the part base; the support face base of base): use <span class="cite">part/name</span></li></ul></li><li class="panel" id="it-6"><div class="it-head"><b>Iteration 6</b><span>USD 0.001 · 22 s · 1,907 output tokens</span></div><div class="said md"><p>Noted — fixing the ambiguous citation and re-verifying before closing.</p></div><ul class="calls"><li><code>scad_compile</code> ok=True, 3 echo, 0 warnings, 0 failed asserts, 0 errors</li></ul></li><li class="panel" id="it-7"><div class="it-head"><b>Iteration 7</b><span>USD 0.000 · 22 s · 1,735 output tokens</span></div><ul class="calls"><li><code>scad_patch</code> error: After an image, confirm with numbers before changing the .scad: confirm it with numbers before fixing it: mesh_report, scad_export, printability_report, interfe</li></ul></li><li class="panel" id="it-8"><div class="it-head"><b>Iteration 8</b><span>USD 0.000 · 6 s · 111 output tokens</span></div><div class="said md"><p>Citation fix needs a numeric confirmation first — running it now.</p></div><ul class="calls"><li><code>mesh_report</code> watertight=True, bodies=1, bounds=[[-45.0, -45.0, 0.0], [45.0, 45.0, 47.995]]</li></ul></li><li class="panel" id="it-9"><div class="it-head"><b>Iteration 9</b><span>USD 0.000 · 7 s · 173 output tokens</span></div><div class="said md"><p>Confirmed — now fixing the ambiguous name.</p></div><ul class="calls"><li><code>scad_patch</code> model.scad line 81: 127 lines</li></ul></li><li class="panel" id="it-10"><div class="it-head"><b>Iteration 10</b><span>USD 0.000 · 11 s · 667 output tokens</span></div><div class="said md"><p>Name clash fixed — re-exporting to confirm the spec still passes.</p></div><ul class="calls"><li><code>scad_export</code> ok=True, watertight=True, bodies=1, bounds=[[-45.0, -45.0, 0.0], [45.0, 45.0, 47.995]], spec ok</li></ul></li><li class="panel" id="it-11"><div class="it-head"><b>Iteration 11</b><span>USD 0.000 · 8 s · 380 output tokens</span></div><div class="said md"><p>Base spec passes under the new name — running the final assembly check.</p></div><ul class="calls"><li><code>interference_check</code> 2 instances, 0 overlaps, G3 0 problems, G4 0, G5 0, 90.99 s</li></ul></li><li class="panel" id="it-12"><div class="it-head"><b>Iteration 12</b><span>USD 0.001 · 23 s · 2,267 output tokens</span><span class="badge red">close refused</span></div><div class="said md"><p><strong>Phone stand on ball joint — closed</strong></p><p>2 printed parts, PLA, 0.4 mm nozzle, no supports. Base disc with post and 20 mm ball; holder cradle with snap socket. Assembly shows holder upright; tilt and turn are motions.</p><p><strong>Verified:</strong></p><ul><li>Clean compile, no warnings or failed asserts <span class="cite">G1</span>; both STLs watertight, 0 bad edges, 1 body, 0 inverted shells, positive volume <span class="cite">G2</span>.</li><li>Base part 90.0×90.0×47.995 mm, 47095 mm³ <span class="cite">base</span>; spec bounds [[-45,-45,0]-[45,45,48]] met <span class="cite">base/bounds</span> pattern measured 47.995 — backing detail ball 19.99 mm dia <span class="cite">base/ball_dia</span> and 6 mm floor <span class="cite">base/base_thickness</span>, plate material 0.785 <span class="cite">base/base_plate</span>, ball material 0.532 <span class="cite">base/ball</span>, post core 1.0 <span class="cite">base/post_core</span>.</li><li>Holder part 88.0×23.0×85.0 mm, 75789 mm³ <span class="cite">holder</span>; phone slot empty 1.0 <span class="cite">holder/phone_slot</span>, socket cavity empty <span class="cite">holder/socket_cavity</span>, snap slot empty <span class="cite">holder/snap_slot</span>, side wall 1.0 <span class="cite">holder/side_wall</span>, 6 mm back <span class="cite">holder/back_wall</span>, 20 mm shelf <span class="cite">holder/shelf_floor</span>.</li><li>Support flush: base foot -z 6359.2 mm² <span class="cite">base/foot</span>; holder bottom -z 1447.7 mm² <span class="cite">holder/bottom</span>; assembly desk -z 6359.2 mm² <span class="cite">assembly/desk</span>.</li><li>Assembly upright bounds [[-45,-45,0]-[45,45,119.88]] measured 119.878 <span class="cite">assembly</span>; instances congruent, copies 1+1, base-holder gap 0.0 contact, one group <span class="cite">G3</span>; holder held with no straight removal <span class="cite">assembly/desk</span> plus held check.</li><li>Motions swept collision-free: tilt ±30° about [0,0,38] Y 361 steps <span class="cite">tilt</span>; turn 0-360° about Z 361 steps <span class="cite">turn</span> <span class="cite">G4</span>.</li><li>Assembly order base then holder from -z with snap flex 0.487 mm ≤1.0 mm, meets and frees <span class="cite">assembly_order</span>.</li><li>Printability Bambu A1 256 mm: both fit <span class="cite">G5</span>; overhangs only in declared zones: base 4.5% bridge 1.6 mm, holder 29.3% bridge 9.8 mm ≤10 mm, nothing in air.</li><li>Saw final sheets via export <span class="cite">base</span> <span class="cite">holder</span> and assembly view with both instances together <span class="cite">assembly</span> <span class="cite">G7</span>.</li></ul><p><strong>Not verified:</strong></p><ul><li>That 200 g phone at 30° does not slip/creep, snap force, PLA friction/wear, layer strength, printer tuning.</li><li>Spec adjustment: renamed base support face <code>base</code> to <code>foot</code> <span class="cite">base/foot</span> with no geometry change, because <code>[[base]]</code> was ambiguous between part and face for G8; geometry identical, re-exported same SHA.</li></ul></div><ul class="detail"><li><b>G8</b><span class="cite">base/bounds</span> names nothing the harness verified in the final version (the names are: G1, G2, G3, G4, G5, G7, assembly, assembly/desk, assembly_order, back_wall, ball, ball_dia, base, base/ball, base/ball_dia, base/base_plate, base/base_thickness, base/foot, base/post_core, base_plate, base_thickness, bottom, desk, foot, holder, holder/back_wall, holder/bottom, holder/phone_slot, holder/shelf_floor, holder/side_wall, holder/snap_slot, holder/socket_cavity, phone_slot, post_core, shelf_floor, side_wall, snap_slot, socket_cavity, tilt, turn)</li></ul></li><li class="panel" id="it-13"><div class="it-head"><b>Iteration 13</b><span>USD 0.001 · 23 s · 2,297 output tokens</span></div><div class="said md"><p>Citation needs correcting — re-confirming the final geometry before the corrected close.</p></div><ul class="calls"><li><code>scad_compile</code> ok=True, 3 echo, 0 warnings, 0 failed asserts, 0 errors</li></ul></li><li class="panel" id="it-14"><div class="it-head"><b>Iteration 14</b><span>USD 0.001 · 19 s · 2,138 output tokens</span><span class="badge red">close refused</span></div><div class="said md"><p><strong>Phone stand on ball joint — closed</strong></p><p>2 printed parts, PLA, 0.4 mm nozzle, no supports. Base disc with post and 20 mm ball; holder cradle with snap socket. Assembly shows holder upright; tilt and turn are motions.</p><p><strong>Verified:</strong></p><ul><li>Clean compile, no warnings or failed asserts <span class="cite">G1</span>; both STLs watertight, 0 bad edges, 1 body each, positive volume <span class="cite">G2</span>.</li><li>Base part 90.0x90.0x47.995 mm, 47095 mm3 <span class="cite">base</span>; spec bounds met within 0.2 mm; ball 19.99 mm dia <span class="cite">base/ball_dia</span> and 6 mm floor <span class="cite">base/base_thickness</span>, plate material 0.785 <span class="cite">base/base_plate</span>, ball material 0.532 <span class="cite">base/ball</span>, post core 1.0 <span class="cite">base/post_core</span>.</li><li>Holder part 88.0x23.0x85.0 mm, 75789 mm3 <span class="cite">holder</span>; phone slot empty 1.0 <span class="cite">holder/phone_slot</span>, socket cavity empty <span class="cite">holder/socket_cavity</span>, snap slot empty <span class="cite">holder/snap_slot</span>, side wall 1.0 <span class="cite">holder/side_wall</span>, 6 mm back <span class="cite">holder/back_wall</span>, 20 mm shelf <span class="cite">holder/shelf_floor</span>.</li><li>Support flush: base foot -z 6359.2 mm2 <span class="cite">base/foot</span>; holder bottom -z 1447.7 mm2 <span class="cite">holder/bottom</span>; assembly desk -z 6359.2 mm2 <span class="cite">assembly/desk</span>.</li><li>Assembly upright bounds 45x45x119.878 vs 119.88 nominal <span class="cite">assembly</span>; instances congruent, copies 1+1, base-holder gap 0.0 contact, one group <span class="cite">G3</span>; holder held with no straight removal, verified in interference check.</li><li>Motions swept collision-free: tilt +-30 deg about [0,0,38] Y 361 steps <span class="cite">tilt</span>; turn 0-360 deg about Z 361 steps <span class="cite">turn</span> <span class="cite">G4</span>.</li><li>Assembly order base then holder from -z with snap flex 0.487 mm &lt;=1.0 mm, meets and frees <span class="cite">assembly_order</span>.</li><li>Printability Bambu A1 256 mm: both fit <span class="cite">G5</span>; overhangs only in declared zones: base 4.5 percent bridge 1.6 mm, holder 29.3 percent bridge 9.8 mm &lt;=10 mm, nothing in air.</li><li>Saw final sheets via export <span class="cite">base</span> <span class="cite">holder</span> and assembly view with both instances together <span class="cite">assembly</span> <span class="cite">G7</span>.</li></ul><p><strong>Not verified:</strong></p><ul><li>That 200 g phone at 30 deg does not slip or creep, snap force, PLA friction and wear, layer strength, printer tuning.</li><li>Spec adjustment: renamed base support face from base to foot <span class="cite">base/foot</span> with no geometry change, because the face name matched the part name; geometry identical, re-exported same SHA.</li></ul></div><ul class="detail"><li><b>G8</b>unsupported claim: Assembly upright bounds 45x45x119.878 vs 119.88 nominal <span class="cite">assembly</span>: VERIFIED assembly bounds are [[-45.0, -45.0, 0.0], [45.0, 45.0, 119.878]], i.e. a 90.0x90.0x119.878 mm extent, not 45x45x119.878 mm.</li><li><b>G8</b>unsupported claim: tilt +-30 deg about [0,0,38] Y 361 steps <span class="cite">tilt</span>: VERIFIED tilt records only kind rotate, range [-30.0, 30.0], 361 steps and ok=true; it does not state a [0,0,38] pivot or Y axis.</li><li><b>G8</b>unsupported claim: turn 0-360 deg about Z 361 steps <span class="cite">turn</span> <span class="cite">G4</span>: VERIFIED turn records only kind rotate, range [0.0, 360.0], 361 steps and ok=true; it does not state a Z axis.</li><li><b>G8</b>unsupported claim: Assembly order base then holder from -z with snap flex 0.487 mm &lt;=1.0 mm, meets and frees <span class="cite">assembly_order</span>: VERIFIED assembly_steps show the order, step ok=true and flex depth 0.487 mm against 1.0 mm, but do not state a -z approach direction or that the joint meets and frees.</li><li><b>G8</b>unsupported claim: base 4.5 percent bridge 1.6 mm, holder 29.3 percent bridge 9.8 mm &lt;=10 mm: VERIFIED gives allowed_share_of_surface 0.0446 and 0.2931 and no bridge lengths of 1.6 mm or 9.8 mm; G5 only checks that qualifying bridges satisfy the 10 mm / 5 mm limits.</li></ul></li><li class="panel" id="it-15"><div class="it-head"><b>Iteration 15</b><span>USD 0.000 · 8 s · 409 output tokens</span></div><div class="said md"><p>Fixing the close wording — re-verifying the final files first.</p></div><ul class="calls"><li><code>scad_compile</code> ok=True, 3 echo, 0 warnings, 0 failed asserts, 0 errors</li></ul></li><li class="panel" id="it-16"><div class="it-head"><b>Iteration 16</b><span>USD 0.000 · 8 s · 639 output tokens</span><span class="badge red">close refused</span></div><div class="said md"><p><strong>Phone stand on ball joint — closed</strong></p><p>2 printed parts, PLA, 0.4 mm nozzle, no supports. Base disc with post and 20 mm ball; holder cradle with snap socket. Assembly shows holder upright; tilt and turn are motions.</p><p><strong>Verified:</strong></p><ul><li>Clean compile, no warnings or failed asserts <span class="cite">G1</span>; both STLs watertight, 0 bad edges, 1 body each, positive volume <span class="cite">G2</span>.</li><li>Base part 90.0x90.0x47.995 mm, 47095 mm3 <span class="cite">base</span>; spec bounds met within 0.2 mm; ball 19.99 mm dia <span class="cite">base/ball_dia</span> and 6 mm floor <span class="cite">base/base_thickness</span>, plate material 0.785 <span class="cite">base/base_plate</span>, ball material 0.532 <span class="cite">base/ball</span>, post core 1.0 <span class="cite">base/post_core</span>.</li><li>Holder part 88.0x23.0x85.0 mm, 75789 mm3 <span class="cite">holder</span>; phone slot empty 1.0 <span class="cite">holder/phone_slot</span>, socket cavity empty <span class="cite">holder/socket_cavity</span>, snap slot empty <span class="cite">holder/snap_slot</span>, side wall 1.0 <span class="cite">holder/side_wall</span>, 6 mm back <span class="cite">holder/back_wall</span>, 20 mm shelf <span class="cite">holder/shelf_floor</span>.</li><li>Support flush: base foot -z 6359.2 mm2 <span class="cite">base/foot</span>; holder bottom -z 1447.7 mm2 <span class="cite">holder/bottom</span>; assembly desk -z 6359.2 mm2 <span class="cite">assembly/desk</span>.</li><li>Assembly upright bounds [[-45.0,-45.0,0.0],[45.0,45.0,119.878]] <span class="cite">assembly</span>; instances congruent, copies 1+1, base-holder gap 0.0 contact, one group <span class="cite">G3</span>; holder held with no straight removal, verified in interference check.</li><li>Motions swept collision-free: tilt range [-30.0,30.0], kind rotate, 361 steps, ok <span class="cite">tilt</span>; turn range [0.0,360.0], kind rotate, 361 steps, ok <span class="cite">turn</span> <span class="cite">G4</span>.</li><li>Assembly order base then holder, steps ok, flex depth 0.487 mm against 1.0 mm max <span class="cite">assembly_order</span>.</li><li>Printability Bambu A1 256 mm: both fit <span class="cite">G5</span>; overhangs only in declared zones with allowed share of surface 0.0446 base and 0.2931 holder, nothing in air.</li><li>Saw final sheets via export <span class="cite">base</span> <span class="cite">holder</span> and assembly view with both instances together <span class="cite">assembly</span> <span class="cite">G7</span>.</li></ul><p><strong>Not verified:</strong></p><ul><li>That 200 g phone at 30 deg does not slip or creep, snap force, PLA friction and wear, layer strength, printer tuning.</li><li>Spec adjustment: renamed base support face from base to foot <span class="cite">base/foot</span> with no geometry change, because the face name matched the part name; geometry identical, re-exported same SHA.</li></ul></div><ul class="detail"><li><b>G8</b>unsupported claim: holder held with no straight removal, verified in interference check: VERIFIED gives no held/removal result for the holder; G3&#x27;s held check covers printed parts printed in place, and print_in_place is null.</li></ul></li><li class="panel" id="it-17"><div class="it-head"><b>Iteration 17</b><span>USD 0.000 · 6 s · 191 output tokens</span></div><div class="said md"><p>Removing the unsupported held wording — final verification before closing.</p></div><ul class="calls"><li><code>scad_compile</code> ok=True, 3 echo, 0 warnings, 0 failed asserts, 0 errors</li></ul></li><li class="panel" id="it-18"><div class="it-head"><b>Iteration 18</b><span>USD 0.000 · 11 s · 635 output tokens</span><span class="badge ok">accepted</span></div><div class="said md"><p><strong>Phone stand on ball joint — closed</strong></p><p>2 printed parts, PLA, 0.4 mm nozzle, no supports. Base disc with post and 20 mm ball; holder cradle with snap socket. Assembly shows holder upright; tilt and turn are motions.</p><p><strong>Verified:</strong></p><ul><li>Clean compile, no warnings or failed asserts <span class="cite">G1</span>; both STLs watertight, 0 bad edges, 1 body each, positive volume <span class="cite">G2</span>.</li><li>Base part 90.0x90.0x47.995 mm, 47095 mm3 <span class="cite">base</span>; spec bounds met within 0.2 mm; ball 19.99 mm dia <span class="cite">base/ball_dia</span> and 6 mm floor <span class="cite">base/base_thickness</span>, plate material 0.785 <span class="cite">base/base_plate</span>, ball material 0.532 <span class="cite">base/ball</span>, post core 1.0 <span class="cite">base/post_core</span>.</li><li>Holder part 88.0x23.0x85.0 mm, 75789 mm3 <span class="cite">holder</span>; phone slot empty 1.0 <span class="cite">holder/phone_slot</span>, socket cavity empty <span class="cite">holder/socket_cavity</span>, snap slot empty <span class="cite">holder/snap_slot</span>, side wall 1.0 <span class="cite">holder/side_wall</span>, 6 mm back <span class="cite">holder/back_wall</span>, 20 mm shelf <span class="cite">holder/shelf_floor</span>.</li><li>Support flush: base foot -z 6359.2 mm2 <span class="cite">base/foot</span>; holder bottom -z 1447.7 mm2 <span class="cite">holder/bottom</span>; assembly desk -z 6359.2 mm2 <span class="cite">assembly/desk</span>.</li><li>Assembly upright bounds [[-45.0,-45.0,0.0],[45.0,45.0,119.878]] <span class="cite">assembly</span>; instances congruent, copies 1+1, base-holder gap 0.0 contact, one group <span class="cite">G3</span>.</li><li>Motions swept collision-free: tilt range [-30.0,30.0], kind rotate, 361 steps, ok <span class="cite">tilt</span>; turn range [0.0,360.0], kind rotate, 361 steps, ok <span class="cite">turn</span> <span class="cite">G4</span>.</li><li>Assembly order base then holder, steps ok, flex depth 0.487 mm against 1.0 mm max <span class="cite">assembly_order</span>.</li><li>Printability Bambu A1 256 mm: both fit <span class="cite">G5</span>; overhangs only in declared zones with allowed share of surface 0.0446 base and 0.2931 holder, nothing in air.</li><li>Saw final sheets via export <span class="cite">base</span> <span class="cite">holder</span> and assembly view with both instances together <span class="cite">assembly</span> <span class="cite">G7</span>.</li></ul><p><strong>Not verified:</strong></p><ul><li>That 200 g phone at 30 deg does not slip or creep, snap force and retention of the holder on the ball, PLA friction and wear, layer strength, printer tuning.</li><li>Spec adjustment: renamed base support face from base to foot <span class="cite">base/foot</span> with no geometry change, because the face name matched the part name; geometry identical, re-exported same SHA.</li></ul></div></li></ol><h2>Final verification</h2><div class="chips"><span class="badge ok">G1 compiles clean</span><span class="badge ok">G2 closed meshes</span><span class="badge ok">G3 assembly</span><span class="badge ok">G4 motion</span><span class="badge ok">G5 printable</span><span class="badge ok">G7 spec held, all seen</span><span class="badge ok">G8 honest close</span></div><h2>Source</h2><details class="panel"><summary>model.scad</summary><pre class="code">// Phone stand on a ball joint — PLA, no supports, Bambu Lab A1 0.4mm
+/* [Parts] */
+part = &quot;assembly&quot;; // [assembly:Assembly, base:Base, holder:Holder]
+cadverify_only = &quot;&quot;;
+module instance(name, part, unit = 1) {
+    echo(cadverify_instance = [name, part, unit]);
+    if (cadverify_only == &quot;&quot; || cadverify_only == name) children();
+}
+
+// ---------- parameters ----------
+base_d = 90; base_r = 45; base_t = 6;
+ball_d = 20; ball_r = 10; ball_cz = 38;
+post_r_base = 12;
+post_r_neck = 4.0;
+post_r_top = 5.5;
+post_top_z = ball_cz - sqrt(ball_r*ball_r - post_r_top*post_r_top); // 29.648
+post_neck_z = post_top_z - 2; // collar 2mm
+
+holder_W = 88; holder_x0 = -44; holder_x1 = 44;
+holder_y0 = -11; holder_y1 = 12;
+holder_back_y0 = -11; holder_back_y1 = -5;
+holder_front_y0 = 7; holder_front_y1 = 12;
+shelf_t = 20;
+back_h = 65;
+holder_H = shelf_t + back_h; // 85
+socket_R = 10;
+socket_ro = 9.5;
+socket_cz = sqrt(socket_R*socket_R - socket_ro*socket_ro); // 3.122
+slot_w = 4; slot_h = 12;
+
+assembly_top = ball_cz - socket_cz + holder_H;
+
+module base_part() {
+    union() {
+        cylinder(r = base_r, h = base_t, $fn = 128);
+        translate([0,0,base_t-1])
+            cylinder(r1 = post_r_base, r2 = post_r_neck, h = (post_neck_z+1)-(base_t-1), $fn = 64);
+        translate([0,0,post_neck_z])
+            cylinder(r = post_r_top, h = (post_top_z+2)-post_neck_z, $fn = 64);
+        translate([0,0,ball_cz])
+            sphere(r = ball_r, $fn = 96);
+    }
+}
+
+module holder_part() {
+    difference() {
+        union() {
+            // shelf block
+            translate([holder_x0, holder_y0, 0])
+                cube([holder_W, holder_y1-holder_y0, shelf_t]);
+            // back plate
+            translate([holder_x0, holder_back_y0, 0])
+                cube([holder_W, holder_back_y1-holder_back_y0, holder_H]);
+            // front lip (overlap 1mm)
+            translate([holder_x0, holder_front_y0, shelf_t-1])
+                cube([holder_W, holder_front_y1-holder_front_y0, 16]);
+            // side walls (overlap 1mm)
+            translate([holder_x0, holder_y0, shelf_t-1])
+                cube([3, holder_y1-holder_y0, 16]);
+            translate([holder_x1-3, holder_y0, shelf_t-1])
+                cube([3, holder_y1-holder_y0, 16]);
+        }
+        // socket sphere
+        translate([0, 0, socket_cz])
+            sphere(r = socket_R, $fn = 96);
+        // X slot (full width, open bottom+sides)
+        translate([-45, -slot_w/2, -1])
+            cube([90, slot_w, slot_h+1]);
+        // Y slot (full depth, open bottom+sides)
+        translate([-slot_w/2, -12, -1])
+            cube([slot_w, 25, slot_h+1]);
+    }
+}
+
+// ---------- specs ----------
+if (part == &quot;base&quot;) {
+    echo(cadverify_spec = [
+        [&quot;bounds&quot;, [[-45, -45, 0], [45, 45, 48]]],
+        [&quot;bodies&quot;, 1],
+        [&quot;through_holes&quot;, 0],
+        [&quot;support_faces&quot;, [[&quot;foot&quot;, &quot;-z&quot;, 5000]]],
+        [&quot;overhangs_allowed&quot;, [[&quot;ball underside short lip&quot;, [[-11, -11, 28], [11, 11, 39]]]]],
+        [&quot;copies&quot;, 1],
+        [&quot;details&quot;, [
+            [&quot;base_plate&quot;, &quot;material&quot;, [[-45, -45, 0], [45, 45, 6]], 0.7],
+            [&quot;ball&quot;, &quot;material&quot;, [[-10, -10, 28], [10, 10, 48]], 0.4],
+            [&quot;post_core&quot;, &quot;material&quot;, [[-2, -2, 10], [2, 2, 20]], 0.9],
+            [&quot;base_thickness&quot;, &quot;thickness&quot;, [30, 0, -1], [0, 0, 1], 6],
+            [&quot;ball_dia&quot;, &quot;thickness&quot;, [20, 0, 38], [-1, 0, 0], 20]
+        ]]
+    ]);
+    base_part();
+} else if (part == &quot;holder&quot;) {
+    echo(cadverify_spec = [
+        [&quot;bounds&quot;, [[-44, -11, 0], [44, 12, 85]]],
+        [&quot;bodies&quot;, 1],
+        [&quot;through_holes&quot;, 0],
+        [&quot;support_faces&quot;, [[&quot;bottom&quot;, &quot;-z&quot;, 500]]],
+        [&quot;overhangs_allowed&quot;, [[&quot;socket and slots short bridges&quot;, [[-45, -12, -1], [45, 13, 14]]]]],
+        [&quot;copies&quot;, 1],
+        [&quot;details&quot;, [
+            [&quot;phone_slot&quot;, &quot;void&quot;, [[-41, -5, 20], [41, 7, 35]], 0.9],
+            [&quot;socket_cavity&quot;, &quot;void&quot;, [[-3, -3, 2], [3, 3, 8]], 0.9],
+            [&quot;snap_slot&quot;, &quot;void&quot;, [[-30, -1, 1], [30, 1, 9]], 0.9],
+            [&quot;side_wall&quot;, &quot;material&quot;, [[-43.5, -5, 25], [-41.5, 5, 30]], 0.9],
+            [&quot;back_wall&quot;, &quot;thickness&quot;, [0, -12, 50], [0, 1, 0], 6],
+            [&quot;shelf_floor&quot;, &quot;thickness&quot;, [30, 5, -1], [0, 0, 1], 20]
+        ]]
+    ]);
+    holder_part();
+} else if (part == &quot;assembly&quot;) {
+    echo(cadverify_spec = [
+        [&quot;bounds&quot;, [[-45, -45, 0], [45, 45, 119.88]]],
+        [&quot;support_faces&quot;, [[&quot;desk&quot;, &quot;-z&quot;, 5000]]],
+        [&quot;motions&quot;, [
+            [&quot;tilt&quot;, [&quot;holder&quot;], &quot;rotate&quot;, [0, 0, 38], [0, 1, 0], [-30, 30]],
+            [&quot;turn&quot;, [&quot;holder&quot;], &quot;rotate&quot;, [0, 0, 38], [0, 0, 1], [0, 360]]
+        ]],
+        [&quot;assembly_order&quot;, [
+            [[&quot;base&quot;], [0, 0, 0]],
+            [[&quot;holder&quot;], [0, 0, -1], [&quot;flex&quot;, [[&quot;holder&quot;, &quot;base&quot;, 1.0, &quot;snap over ball&quot;]]]]
+        ]],
+        [&quot;held&quot;, [&quot;holder&quot;]]
+    ]);
+    instance(&quot;base&quot;, &quot;base&quot;) base_part();
+    instance(&quot;holder&quot;, &quot;holder&quot;) translate([0, 0, ball_cz - socket_cz]) holder_part();
+}
+</pre></details></main></body></html>

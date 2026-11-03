@@ -1,0 +1,1285 @@
+{
+  "label": "it19-replay",
+  "endpoint": "POST /v1/responses",
+  "request": {
+    "model": "muse-wonder-1.0",
+    "instructions": "You are a design engineer for FDM 3D printing who works in OpenSCAD. You work in an isolated workspace and only through the tools. The main file is model.scad.\n\nVERIFIABLE SPEC (required)\nBefore modeling, turn the request into measurable specifications and declare them in model.scad, for each part, with this echo, computed from the parameters, in the coordinates of the exported part (oriented for printing, in mm):\necho(cadverify_spec = [\n    [\"bounds\", [[xmin, ymin, zmin], [xmax, ymax, zmax]]],\n    [\"bodies\", 1],\n    [\"through_holes\", N],\n    [\"support_faces\", [[\"name\", \"-x\", min_area_mm2]]],\n    [\"overhangs_allowed\", [[\"reason\", [[xmin, ymin, zmin], [xmax, ymax, zmax]]]]],\n    [\"copies\", 1],\n    [\"details\", [\n        [\"name\", \"material\", [[xmin, ymin, zmin], [xmax, ymax, zmax]], min_fraction],\n        [\"name\", \"void\", [[xmin, ymin, zmin], [xmax, ymax, zmax]], min_fraction],\n        [\"name\", \"hole\", [x, y, z], [dx, dy, dz], [[depth, diameter], ...]],\n        [\"name\", \"thickness\", [x, y, z], [dx, dy, dz], mm],\n        [\"name\", \"view\", [[xmin, ymin, zmin], [xmax, ymax, zmax]]]\n    ]]\n]);\n- bounds: the box the exported part must fill (tolerance 0.2 mm). Required.\n- bodies: separate bodies (1 by default). through_holes: through holes (optional).\n- support_faces: faces that must sit flush against another surface (a wall, a shelf, the bed). The direction is the part's outward normal: +x, -x, +y, -y, +z or -z. The check is that nothing sticks out beyond that face and that the face has at least the given area.\n- overhangs_allowed: zones where you accept overhangs of more than 45°, with the reason. Each box goes around the overhang it justifies: together they cannot cover more than half of the part's surface. The part of an overhang steeper than 60° (a ceiling, the underside of a ledge, the bottom of a round pin) rests on almost nothing of the layer under it and prints as a bridge, in the air from the material under its lowest edge: no point of it, seen from above, can be more than 5 mm from that material, so a bridge spans 10 mm at most. Declaring a longer one does not make it printable.\n- copies: how many of this part one unit of the product takes (1 by default).\n- details: every feature the request or your design announces (a rib, a flared mouth, an entry chamfer, a slot, a wall, a relief), with how it is measured on the mesh:\n  - material: a box that must be full to at least that fraction (0 to 1): a rib, a reinforcement, a medallion;\n  - void: a box that must be empty to at least that fraction: a slot, a channel;\n  - hole: a point outside the part on the hole's axis, the direction inward and the diameter at each depth from the mouth (0 is the mouth): a flare, a countersink, a chamfered entry, a step;\n  - thickness: a point outside the part, the direction inward and the material that ray crosses, in mm: a wall, a floor;\n  - view: a box with something no number describes (a texture, a relief, a shape). The box must touch the surface, and in the final version you have to look at it up close.\nA detail is in the code and not in the mesh more often than it seems: an offset that empties a profile, a cone sunk below the face it had to flare, a chamfer the wrong way round. That is why it is measured, and render_view draws it with its measurement (highlight details).\nThe spec is the design intent. If a measurement does not match, fix the geometry. Change the spec only if it was badly posed against the request, and say so in the close: the harness flags a spec that moves to what the mesh already measured while the part stays the same.\n\nORIENTATION\nEach part is exported in its print orientation: +Z is the print direction and the part rests on its minimum z. If you define a `part` selector in the Customizer, every option except \"assembly\" is verified; if not, the default output is verified.\n\nASSEMBLY\nWith two printable parts or more, the part selector has the option \"assembly\": the assembled product, each part where it goes in use. Copy these lines into model.scad and put each part of the assembly inside an instance:\ncadverify_only = \"\";\nmodule instance(name, part, unit = 1) {\n    echo(cadverify_instance = [name, part, unit]);\n    if (cadverify_only == \"\" || cadverify_only == name) children();\n}\n// for example: instance(\"pin_left\", \"pin\") translate([...]) rotate([...]) pin();\n- name: one per instance. part: the option of the selector that is printed (the instance has to be that part, moved: the same volume, area and inertia), or \"external\" for what is not printed (a wall, a screw, a rope), or \"standard:<module>\" for a standard part of cadverify_parts.scad, drawn from its datasheet: pi4_board() (a Raspberry Pi 4 Model B from the official drawing: board, holes and port bodies), bearing_608(), aa_cell(), m3_nut(). With use <cadverify_parts.scad>, place the module itself, moved (the harness checks it is): the design then fits the real part, not one of its own drawing. Their origins and axes are in $OPENSCADPATH/cadverify_parts.scad. unit: 1, or 2, 3... for the next units when the product chains.\n- Nothing of the assembly goes outside an instance, and unit 1 places each printable part as many times as its copies.\n- The assembly has its own cadverify_spec echo (when part = \"assembly\"), in assembly coordinates:\necho(cadverify_spec = [\n    [\"bounds\", [[xmin, ymin, zmin], [xmax, ymax, zmax]]],\n    [\"support_faces\", [[\"wall\", \"-y\", min_area_mm2]]],\n    [\"allowed_interferences\", [[\"instance_a\", \"instance_b\", \"reason\"]]],\n    [\"motions\", [\n        [\"name\", [\"instance\", ...], \"rotate\", [x, y, z], [ax, ay, az], [from, to]],\n        [\"name\", [\"instance\", ...], \"slide\", [dx, dy, dz], [from, to]],\n        [\"name\", [\"instance\", ...], \"rotate\", [x, y, z], [ax, ay, az], [from, to],\n            [\"flex\", [[\"moving_instance\", \"other_instance\", mm, \"reason\"]]], [\"stops\", [to]]],\n        [\"name\", [\"instance\", ...], \"rotate\", [x, y, z], [ax, ay, az], [from, to],\n            [\"flex\", [[\"moving_instance\", \"other_instance\", mm, \"reason\"]]],\n            [\"rests\", [value, ...]]],\n        [\"name\", [\"instance\", ...], \"screw\", [x, y, z], [ax, ay, az], pitch_mm, [from, to]],\n        [\"name\", [\"instance\", ...], \"rotate\", [x, y, z], [ax, ay, az], [from, to],\n            [\"drives\", [[[\"instance\", ...], \"rotate\", [x, y, z], [ax, ay, az], ratio],\n                        [[\"instance\", ...], \"slide\", [dx, dy, dz], ratio]]]]\n    ]],\n    [\"assembly_order\", [\n        [[\"instance\", ...], [0, 0, 0]],\n        [[\"instance\", ...], [dx, dy, dz]],\n        [[\"instance\", ...], [dx, dy, dz], [\"rotate\", [x, y, z], [ax, ay, az], degrees]],\n        [[\"instance\", ...], [dx, dy, dz], [\"screw\", [x, y, z], [ax, ay, az], pitch_mm, degrees]],\n        [[\"instance\", ...], [dx, dy, dz],\n            [\"flex\", [[\"moving_instance\", \"placed_instance\", mm, \"reason\"]]]]\n    ]],\n    [\"print_in_place\", clearance_mm],\n    [\"print_pose\", [[\"motion name\", value]]],\n    [\"overhangs_allowed\", [[\"reason\", [[xmin, ymin, zmin], [xmax, ymax, zmax]]]]],\n    [\"held\", [\"instance\", ...]]\n]);\n  - bounds and support_faces of the assembled product (optional), measured on all the instances.\n  - allowed_interferences: press fits up to 0.3 mm thick. Any other overlap between instances is an error. A press fit is still swept: along a motion it may stay pressed no thicker than a fit, and on its way in a part may push only into the overlap it has in place.\n  - motions: what moves in use (a hinge, a link, a lid), from the pose of the assembly (0) through its whole range, in degrees or in mm. It is swept looking for collisions, with rigid parts: the instances it names move against the rest, and one that names every instance checks nothing and is refused. A thread is a screw: it turns and advances pitch_mm along the axis for each turn of 360° (right hand rule; negative for a left-hand thread). Gears, or a rack and its pinion, are one motion that drives the others: each group it drives turns (or slides) ratio degrees (or mm) for each degree (or mm) of the motion, about its own axis, and is carried by the motion too when the motion also names it (a planet on its carrier). Where a part stops the motion at an end of its range (a drawer that does not come out, a hinge that opens to 110°, the way a ratchet does not turn), say it in its stops: past that end, before its fastest point moves 2 mm more, the harness wants a collision, deeper than any flex. An elastic feature that bends while it moves (a detent bump, a snap) goes in the motion's flex: the instance that moves, the one it presses on and how deep they may overlap, up to 1 mm. The harness measures how deep they go, they have to meet somewhere along it (a flex that never touches bends nothing) and be free at both ends of the range: a flex springs back. Where a detent holds the motion (a lid that clicks at each day, a knob with positions), list those values in its rests: there the flex is free, a bump in its notch, and between two rests it rides over what it presses on.\n  - print_in_place: only if the product is printed already assembled, all its parts in one print (+z up, the lowest faces on the bed): the smallest clearance between any two parts, from 0.2 to 1 mm. The harness checks the overhangs and bridges of all the parts together, with the assembly's own overhangs_allowed (only then does the assembly have them), the bed, the clearances, and that every part rests on the bed or starts over another part, 1 mm under it at most: a part that hangs (a lid standing on its hinge) starts printing in the air. It comes off the bed in one piece, so each part must be held by the others: none may come off moving straight in any direction (a pin capped at both ends or held by its knuckles, a pivot in a closed bore, not an open groove).\n  - print_pose: with print_in_place, the pose it prints in, if not the one the assembly shows: motions at a value of their range, applied in order (a box printed open: its lid's hinge at 180). The clearances and the print are checked in that pose, and the assembly's overhangs_allowed are in its coordinates.\n  - assembly_order: the order it is put together in, with every instance once. Each step comes in from far away moving along its direction (the first one, a single part, does not need it; printed in place, the first may hold every part) and, if it says \"rotate\", then turns those degrees to land in its place (with \"screw\", it screws in: a cap on its thread starts above the thread), without passing through what is already placed. What snaps in as it comes in (a lid with a lip, a clip) says so in the step's flex, as a motion's: it may ride over what it presses on that deep, and has to meet it and be free once in place. A closed ring does not go into another closed ring: if the product needs that, the design has to open somewhere.\n  - held: the instances that must not come off the assembled product moving straight in any direction (a lid that does not lift off, a pin capped at both ends); printed in place, every part is checked this way.\n- interference_check measures the assembly as the harness does: overlaps, contacts, units, motions and assembly order; it leaves each instance, each overlap and each colliding pose as an STL to look at with render_view.\n\nTOOLS TO EXPLORE\n- render_view: a view on demand, with a free camera, zoom, cuts along any plane with the profile and its numbers, several parts together and highlights (overhangs, support faces, the spec's box, through holes, details).\n- run_shell and run_python: your own code in the workspace, without network, with numpy, trimesh, manifold3d, shapely, matplotlib, openscad and cadcheck.\n- view_image: shows you a PNG or JPG image you made in the workspace.\n- interference_check: the assembly measured as in G3 and G4.\nThe harness verifies the .scad files of the workspace: changing one by shell is an edit, with the same rules. Your images and calculations do not replace the sheet G7 asks for.\n\nLOOK\nEvery scad_export of model.scad with the default parameters and a new mesh brings its sheet attached, the one render_sheet makes: look at it before going on. Look a lot. A view costs little and is the fastest way to understand the part and to find what is wrong: ask for dozens of views and cuts over the session, of every part and of the assembly. After each change, look closely at what you changed: zoomed in, from several sides, cut where it matters. In the assembly, look at every joint, every fit and every part that moves, also cut. If you doubt something, make the image that shows it: a render_view, or your own matplotlib plot and view_image. Old images leave the context to make room for new ones, and what they showed stays in their place: if you need to see one again, ask for it again.\n\nQUESTIONS\nIf you need to ask the user something, first look at what is there: compile model.scad, export each option of part (the assembly too) with the default parameters and look at it. Then, before your first edit, a message without calling tools reaches the user, and their answer comes back as the next message. After your first edit, a message without tools is the close.\n\nPROCESS\n1. scad_write with the full design and the spec.\n2. scad_compile, scad_export (it brings the sheet) and printability_report of each part; interference_check and render_view of the assembly.\n3. Look (LOOK). A visual finding is a hypothesis: before fixing it, confirm it with numbers (scad_export or mesh_report: bounds, bodies, holes, support faces, details; printability_report; interference_check; a cut or the holes of render_view; a calculation with run_python or run_shell). After an image (render_sheet, render_view or view_image), the harness refuses changes to the .scad files, by shell too, until you run one of those checks. Not after the sheet scad_export brings: it comes with its numbers.\n4. Fix with scad_patch and go back to step 2. Each request counts toward the session's limits: send in the same request all the edits of one change (several scad_patch, or scad_write if a good part of the file changes) and the checks that follow them (scad_export, interference_check). The tools of one request run in order.\n5. Before closing, understand the product as a physical object: look at it, cut it and measure it as you will use it, as you will assemble it and as you will print it.\n6. When everything passes, close with a message without calling tools (CLOSE).\n\nCLOSE\nThe close says what you designed and how it is printed and assembled, in two parts:\n- Verified: what the harness measured, with numbers. Each claim carries in double brackets the name of what backs it: a part ([[lid]]), a detail or a support face of its spec ([[lid/rib]], or [[rib]] if only one part has it), the assembly ([[assembly]]) or a support face of its spec ([[assembly/name]]), a motion by its name, the assembly order ([[assembly_order]]), the print in place ([[print_in_place]]) or a gate ([[G5]]). Each name has to exist in the final version and be green.\n- Not verified: what nobody measured (strength, looks, what depends on the printer or the material, whether a flex bends that far without breaking), and each adjustment of the spec you made so it matches what was measured, with the reason.\nAn auditor compares the close with what was verified and with the request: a claim presented as verified without backing, a spec adjustment you did not tell, or something the request asks for that the harness measures once the spec declares it (a stop, a detent's rests, a part that must not come off, a standard part) left unmeasured, leaves G8 red.\n\nGATES: the harness verifies them when you finish, on model.scad with the default parameters. You cannot close with a red gate.\n- G1: it compiles and exports without errors, without failed asserts and without OpenSCAD warnings (an unknown variable or module gives no error, but leaves the geometry wrong).\n- G2: every part watertight, 0 bad edges, as many bodies as bodies, 0 inverted shells and a positive volume.\n- G3: the assembly: each instance is its part moved, every part is there with its copies, nothing overlaps except the declared fits, everything forms one group (parts 1 mm apart or less), the units the request asks for are there, what is held does not come off straight, and so are its bounds and support faces, if it declares them.\n- G4: every motion runs its whole range without colliding (a declared flex no deeper than declared, and free at the ends) and stops where it declares stops and rests where it declares rests, and the assembly can be put together in its order.\n- G5: overhangs of more than 45° only inside overhangs_allowed zones, which cover at most half of the part's surface, the part of each steeper than 60° a bridge of 10 mm at most, no body that starts in the air (each one rests on the bed or starts 1 mm or less over another), and the part fits the bed (Bambu Lab A1, 256 × 256 × 256 mm). With print_in_place, also all the parts together as they print (in the print_pose, if there is one), and the clearances between them.\n- G7: the spec exists and the mesh meets it, details included; and you saw, of the final version, the sheet of each part (the one scad_export brings, or render_sheet), one render_view with all the instances of the assembly together (the STLs interference_check leaves) and each \"view\" detail up close.\n- G8: the close (CLOSE).\n\nNever claim a verification you did not run.",
+    "tools": [
+      {
+        "type": "function",
+        "name": "scad_write",
+        "description": "Creates or fully replaces a .scad file of the workspace.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "content": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "path",
+            "content"
+          ]
+        }
+      },
+      {
+        "type": "function",
+        "name": "scad_patch",
+        "description": "Replaces the text `old` with `new` in a .scad file. Fails unless `old` appears exactly once: copy the exact text, with its indentation.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "old": {
+              "type": "string"
+            },
+            "new": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "path",
+            "old",
+            "new"
+          ]
+        }
+      },
+      {
+        "type": "function",
+        "name": "scad_compile",
+        "description": "Evaluates the program without building geometry: echo, warnings, failed asserts and errors.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "overrides": {
+              "type": "object",
+              "description": "Values that replace parameters of the file (-D name=value).",
+              "additionalProperties": {
+                "type": [
+                  "number",
+                  "string",
+                  "boolean",
+                  "array"
+                ]
+              }
+            }
+          },
+          "required": [
+            "path"
+          ]
+        }
+      },
+      {
+        "type": "function",
+        "name": "scad_export",
+        "description": "Exports one part to STL (ASCII). Returns the path, the mesh_report and spec_check, the mesh compared with the file's cadverify_spec echo. From model.scad with the default parameters, if the mesh is new (you did not see its sheet or a view of it), it brings its sheet attached, the one render_sheet makes.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "part": {
+              "type": "string",
+              "description": "Value of the `part` selector, if any."
+            },
+            "overrides": {
+              "type": "object",
+              "description": "Values that replace parameters of the file (-D name=value).",
+              "additionalProperties": {
+                "type": [
+                  "number",
+                  "string",
+                  "boolean",
+                  "array"
+                ]
+              }
+            }
+          },
+          "required": [
+            "path"
+          ]
+        }
+      },
+      {
+        "type": "function",
+        "name": "mesh_report",
+        "description": "Watertightness, bad edges and where they are, volume, bounds, size, bodies, cavities, inverted shells and through holes of an STL.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "stl": {
+              "type": "string",
+              "description": "Path of the STL scad_export returned."
+            }
+          },
+          "required": [
+            "stl"
+          ]
+        }
+      },
+      {
+        "type": "function",
+        "name": "render_sheet",
+        "description": "A sheet of orthographic views of the STL, which you get as an image: flat shading, sharp edges and outlines in black, open and non-manifold edges in red, faces seen from behind in magenta, axes and a scale in mm.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "stl": {
+              "type": "string",
+              "description": "Path of the STL scad_export returned."
+            },
+            "views": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "iso",
+                  "iso_back",
+                  "front",
+                  "side",
+                  "top",
+                  "bottom"
+                ]
+              },
+              "description": "All six by default."
+            }
+          },
+          "required": [
+            "stl"
+          ]
+        }
+      },
+      {
+        "type": "function",
+        "name": "printability_report",
+        "description": "Overhangs of more than 45° (measured from the vertical) grouped by zone in the STL's orientation (+Z up, resting on the minimum z), whether each zone is declared in overhangs_allowed, the part of each zone steeper than 60° as a bridge (how far its farthest point is from the material under its lowest edge, seen from above), and whether the part fits the bed of the Bambu Lab A1 (256 × 256 × 256 mm).",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "stl": {
+              "type": "string",
+              "description": "Path of the STL scad_export returned."
+            }
+          },
+          "required": [
+            "stl"
+          ]
+        }
+      },
+      {
+        "type": "function",
+        "name": "run_shell",
+        "description": "Runs a bash command. Runs in /work, inside the sandbox: no network, 2 CPUs and 4 GB; only /work (1 GB) and /tmp (512 MB) are writable. There is python with numpy, scipy, trimesh, manifold3d, shapely and matplotlib, openscad and cadcheck (the tools' CLI). Returns stdout and stderr (if long, the start and the end with the count of bytes left out), the exit code, the time and the files created, modified or deleted. Processes still alive are ended when the call ends.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "cmd": {
+              "type": "string"
+            },
+            "timeout_s": {
+              "type": "number",
+              "description": "Seconds; 60 by default, 300 at most."
+            }
+          },
+          "required": [
+            "cmd"
+          ]
+        }
+      },
+      {
+        "type": "function",
+        "name": "run_python",
+        "description": "Runs a Python program (python -c). Runs in /work, inside the sandbox: no network, 2 CPUs and 4 GB; only /work (1 GB) and /tmp (512 MB) are writable. There is python with numpy, scipy, trimesh, manifold3d, shapely and matplotlib, openscad and cadcheck (the tools' CLI). Returns stdout and stderr (if long, the start and the end with the count of bytes left out), the exit code, the time and the files created, modified or deleted. Processes still alive are ended when the call ends.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "code": {
+              "type": "string"
+            },
+            "timeout_s": {
+              "type": "number",
+              "description": "Seconds; 60 by default, 300 at most."
+            }
+          },
+          "required": [
+            "code"
+          ]
+        }
+      },
+      {
+        "type": "function",
+        "name": "view_image",
+        "description": "Shows you a PNG or JPG image of the workspace that you made (for example, a matplotlib plot), scaled down to 1568 px per side and 1.8 MP at most.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "path"
+          ]
+        }
+      },
+      {
+        "type": "function",
+        "name": "render_view",
+        "description": "A view on demand of one or more STLs, which you get as an image with its numbers. Free camera, orthographic or perspective; zoom to a box or to a point; a cut along any plane: the cut part with the cut face in salmon and, beside it, the 2D profile of the cut on a mm grid, with area, regions, holes and box; several parts together, apart with explode; highlights: overhangs, support faces and the spec's bounds box, through holes with their diameter at each end, and the spec's details (highlight details) with what each one measures, and for each declared detail whether it is in frame and up close (details_in_view). Coordinates in mm of the STL.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "stl": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "STLs from scad_export; several are shown together."
+            },
+            "camera": {
+              "type": "object",
+              "description": "One of: {\"view\": name}, {\"direction\": [x, y, z]} (from the part toward the camera) or {\"azimuth\": degrees, \"elevation\": degrees}. iso by default; with a cut, facing the cut face.",
+              "properties": {
+                "view": {
+                  "type": "string",
+                  "enum": [
+                    "iso",
+                    "iso_back",
+                    "front",
+                    "side",
+                    "top",
+                    "bottom"
+                  ]
+                },
+                "direction": {
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  },
+                  "minItems": 3,
+                  "maxItems": 3
+                },
+                "azimuth": {
+                  "type": "number"
+                },
+                "elevation": {
+                  "type": "number"
+                }
+              }
+            },
+            "projection": {
+              "type": "string",
+              "enum": [
+                "orthographic",
+                "perspective"
+              ]
+            },
+            "zoom": {
+              "type": "object",
+              "description": "{\"center\": [x, y, z], \"size_mm\": side} or {\"box\": [[xmin, ymin, zmin], [xmax, ymax, zmax]]}.",
+              "properties": {
+                "center": {
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  },
+                  "minItems": 3,
+                  "maxItems": 3
+                },
+                "size_mm": {
+                  "type": "number"
+                },
+                "box": {
+                  "type": "array",
+                  "items": {
+                    "type": "array",
+                    "items": {
+                      "type": "number"
+                    },
+                    "minItems": 3,
+                    "maxItems": 3
+                  },
+                  "minItems": 2,
+                  "maxItems": 2
+                }
+              }
+            },
+            "cut": {
+              "type": "object",
+              "description": "Cut plane; the side the normal points to is taken away.",
+              "properties": {
+                "point": {
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  },
+                  "minItems": 3,
+                  "maxItems": 3
+                },
+                "normal": {
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  },
+                  "minItems": 3,
+                  "maxItems": 3
+                }
+              },
+              "required": [
+                "point",
+                "normal"
+              ]
+            },
+            "explode": {
+              "type": "number",
+              "description": "mm to move several parts apart."
+            },
+            "highlight": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "overhangs",
+                  "support_faces",
+                  "spec_bounds",
+                  "holes",
+                  "details"
+                ]
+              }
+            },
+            "title": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "stl"
+          ]
+        }
+      },
+      {
+        "type": "function",
+        "name": "interference_check",
+        "description": "Measures the assembly (part = \"assembly\") as G3 and G4 measure it: exports each instance in assembly coordinates and compares it with its part (volume, area, inertia); copies and units; overlaps between instances (volume, mean thickness and where) and the gap between the ones that touch; whether everything forms one group; what is held and the directions it comes off along; bounds and support faces of the assembly; each motion swept through its whole range, with how deep each declared flex goes, what stops it at each declared stop and whether it rests free at each declared rest, and the assembly order; with print_in_place, the clearances and the print of all the parts together, in the print_pose if there is one (G5). Leaves in checks/assembly/ the STL of each instance, each overlap, each pose that collides, the deepest overlap of each flex and the parts as they print in place, to look at with render_view.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "path"
+          ]
+        }
+      }
+    ],
+    "reasoning": {
+      "effort": "high"
+    },
+    "max_output_tokens": 64000,
+    "stream": true,
+    "prompt_cache_key": "cadverify-agent-muse-wonder-1.0",
+    "prompt_cache_retention": "24h",
+    "input": [
+      {
+        "role": "user",
+        "content": "# Case for a Raspberry Pi 4\n\nA two-part case for a Raspberry Pi 4 Model B: a base the board screws into, and a lid that snaps\non.\n\n- The board is 85 x 56 mm and 1.4 mm thick, with four M2.5 mounting holes 3.5 mm in from the\n  edges: 58 mm apart along its length and 49 mm across.\n- Openings for every port: USB-C power, two micro-HDMI and audio along one long side, the USB\n  ports and Ethernet at one end, and the microSD card at the other end, reachable without\n  opening the case.\n- Standoffs for the screws, and vents over the processor.\n- PLA on a Bambu Lab A1 with a 0.4 mm nozzle, no supports.\n- Show the board in the assembly as a simple block with its ports, so I can see the openings\n  line up.\n\nShow me the closed case with the board as the assembly, and the order the parts go together."
+      },
+      {
+        "role": "assistant",
+        "content": "Designing your two-part Pi 4 case — sizing the shell around the official board layout and planning snap-fit printability."
+      },
+      {
+        "type": "function_call",
+        "call_id": "call_01a19f4816a676a98b4e9888b8b4a2a0",
+        "name": "run_shell",
+        "arguments": "{\"cmd\":\"ls -R /work 2>/dev/null | head -n 200; echo ---; cat /work/model.scad 2>/dev/null | head -n 200; echo ---; ls $OPENSCADPATH 2>/dev/null; echo \\\"OSP=$OPENSCADPATH\\\"; cat $OPENSCADPATH/cadverify_parts.scad 2>/dev/null | head -n 300\"}"
+      },
+      {
+        "type": "function_call_output",
+        "call_id": "call_01a19f4816a676a98b4e9888b8b4a2a0",
+        "output": "{\"ok\": true, \"exit_code\": 0, \"timed_out\": false, \"seconds\": 0.01, \"stdout\": \"/work:\\n---\\n---\\nOSP=\\n\", \"stderr\": \"\", \"stdout_bytes\": 20, \"stderr_bytes\": 0, \"stdout_omitted_bytes\": 0, \"stderr_omitted_bytes\": 0, \"files\": {\"created\": [], \"modified\": [], \"deleted\": []}}"
+      },
+      {
+        "type": "function_call",
+        "call_id": "call_01a19f48311a74b6b25d94bba42a0d57",
+        "name": "run_shell",
+        "arguments": "{\"cmd\":\"find / -name cadverify_parts.scad 2>/dev/null; find / -name \\\"*.scad\\\" 2>/dev/null | head; env | sort; which openscad cadcheck; ls -la /work\"}"
+      },
+      {
+        "type": "function_call_output",
+        "call_id": "call_01a19f48311a74b6b25d94bba42a0d57",
+        "output": "{\"ok\": true, \"exit_code\": 0, \"timed_out\": false, \"seconds\": 0.533, \"stdout\": \"/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/standard/cadverify_parts.scad\\n/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/standard/cadverify_parts.scad\\n/usr/local/share/openscad/libraries/MCAD/lego_compatibility.scad\\n/usr/local/share/openscad/libraries/MCAD/involute_gears.scad\\n/usr/local/share/openscad/libraries/MCAD/hardware.scad\\n/usr/local/share/openscad/libraries/MCAD/transformations.scad\\n/usr/local/share/openscad/libraries/MCAD/nuts_and_bolts.scad\\n/usr/local/share/openscad/libraries/MCAD/libtriangles.scad\\n/usr/local/share/openscad/libraries/MCAD/fonts.scad\\n/usr/local/share/openscad/libraries/MCAD/regular_shapes.scad\\n/usr/local/share/openscad/libraries/MCAD/screw.scad\\nCADVERIFY_SANDBOX=1\\nHOME=/tmp\\nLANG=C.UTF-8\\nMPLBACKEND=Agg\\nMPLCONFIGDIR=/tmp/matplotlib\\nOPENSCAD_BIN=/usr/local/bin/openscad\\nPATH=/opt/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\\nPWD=/work\\nPYTHONUNBUFFERED=1\\nSHLVL=1\\n_=/usr/bin/env\\n/usr/local/bin/openscad\\n/opt/venv/bin/cadcheck\\ntotal 4\\ndrwx------ 2 20906 20906   40 Nov  3 02:41 .\\ndrwxr-xr-x 1 root  root  4096 Nov  3 02:41 ..\\n\", \"stderr\": \"\", \"stdout_bytes\": 1106, \"stderr_bytes\": 0, \"stdout_omitted_bytes\": 0, \"stderr_omitted_bytes\": 0, \"files\": {\"created\": [], \"modified\": [], \"deleted\": []}}"
+      },
+      {
+        "type": "function_call",
+        "call_id": "call_01a19f48555374328bdccf7eff7e98e9",
+        "name": "run_shell",
+        "arguments": "{\"cmd\":\"cat /opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/standard/cadverify_parts.scad\"}"
+      },
+      {
+        "type": "function_call_output",
+        "call_id": "call_01a19f48555374328bdccf7eff7e98e9",
+        "output": "{\"ok\": true, \"exit_code\": 0, \"timed_out\": false, \"seconds\": 0.005, \"stdout\": \"// Standard parts, drawn from their datasheets, for an assembly to place what it holds or fits:\\n//\\n//     use <cadverify_parts.scad>\\n//     instance(\\\"board\\\", \\\"standard:pi4_board\\\") translate([x, y, z]) pi4_board();\\n//\\n// The harness exports the module itself and checks that the instance is it, moved (the same\\n// volume, area and principal moments): the design then has to fit the real part, not a block of\\n// its own drawing. A part a standard sizes within limits is drawn at its largest.\\n\\n// A Raspberry Pi 4 Model B, from the official mechanical drawing (RP-008343-DS-1): the board,\\n// 85 x 56 x 1.4 mm with 3 mm corners, its four 2.7 mm holes (3.5 mm in from the left and bottom\\n// edges, 58 x 49 mm apart) and the bodies of what stands on it, to the heights the drawing gives.\\n// Origin: the bottom left corner of the board's underside; the USB-C, the two micro-HDMI and the\\n// audio jack face -y, the USB and Ethernet face +x, components on +z. Not in it: the microSD slot\\n// and anything under the board (the drawing shows neither).\\nmodule pi4_board() {\\n    difference() {\\n        hull() for (x = [3, 82], y = [3, 53]) translate([x, y, 0]) cylinder(r = 3, h = 1.4, $fn = 48);\\n        for (x = [3.5, 61.5], y = [3.5, 52.5]) translate([x, y, -1]) cylinder(d = 2.7, h = 3.4, $fn = 32);\\n    }\\n    translate([0, 0, 1.4]) {\\n        // USB-C power, 3.2 mm tall, and the two micro-HDMI, 3.0 mm tall, over the bottom edge.\\n        translate([11.2 - 4.5, -1.3, 0]) cube([9, 7.5, 3.2]);\\n        for (x = [26, 39.5]) translate([x - 3.25, -1.4, 0]) cube([6.5, 7.6, 3.0]);\\n        // The audio jack, 6 mm tall, its barrel out past the edge.\\n        translate([54 - 3, 0, 0]) cube([6, 11.5, 6]);\\n        translate([54, 0, 3]) rotate([90, 0, 0]) cylinder(d = 6, h = 2.5, $fn = 32);\\n        // Ethernet (13.5 mm tall) and the two USB stacks (16 mm), 3.2 mm out past the right edge.\\n        translate([66.7, 45.75 - 7.8, 0]) cube([21.5, 15.6, 13.5]);\\n        for (y = [9, 27]) translate([70.6, y - 6.75, 0]) cube([17.6, 13.5, 16]);\\n        // The 40-pin header, 8.5 mm tall.\\n        translate([32.5 - 25.4, 52.5 - 2.54, 0]) cube([50.8, 5.08, 8.5]);\\n    }\\n}\\n\\n// A 608 ball bearing (ISO 15 series, 8 x 22 x 7 mm). Origin: the center of one face; axis z.\\nmodule bearing_608() {\\n    difference() {\\n        cylinder(d = 22, h = 7, $fn = 96);\\n        translate([0, 0, -1]) cylinder(d = 8, h = 9, $fn = 48);\\n    }\\n}\\n\\n// An AA cell (IEC LR6) at its largest: 14.5 mm across and 50.5 mm long over its positive\\n// terminal (5.5 mm across, 1 mm tall). Origin: the center of the negative end; + toward +z.\\nmodule aa_cell() {\\n    cylinder(d = 14.5, h = 49.5, $fn = 64);\\n    translate([0, 0, 49.5]) cylinder(d = 5.5, h = 1, $fn = 32);\\n}\\n\\n// An M3 hex nut (ISO 4032) at its largest: 5.5 mm across flats, 2.4 mm thick, with a 3 mm hole.\\n// Origin: the center of one face; axis z, two flats parallel to x.\\nmodule m3_nut() {\\n    difference() {\\n        cylinder(d = 5.5 / cos(30), h = 2.4, $fn = 6);\\n        translate([0, 0, -1]) cylinder(d = 3, h = 4.4, $fn = 24);\\n    }\\n}\\n\", \"stderr\": \"\", \"stdout_bytes\": 3043, \"stderr_bytes\": 0, \"stdout_omitted_bytes\": 0, \"stderr_omitted_bytes\": 0, \"files\": {\"created\": [], \"modified\": [], \"deleted\": []}}"
+      },
+      {
+        "type": "function_call",
+        "call_id": "call_01a19f4a7052760c8c539a201c5275e8",
+        "name": "run_shell",
+        "arguments": "{\"cmd\":\"find /opt/venv/lib/python3.12/site-packages/cadverify -type f | head -n 100; grep -rn \\\"assembly_order\\\" /opt/venv/lib/python3.12/site-packages/cadverify --include=\\\"*.py\\\" | head -n 100\"}"
+      },
+      {
+        "type": "function_call_output",
+        "call_id": "call_01a19f4a7052760c8c539a201c5275e8",
+        "output": "{\"ok\": true, \"exit_code\": 0, \"timed_out\": false, \"seconds\": 0.013, \"stdout\": \"/opt/venv/lib/python3.12/site-packages/cadverify/hostile.py\\n/opt/venv/lib/python3.12/site-packages/cadverify/openscad.py\\n/opt/venv/lib/python3.12/site-packages/cadverify/ledger.py\\n/opt/venv/lib/python3.12/site-packages/cadverify/meta_api.py\\n/opt/venv/lib/python3.12/site-packages/cadverify/__pycache__/config.cpython-312.pyc\\n/opt/venv/lib/python3.12/site-packages/cadverify/__pycache__/__init__.cpython-312.pyc\\n/opt/venv/lib/python3.12/site-packages/cadverify/__pycache__/replay.cpython-312.pyc\\n/opt/venv/lib/python3.12/site-packages/cadverify/__pycache__/hostile.cpython-312.pyc\\n/opt/venv/lib/python3.12/site-packages/cadverify/__pycache__/openscad.cpython-312.pyc\\n/opt/venv/lib/python3.12/site-packages/cadverify/__pycache__/scad_source.cpython-312.pyc\\n/opt/venv/lib/python3.12/site-packages/cadverify/__pycache__/ledger.cpython-312.pyc\\n/opt/venv/lib/python3.12/site-packages/cadverify/__pycache__/meta_api.cpython-312.pyc\\n/opt/venv/lib/python3.12/site-packages/cadverify/__pycache__/cli.cpython-312.pyc\\n/opt/venv/lib/python3.12/site-packages/cadverify/__pycache__/summary.cpython-312.pyc\\n/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/section.py\\n/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/files.py\\n/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/mesh.py\\n/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/printability.py\\n/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/details.py\\n/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/__pycache__/printability.cpython-312.pyc\\n/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/__pycache__/__init__.cpython-312.pyc\\n/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/__pycache__/section.cpython-312.pyc\\n/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/__pycache__/mesh.cpython-312.pyc\\n/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/__pycache__/assembly.cpython-312.pyc\\n/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/__pycache__/files.cpython-312.pyc\\n/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/__pycache__/spec.cpython-312.pyc\\n/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/__pycache__/details.cpython-312.pyc\\n/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/__pycache__/view.cpython-312.pyc\\n/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/__pycache__/run.cpython-312.pyc\\n/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/__pycache__/cli.cpython-312.pyc\\n/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/__pycache__/render.cpython-312.pyc\\n/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/__pycache__/verify.cpython-312.pyc\\n/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/__pycache__/scad.cpython-312.pyc\\n/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/assembly.py\\n/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/verify.py\\n/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/view.py\\n/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/__init__.py\\n/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/render.py\\n/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/standard/cadverify_parts.scad\\n/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/spec.py\\n/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/run.py\\n/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/scad.py\\n/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/cli.py\\n/opt/venv/lib/python3.12/site-packages/cadverify/config.py\\n/opt/venv/lib/python3.12/site-packages/cadverify/replay.py\\n/opt/venv/lib/python3.12/site-packages/cadverify/scad_source.py\\n/opt/venv/lib/python3.12/site-packages/cadverify/__init__.py\\n/opt/venv/lib/python3.12/site-packages/cadverify/summary.py\\n/opt/venv/lib/python3.12/site-packages/cadverify/cli.py\\n/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/assembly.py:54:- `assembly_order` lists every instance once, in order: the first step places one (an assembly\\n/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/assembly.py:219:    steps = spec.get(\\\"assembly_order\\\", [])\\n/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/assembly.py:221:    report[\\\"assembly_steps\\\"] = _assembly_order(\\n/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/assembly.py:224:    report[\\\"assembly_order_ok\\\"] = len(g4) == before\\n/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/assembly.py:1224:def _assembly_order(\\n/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/assembly.py:1238:            \\\"the assembly order is missing (assembly_order in the assembly's spec): every \\\"\\n/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/assembly.py:1245:            f\\\"assembly_order, step 1 places {', '.join(steps[0]['instances'])} together, and only \\\"\\n/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/assembly.py:1256:            problems.append(f\\\"assembly_order {what} {items}\\\")\\n/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/assembly.py:1258:        problems.append(f\\\"assembly_order does not say when {missing} comes in\\\")\\n/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/assembly.py:1276:                        f\\\"assembly_order, step {k} ({', '.join(step['instances'])}): no direction \\\"\\n/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/assembly.py:1313:                        \\\"label\\\": f\\\"assembly_order, step {k}\\\",\\n/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/assembly.py:1333:                            f\\\"assembly_order, step {k}: coming in along {_vec(direction)}, \\\"\\n/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/assembly.py:1354:                        f\\\"assembly_order, step {k}: {', '.join(step['instances'])} does not go in \\\"\\n/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/assembly.py:1379:                            \\\"label\\\": f\\\"assembly_order, step {k}\\\",\\n/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/assembly.py:1401:                            f\\\"assembly_order, step {k}: {verb} {span:g}° into place, \\\"\\n/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/assembly.py:1409:                            f\\\"assembly_order, step {k}: {flex['a']} and {flex['b']} never \\\"\\n/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/spec.py:42:    [\\\"assembly_order\\\", [[[\\\"base\\\"], [0, 0, 0]],\\n/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/spec.py:100:    \\\"assembly_order\\\",\\n/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/spec.py:317:    for item in _list(pairs.get(\\\"assembly_order\\\", []), \\\"assembly_order\\\"):\\n/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/spec.py:319:            'assembly_order: each step is [[\\\"instance\\\", ...], direction it moves along as it '\\n/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/spec.py:327:        where = f\\\"assembly_order {item[0]!r}\\\"\\n/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/spec.py:362:        \\\"assembly_order\\\": steps,\\n\", \"stderr\": \"\", \"stdout_bytes\": 6911, \"stderr_bytes\": 0, \"stdout_omitted_bytes\": 0, \"stderr_omitted_bytes\": 0, \"files\": {\"created\": [], \"modified\": [], \"deleted\": []}}"
+      },
+      {
+        "type": "function_call",
+        "call_id": "call_01a19f4bf1c97743aad2ab6c7934a2a9",
+        "name": "run_shell",
+        "arguments": "{\"cmd\":\"sed -n 1,260p /opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/printability.py; echo ====SPEC; sed -n 1,380p /opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/spec.py\"}"
+      },
+      {
+        "type": "function_call_output",
+        "call_id": "call_01a19f4bf1c97743aad2ab6c7934a2a9",
+        "output": "{\"ok\": true, \"exit_code\": 0, \"timed_out\": false, \"seconds\": 0.006, \"stdout\": \"\\\"\\\"\\\"printability_report: overhangs by face normal in the print orientation, bridges, and bed fit.\\n\\nThe mesh is taken as exported: +Z is the build direction and the lowest faces rest on the bed.\\n\\\"\\\"\\\"\\n\\nfrom __future__ import annotations\\n\\nfrom pathlib import Path\\nfrom typing import Any\\n\\nimport numpy as np\\nimport shapely\\nimport trimesh\\n\\nfrom cadverify.cadcheck.mesh import load_exact\\nfrom cadverify.cadcheck.section import polygons_from_segments\\n\\n# Bambu Lab A1 build volume (bambulab.com/en/a1, \\\"Build Volume 256 × 256 × 256 mm³\\\").\\nPRINTERS = {\\\"bambu_a1\\\": (256.0, 256.0, 256.0)}\\nMAX_OVERHANG_DEG = 45.0\\n# Faces within this many degrees of the limit count as at the limit: a 90° countersink is\\n# exactly 45° and must not flicker in and out of the report with floating point noise.\\nANGLE_TOLERANCE_DEG = 0.1\\nBED_TOLERANCE_MM = 0.01\\nDECLARED_TOLERANCE_MM = 0.5\\nMAX_ZONES = 25\\n# A downward face steeper than 60° rests on little of the layer under it, and the A1's slicer\\n# supports it by default (Bambu Studio's threshold angle, 30° to the horizontal). Without support\\n# it holds like a bridge, in the air from the material under its lowest edge; within 1° of flat,\\n# it is a flat ceiling.\\nBRIDGE_DEG = 60.0\\nFLAT_DEG = 89.0\\n# The longest bridge that prints clean with a 0.4 mm nozzle. A quick FDM design guide gives 10 mm\\n# as the longest unsupported bridge (Xometry); Protolabs Network, about 5 mm without sagging.\\n# Every point of a bridge is then at most half of it from what holds it.\\nMAX_BRIDGE_MM = 10.0\\n# What holds a ceiling: the material from half a layer (0.2 mm) to START_GAP_MM under its lowest\\n# point, which holds it through the gap the way a support does; on the bed, its first layer.\\nBRIDGE_BELOW_MM = 0.1\\n# A ceiling none of whose points is this close to that section has nothing to start from.\\nBRIDGE_ANCHOR_MM = 0.5\\n# A flat strip narrower than two 0.4 mm lines is not judged: the lowest facet of a round pin\\n# lies flat or not depending on its $fn, and droops into the clearance under it either way.\\nBRIDGE_MIN_WIDTH_MM = 0.8\\nBRIDGE_GRID_MM = 0.25  # finer for small ceilings: at most BRIDGE_POINTS sample points\\nBRIDGE_POINTS = 100_000\\n# A body that does not rest on the bed starts printing at its lowest layers (START_BAND_MM, two\\n# layers). It may start over material up to START_GAP_MM under them, drooping into a print in\\n# place clearance (1 mm at most); farther, or over nothing, it starts in the air.\\nSTART_BAND_MM = 0.4\\nSTART_GAP_MM = 1.0\\nSTART_STEP_MM = 0.1\\n\\n\\ndef printability_report(\\n    path: str | Path,\\n    allowed: list[dict[str, Any]] | None = None,\\n    printer: str = \\\"bambu_a1\\\",\\n    max_overhang_deg: float = MAX_OVERHANG_DEG,\\n) -> dict[str, Any]:\\n    \\\"\\\"\\\"The printability of the STL at `path` (mesh_printability).\\\"\\\"\\\"\\n    return mesh_printability(load_exact(path), allowed, printer, max_overhang_deg)\\n\\n\\ndef mesh_printability(\\n    mesh: trimesh.Trimesh,\\n    allowed: list[dict[str, Any]] | None = None,\\n    printer: str = \\\"bambu_a1\\\",\\n    max_overhang_deg: float = MAX_OVERHANG_DEG,\\n) -> dict[str, Any]:\\n    \\\"\\\"\\\"Overhang zones steeper than `max_overhang_deg` from vertical, and whether the part fits.\\n\\n    - The overhang angle of a downward face is measured from vertical: a wall is 0°, a flat\\n      ceiling 90°. Faces resting on the bed (at the lowest z, facing straight down) are the base.\\n    - Overhang faces connected through edges form a zone. A zone is `declared` when it lies\\n      inside one of the `allowed` boxes ([{\\\"name\\\", \\\"bounds\\\"}], from the spec) with 0.5 mm slack.\\n    - A zone's faces steeper than 60° print as a bridge (`flat` within 1° of flat). Each\\n      connected piece of them is measured against the material from half a layer to 1 mm under\\n      its lowest point (the mesh's sections there): `farthest_mm`, the farthest any of its\\n      points is from that material, seen from above, so a bridge over it spans at least twice\\n      that (`bridge_mm`), whatever direction it is laid in; or `floating`, when no point of it\\n      is within 0.5 mm of that material. A zone keeps its worst piece under `bridge`; pieces\\n      narrower than 0.8 mm (the widest circle that fits in them) are left out.\\n    - `in_the_air`: every body (a connected piece of the mesh) that does not rest on the bed and\\n      has no other body under its lowest two layers within 1 mm: it starts printing in the air,\\n      whatever the angle of its faces (a lid printed standing, hung from its hinge).\\n    - `fits_bed` compares the part's size with the printer's build volume.\\n    - `allowed_coverage`: the share of the part's surface inside the allowed boxes (faces whose\\n      center is in one, with the same slack), in all and per box. A box that covers almost the\\n      whole part exempts every overhang it may have: one session declared 91 % and 100 %.\\n    \\\"\\\"\\\"\\n    bed = PRINTERS[printer]\\n    if len(mesh.faces) == 0:\\n        return {\\\"ok\\\": False, \\\"error\\\": \\\"empty mesh\\\"}\\n    allowed = allowed or []\\n    areas = mesh.area_faces\\n    overhang, angle, on_bed = overhang_faces(mesh, max_overhang_deg)\\n    zones = overhang_zones(mesh, overhang, angle, allowed)\\n    for zone in zones:\\n        zone[\\\"bridge\\\"] = bridge(mesh, zone[\\\"_faces\\\"][angle[zone[\\\"_faces\\\"]] >= BRIDGE_DEG], angle)\\n    undeclared = [z for z in zones if not z[\\\"declared\\\"]]\\n\\n    size = mesh.extents\\n    fits = bool(np.all(size <= np.array(bed) + 1e-6))\\n    return {\\n        \\\"ok\\\": True,\\n        \\\"printer\\\": printer,\\n        \\\"bed_mm\\\": list(bed),\\n        \\\"size\\\": np.round(size, 3).tolist(),\\n        \\\"fits_bed\\\": fits,\\n        \\\"bed_margin_mm\\\": np.round((np.array(bed) - size) / [2, 2, 1], 2).tolist(),\\n        \\\"z_min\\\": round(float(mesh.bounds[0][2]), 3),\\n        \\\"base_area_mm2\\\": round(float(areas[on_bed].sum()), 1),\\n        \\\"max_overhang_deg\\\": max_overhang_deg,\\n        \\\"bridge_deg\\\": BRIDGE_DEG,\\n        \\\"max_bridge_mm\\\": MAX_BRIDGE_MM,\\n        \\\"overhang_area_mm2\\\": round(float(areas[overhang].sum()), 2),\\n        \\\"zones_total\\\": len(zones),\\n        \\\"zones_undeclared\\\": len(undeclared),\\n        \\\"undeclared_area\\n[... 23120 bytes left out ...]\\nf rest:\\n            turn = rest[0]\\n            size = _size(turn, 0, {\\\"rotate\\\": 4, \\\"screw\\\": 5})\\n            if not (size and len(turn) == size):\\n                raise SpecError(f\\\"{usage}; got {item!r}\\\")\\n            if not _number(turn[-1]):\\n                raise SpecError(f\\\"{where}: the turn is a number of degrees\\\")\\n            step[\\\"turn\\\"] = {**_movement(turn[:-1], where), \\\"degrees\\\": float(turn[-1])}\\n        steps.append(step)\\n    in_place = pairs.get(\\\"print_in_place\\\")\\n    if in_place is not None:\\n        lo, hi = PRINT_IN_PLACE_GAP_MM\\n        if not (_number(in_place) and lo <= in_place <= hi):\\n            raise SpecError(\\n                f\\\"print_in_place is the smallest clearance between two parts printed together, \\\"\\n                f\\\"from {lo} to {hi} mm (closer, they fuse); got {in_place!r}\\\"\\n            )\\n        in_place = {\\\"min_gap_mm\\\": float(in_place)}\\n    held = _names(pairs[\\\"held\\\"], \\\"held\\\") if \\\"held\\\" in pairs else []\\n    pose = _print_pose(pairs.get(\\\"print_pose\\\", []), motions)\\n    if pose and in_place is None:\\n        raise SpecError(\\n            \\\"print_pose is the pose an assembly printed in place prints in: it needs print_in_place\\\"\\n        )\\n    return {\\n        \\\"allowed_interferences\\\": allowed,\\n        \\\"motions\\\": motions,\\n        \\\"assembly_order\\\": steps,\\n        \\\"print_in_place\\\": in_place,\\n        \\\"print_pose\\\": pose,\\n        \\\"held\\\": held,\\n    }\\n\\n\\ndef _print_pose(value: Any, motions: list[dict[str, Any]]) -> list[dict[str, Any]]:\\n    \\\"\\\"\\\"The motions that take the assembly to the pose it prints in, each at a value.\\\"\\\"\\\"\\n    by_name = {m[\\\"name\\\"]: m for m in motions}\\n    out = []\\n    for item in _list(value, \\\"print_pose\\\"):\\n        if not (isinstance(item, list) and len(item) == 2 and isinstance(item[0], str)):\\n            raise SpecError(\\n                'print_pose: each entry is [\\\"motion\\\", value], a motion of the assembly at a '\\n                f\\\"value of its range; got {item!r}\\\"\\n            )\\n        motion = by_name.get(item[0])\\n        if motion is None:\\n\", \"stderr\": \"\", \"stdout_bytes\": 31120, \"stderr_bytes\": 0, \"stdout_omitted_bytes\": 23120, \"stderr_omitted_bytes\": 0, \"files\": {\"created\": [], \"modified\": [], \"deleted\": []}}"
+      },
+      {
+        "type": "function_call",
+        "call_id": "call_01a19f4e5c6f732c83665b3cac1d245e",
+        "name": "run_shell",
+        "arguments": "{\"cmd\":\"sed -n 1,180p /opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/spec.py; echo ---ASSEMBLY-ORDER; sed -n 1224,1430p /opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/assembly.py\"}"
+      },
+      {
+        "type": "function_call_output",
+        "call_id": "call_01a19f4e5c6f732c83665b3cac1d245e",
+        "output": "{\"ok\": true, \"exit_code\": 0, \"timed_out\": false, \"seconds\": 0.006, \"stdout\": \"\\\"\\\"\\\"The part's verifiable specification and its check against the exported mesh.\\n\\nThe .scad declares what the part must measure with a structured echo, computed from its own\\nparameters, in the coordinates of the exported part (oriented for printing, in mm):\\n\\n    echo(cadverify_spec = [\\n        [\\\"bounds\\\", [[0, 0, 0], [130, 120, 50]]],\\n        [\\\"bodies\\\", 1],\\n        [\\\"through_holes\\\", 3],\\n        [\\\"support_faces\\\", [[\\\"wall\\\", \\\"-x\\\", 5000], [\\\"shelf\\\", \\\"-y\\\", 5500]]],\\n        [\\\"overhangs_allowed\\\", [[\\\"hole roofs\\\", [[95, -1, 0], [105, 7, 50]]]]]\\n    ]);\\n\\nOnly `bounds` is required. OpenSCAD cannot measure geometry, so the echo can only restate the\\ndesign intent; the harness measures the mesh and compares.\\n\\nTwo more keys for a part: `copies`, how many of it one unit needs (the assembly must place that\\nmany), and `details`, the features the part announces, each with how to measure it\\n(cadcheck.details):\\n\\n    [\\\"copies\\\", 2],\\n    [\\\"details\\\", [[\\\"arm rib\\\", \\\"material\\\", [[x, y, z], [x, y, z]], 0.8],\\n                 [\\\"slot\\\", \\\"void\\\", [[x, y, z], [x, y, z]], 0.9],\\n                 [\\\"flared mouth\\\", \\\"hole\\\", [x, y, z], [dx, dy, dz], [[0, 14], [2, 10]]],\\n                 [\\\"wall\\\", \\\"thickness\\\", [x, y, z], [dx, dy, dz], 2.4],\\n                 [\\\"emblem\\\", \\\"view\\\", [[x, y, z], [x, y, z]]]]]\\n\\nThe assembly (`part = \\\"assembly\\\"`) declares instead, in assembly coordinates\\n(cadcheck.assembly):\\n\\n    [\\\"allowed_interferences\\\", [[\\\"pin_right\\\", \\\"arm_top\\\", \\\"press fit\\\"]]],\\n    [\\\"motions\\\", [[\\\"hinge\\\", [\\\"lid\\\"], \\\"rotate\\\", [x, y, z], [ax, ay, az], [0, 90]],\\n                 [\\\"drawer\\\", [\\\"tray\\\"], \\\"slide\\\", [dx, dy, dz], [0, 30],\\n                  [\\\"flex\\\", [[\\\"tray\\\", \\\"body\\\", 0.5, \\\"the detent bump rides over the ridge\\\"]]],\\n                  [\\\"stops\\\", [0, 30]]],\\n                 [\\\"open\\\", [\\\"cap\\\"], \\\"screw\\\", [x, y, z], [ax, ay, az], 3, [0, -720]],\\n                 [\\\"crank\\\", [\\\"sun\\\"], \\\"rotate\\\", [x, y, z], [ax, ay, az], [0, 360],\\n                  [\\\"drives\\\", [[[\\\"planet\\\"], \\\"rotate\\\", [x, y, z], [ax, ay, az], -0.5]]]],\\n                 [\\\"dial\\\", [\\\"lid\\\"], \\\"rotate\\\", [x, y, z], [ax, ay, az], [0, 360],\\n                  [\\\"flex\\\", [[\\\"lid\\\", \\\"base\\\", 0.4, \\\"the bump clicks into each notch\\\"]]],\\n                  [\\\"rests\\\", [0, 90, 180, 270, 360]]]]],\\n    [\\\"assembly_order\\\", [[[\\\"base\\\"], [0, 0, 0]],\\n                        [[\\\"insert\\\"], [0, 0, -1]],\\n                        [[\\\"lid\\\"], [0, 0, 1], [\\\"rotate\\\", [x, y, z], [ax, ay, az], 90]],\\n                        [[\\\"cap\\\"], [0, 0, -1], [\\\"screw\\\", [x, y, z], [ax, ay, az], 3, -720]],\\n                        [[\\\"cover\\\"], [0, 0, -1], [\\\"flex\\\", [[\\\"cover\\\", \\\"base\\\", 0.6, \\\"snaps on\\\"]]]]]],\\n    [\\\"print_in_place\\\", 0.3],\\n    [\\\"print_pose\\\", [[\\\"hinge\\\", 180]]],\\n    [\\\"overhangs_allowed\\\", [[\\\"pin underside\\\", [[x, y, z], [x, y, z]]]]],\\n    [\\\"held\\\", [\\\"lid\\\"]]\\n\\nA motion's `flex` lets two instances overlap while it moves, up to that many mm deep: an elastic\\nfeature (a detent, a snap) that deflects and springs back; an assembly step's `flex` does the\\nsame for what snaps in as it is put together. A `screw` turns and advances along its\\naxis, pitch mm for every turn of 360° (right hand rule; a left-hand thread has a negative pitch).\\nA motion `drives` other instances with it, each group by its own rotation or slide, that many\\ndegrees or mm for each degree (or mm) of the motion: gears, a rack and its pinion. A driven\\ninstance the motion also moves turns on its own axis and is carried by the motion (a planet on\\nits carrier). A motion `stops` at an end of its range when a part is in the way there (a drawer\\nthat does not come out, the way a ratchet does not turn), and `rests` where a detent holds it (a\\nlid that clicks at each day): its flex is free there and rides over something between two rests.\\n`held` names the instances that do not\\ncome off the assembly moving straight (a lid snapped on). `print_in_place` says the assembly is\\nprinted whole, every part at once, with that clearance or more between any two of them; only\\nthen does the assembly have `overhangs_allowed`, for the print of the whole. It prints as it\\nstands, or in its `print_pose`: motions at a value of their range, applied in order (a box\\nprinted open, its lid's hinge at 180). The assembly's `overhangs_allowed` are in the coordinates\\nof the pose it prints in.\\n\\nThe assembly's own `bounds` (optional) and `support_faces` are measured on its instances\\ntogether. Bodies, through holes, copies and details belong to each part, and so do overhangs\\nunless the assembly prints in place: its count of bodies or holes says nothing a part's spec\\ndoes not.\\n\\\"\\\"\\\"\\n\\nfrom __future__ import annotations\\n\\nimport json\\nimport re\\nfrom typing import Any\\n\\nimport numpy as np\\nimport trimesh\\n\\nfrom cadverify.cadcheck import details as details_mod\\n\\nSPEC_NAME = \\\"cadverify_spec\\\"\\nBOUNDS_TOLERANCE_MM = 0.2  # faceting of $fn circles stays below this at the usual sizes\\nPLANE_TOLERANCE_MM = 0.01\\n_FACING = np.cos(np.radians(1.0))\\nDIRECTIONS = {\\\"+x\\\": (0, 1), \\\"-x\\\": (0, -1), \\\"+y\\\": (1, 1), \\\"-y\\\": (1, -1), \\\"+z\\\": (2, 1), \\\"-z\\\": (2, -1)}\\n_AXES = \\\"xyz\\\"\\n_KEYS = {\\\"bounds\\\", \\\"bodies\\\", \\\"through_holes\\\", \\\"support_faces\\\", \\\"overhangs_allowed\\\"}\\nPART_KEYS = _KEYS | {\\\"copies\\\", \\\"details\\\"}\\nASSEMBLY_KEYS = {\\n    \\\"bounds\\\",\\n    \\\"support_faces\\\",\\n    \\\"allowed_interferences\\\",\\n    \\\"motions\\\",\\n    \\\"assembly_order\\\",\\n    \\\"print_in_place\\\",\\n    \\\"print_pose\\\",\\n    \\\"overhangs_allowed\\\",\\n    \\\"held\\\",\\n}\\nMOTIONS = (\\\"rotate\\\", \\\"slide\\\", \\\"screw\\\")\\n# An undercut deeper than this on a printed part is a crash more often than a snap.\\nFLEX_MAX_MM = 1.0\\n# Closer than this, two parts printed together fuse on a common FDM printer (0.4 mm nozzle).\\nPRINT_IN_PLACE_GAP_MM = (0.2, 1.0)\\n\\n\\nclass SpecError(ValueError):\\n    \\\"\\\"\\\"The echo is there but malformed; the message says what to fix.\\\"\\\"\\\"\\n\\n\\ndef find_spec(echo: list[str], assembly: bool = False) -> dict[str, Any] | None:\\n    \\\"\\\"\\\"The parsed `cadverify_spec` echo, None when the program does not print one.\\\"\\\"\\\"\\n    prefix = f\\\"{SPEC_NAME} = \\\"\\n    values = list(dict.fromkeys(e.removeprefix(prefix) for e in echo if e.startswith(prefix)))\\n    if not values:\\n        \\n[... 10583 bytes left out ...]\\n             problems,\\n                            touch=False,\\n                        )\\n                        flexed.append(rows_turn)\\n                        row[\\\"turn_flex\\\"] = rows_turn\\n                    row[\\\"turn_ok\\\"] = not hits\\n                    if hits:\\n                        row[\\\"ok\\\"] = False\\n                        worst = max(hits, key=lambda h: h[\\\"volume_mm3\\\"])\\n                        row[\\\"turn_collision\\\"] = _public(worst)\\n                        verb = \\\"screwing\\\" if turn[\\\"kind\\\"] == \\\"screw\\\" else \\\"turning\\\"\\n                        problems.append(\\n                            f\\\"assembly_order, step {k}: {verb} {span:g}° into place, \\\"\\n                            f\\\"{worst['moving']} hits {worst['with']} {worst['pose']:g}° \\\"\\n                            f\\\"before the end ({worst['volume_mm3']} mm³)\\\"\\n                        )\\n                for i, flex in enumerate(flexes):\\n                    if not any(r[i][\\\"poses\\\"] for r in flexed):\\n                        row[\\\"ok\\\"] = False\\n                        problems.append(\\n                            f\\\"assembly_order, step {k}: {flex['a']} and {flex['b']} never \\\"\\n                            \\\"overlap as it comes in, so nothing snaps: a flex is a feature that \\\"\\n                            \\\"rides over what it presses on. Make it meet that, or leave it out\\\"\\n                        )\\n            rows.append(row)\\n            placed += moving\\n    finally:\\n        if ctx is not None:\\n            ctx.release()\\n    return rows\\n\\n\\ndef _clear_after(meshes: list[trimesh.Trimesh], placed: list[dict], direction) -> float:\\n    \\\"\\\"\\\"How far back along `direction` the meshes start clear of what is placed: where their\\n    bounding boxes, seen along it, no longer meet.\\\"\\\"\\\"\\n    ahead = max(float((trimesh.bounds.corners(m.bounds) @ direction).max()) for m in meshes)\\n    behind = min(\\n        float((trimesh.bounds.corners(p[\\\"_mesh\\\"].bounds) @ direction).min()) for p in placed\\n    )\\n    return max(ahead - behind + 1.0, SWEEP_STEP_MM)\\n\\n\\n\", \"stderr\": \"\", \"stdout_bytes\": 18583, \"stderr_bytes\": 0, \"stdout_omitted_bytes\": 10583, \"stderr_omitted_bytes\": 0, \"files\": {\"created\": [], \"modified\": [], \"deleted\": []}}"
+      },
+      {
+        "type": "function_call",
+        "call_id": "call_01a19f4fa82d77f58098b9990fc1a671",
+        "name": "run_shell",
+        "arguments": "{\"cmd\":\"grep -n \\\"def overhang_faces\\\" -A 40 /opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/printability.py\"}"
+      },
+      {
+        "type": "function_call_output",
+        "call_id": "call_01a19f4fa82d77f58098b9990fc1a671",
+        "output": "{\"ok\": true, \"exit_code\": 0, \"timed_out\": false, \"seconds\": 0.008, \"stdout\": \"140:def overhang_faces(\\n141-    mesh: trimesh.Trimesh, max_overhang_deg: float = MAX_OVERHANG_DEG, z_min: float | None = None\\n142-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:\\n143-    \\\"\\\"\\\"Per face: steeper than the limit (and not resting on the bed), the overhang angle and\\n144-    whether it rests on the bed. `z_min` is the bed height (default: the mesh's lowest z).\\\"\\\"\\\"\\n145-    normals, areas = mesh.face_normals, mesh.area_faces\\n146-    z_min = float(mesh.bounds[0][2]) if z_min is None else z_min\\n147-    corner_z = mesh.vertices[mesh.faces][:, :, 2]\\n148-    down = np.clip(-normals[:, 2], -1.0, 1.0)\\n149-    on_bed = (down > np.cos(np.radians(1.0))) & np.all(corner_z <= z_min + BED_TOLERANCE_MM, axis=1)\\n150-    angle = 90.0 - np.degrees(np.arccos(down))  # 90 = flat ceiling, 0 = wall, < 0 = faces up\\n151-    overhang = (angle > max_overhang_deg + ANGLE_TOLERANCE_DEG) & ~on_bed & (areas > 0)\\n152-    return overhang, angle, on_bed\\n153-\\n154-\\n155-def overhang_zones(\\n156-    mesh: trimesh.Trimesh, overhang: np.ndarray, angle: np.ndarray, allowed: list[dict]\\n157-) -> list[dict[str, Any]]:\\n158-    \\\"\\\"\\\"Connected overhang faces as zones, largest first, with ids v1, v2... Each zone also\\n159-    keeps its face indices under \\\"_faces\\\" (dropped from the report).\\\"\\\"\\\"\\n160-    areas = mesh.area_faces\\n161-    zones = []\\n162-    for faces in _zones(mesh, overhang):\\n163-        corners = mesh.vertices[mesh.faces[faces]].reshape(-1, 3)\\n164-        bounds = np.array([corners.min(axis=0), corners.max(axis=0)])\\n165-        match = next((a[\\\"name\\\"] for a in allowed if _inside(bounds, a[\\\"bounds\\\"])), None)\\n166-        zones.append(\\n167-            {\\n168-                \\\"area_mm2\\\": round(float(areas[faces].sum()), 2),\\n169-                \\\"max_angle_deg\\\": round(float(angle[faces].max()), 1),\\n170-                \\\"bounds\\\": np.round(bounds, 2).tolist(),\\n171-                \\\"faces\\\": len(faces),\\n172-                \\\"declared\\\": match is not None,\\n173-                \\\"declared_as\\\": match,\\n174-                \\\"_faces\\\": faces,\\n175-            }\\n176-        )\\n177-    zones.sort(key=lambda z: -z[\\\"area_mm2\\\"])\\n178-    for i, zone in enumerate(zones, 1):\\n179-        zone[\\\"id\\\"] = f\\\"v{i}\\\"\\n180-    return zones\\n\", \"stderr\": \"\", \"stdout_bytes\": 2198, \"stderr_bytes\": 0, \"stdout_omitted_bytes\": 0, \"stderr_omitted_bytes\": 0, \"files\": {\"created\": [], \"modified\": [], \"deleted\": []}}"
+      },
+      {
+        "type": "function_call",
+        "call_id": "call_01a19f541dbc705ead2571c7d9a10d81",
+        "name": "run_shell",
+        "arguments": "{\"cmd\":\"sed -n 1,240p /opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/details.py\"}"
+      },
+      {
+        "type": "function_call_output",
+        "call_id": "call_01a19f541dbc705ead2571c7d9a10d81",
+        "output": "{\"ok\": true, \"exit_code\": 0, \"timed_out\": false, \"seconds\": 0.006, \"stdout\": \"\\\"\\\"\\\"The details a part announces, measured on its mesh: what the spec's `details` declare.\\n\\nEach detail names a feature and says how to check it, in the coordinates of the exported part:\\n\\n- material: a box at least this fraction full (a rib, a boss, a medallion);\\n- void: a box at least this fraction empty (a slot, a groove, a channel);\\n- hole: a hole along an axis, from a point outside the part on its axis and a direction into\\n  it, with the diameter it must have at each depth from its mouth (a countersink, a flared\\n  entry, a counterbore);\\n- thickness: the material crossed along a ray, from a point outside the part (a wall, a floor);\\n- view: a box with a feature no number describes (a texture, a shape); the box must touch the\\n  part's surface, and the model must look at it up close (agent/gates.py, G8).\\n\\nA detail exists in the code and not in the mesh more often than it seems: an offset that empties\\na profile, a cone sunk below the face it should flare, a chamfer the wrong way round. The\\nmeasurement is what the mesh has, not what the code says.\\n\\\"\\\"\\\"\\n\\nfrom __future__ import annotations\\n\\nfrom typing import Any\\n\\nimport manifold3d\\nimport numpy as np\\nimport shapely\\nimport trimesh\\n\\nfrom cadverify.cadcheck import section\\n\\nKINDS = (\\\"material\\\", \\\"void\\\", \\\"hole\\\", \\\"thickness\\\", \\\"view\\\")\\nHOLE_TOLERANCE_MM = 0.2  # or HOLE_TOLERANCE_REL of the diameter, whichever is larger\\nHOLE_TOLERANCE_REL = 0.03\\nTHICKNESS_TOLERANCE_MM = 0.1  # or THICKNESS_TOLERANCE_REL of the thickness\\nTHICKNESS_TOLERANCE_REL = 0.03\\nMOUTH_INSET_MM = 0.05  # depth 0 is measured this far inside the mouth, as the through holes\\nSCAN_STEP_MM = 0.1\\nPROFILE_DEPTHS = (0.0, 0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 3.0, 4.0, 5.0, 7.5, 10.0, 15.0, 20.0)\\nMAX_PROFILE = 16\\n\\n\\ndef measure(mesh: trimesh.Trimesh, solid, details: list[dict[str, Any]]) -> list[dict[str, Any]]:\\n    \\\"\\\"\\\"Each declared detail with what the mesh measures and whether it matches.\\\"\\\"\\\"\\n    return [_measure(mesh, solid, d) for d in details]\\n\\n\\ndef _measure(mesh, solid, detail: dict[str, Any]) -> dict[str, Any]:\\n    kind = detail[\\\"kind\\\"]\\n    base = {\\\"name\\\": detail[\\\"name\\\"], \\\"kind\\\": kind}\\n    if solid is None and kind != \\\"thickness\\\":\\n        return {**base, \\\"ok\\\": False, \\\"error\\\": section.NOT_MANIFOLD}\\n    if kind in (\\\"material\\\", \\\"void\\\", \\\"view\\\"):\\n        fraction = fill_fraction(solid, detail[\\\"box\\\"])\\n        result = {**base, \\\"box\\\": detail[\\\"box\\\"], \\\"material_fraction\\\": round(fraction, 4)}\\n        if kind == \\\"material\\\":\\n            return {\\n                **result,\\n                \\\"min_fraction\\\": detail[\\\"fraction\\\"],\\n                \\\"ok\\\": fraction >= detail[\\\"fraction\\\"],\\n            }\\n        if kind == \\\"void\\\":\\n            empty = 1.0 - fraction\\n            return {\\n                **result,\\n                \\\"min_empty_fraction\\\": detail[\\\"fraction\\\"],\\n                \\\"ok\\\": empty >= detail[\\\"fraction\\\"],\\n            }\\n        # A box all material or all air is not where a surface feature is.\\n        return {**result, \\\"ok\\\": 0.0 < fraction < 1.0, \\\"needs\\\": \\\"a close view\\\"}\\n    if kind == \\\"hole\\\":\\n        return {**base, **hole(solid, detail[\\\"point\\\"], detail[\\\"direction\\\"], detail[\\\"diameters\\\"])}\\n    return {**base, **thickness(mesh, detail[\\\"point\\\"], detail[\\\"direction\\\"], detail[\\\"mm\\\"])}\\n\\n\\ndef fill_fraction(solid: manifold3d.Manifold, box: list[list[float]]) -> float:\\n    lo, hi = np.asarray(box, float)\\n    size = hi - lo\\n    volume = float(np.prod(size))\\n    if volume <= 0:\\n        return 0.0\\n    cube = manifold3d.Manifold.cube(tuple(size)).translate(tuple(lo))\\n    return min(max((solid ^ cube).volume() / volume, 0.0), 1.0)\\n\\n\\ndef hole(solid, point, direction, expected: list[list[float]]) -> dict[str, Any]:\\n    \\\"\\\"\\\"The hole whose axis passes through `point` along `direction`: where its mouth is, its\\n    diameter (of the circle with the same area) at each expected depth, and a profile.\\\"\\\"\\\"\\n    p = np.asarray(point, float)\\n    basis = section.frame(direction)\\n    local = solid.transform(np.hstack([basis, (-basis @ p)[:, None]]))  # axis -> +z, p -> 0\\n    lo, hi = local.bounding_box()[2], local.bounding_box()[5]\\n\\n    def state(t: float) -> tuple[str, shapely.Polygon | None]:\\n        if not lo <= t <= hi:\\n            return \\\"outside\\\", None\\n        origin = shapely.Point(0.0, 0.0)\\n        for polygon in section._cross_section_polygons(local.slice(t)):\\n            if polygon.contains(origin):\\n                return \\\"material\\\", None\\n            if shapely.Polygon(polygon.exterior).contains(origin):\\n                ring = next(\\n                    (r for r in polygon.interiors if shapely.Polygon(r).contains(origin)), None\\n                )\\n                return \\\"hole\\\", shapely.Polygon(ring) if ring is not None else None\\n        return \\\"outside\\\", None\\n\\n    start, _ = state(0.0)\\n    if start == \\\"material\\\":\\n        return {\\\"ok\\\": False, \\\"error\\\": \\\"the point is inside the material: it goes outside the part\\\"}\\n    step = SCAN_STEP_MM if start == \\\"outside\\\" else -SCAN_STEP_MM\\n    # Forward, from just before the part; backward (the point is inside the hole), from it.\\n    t = max(0.0, lo - SCAN_STEP_MM) if start == \\\"outside\\\" else 0.0\\n    mouth = None\\n    while min(lo, 0.0) - SCAN_STEP_MM <= t <= max(hi, 0.0) + SCAN_STEP_MM:\\n        nxt = t + step\\n        found, _ = state(nxt)\\n        if start == \\\"outside\\\" and found == \\\"material\\\":\\n            return {\\n                \\\"ok\\\": False,\\n                \\\"error\\\": f\\\"the axis enters material {nxt:.2f} mm from the point without going \\\"\\n                \\\"through a hole: there is no hole on that axis\\\",\\n            }\\n        if (start == \\\"outside\\\") == (found == \\\"hole\\\"):\\n            outside, inside = (t, nxt) if start == \\\"outside\\\" else (nxt, t)\\n            for _ in range(10):  # bisection to 0.1 µm\\n                middle = (outside + inside) / 2\\n                if state(middle)[0] == \\\"hole\\\":\\n                    inside = middle\\n                else:\\n                    outside = middle\\n            mouth = inside\\n            break\\n        t = nxt\\n    if mouth is None:\\n        return {\\\"ok\\\": False, \\\"error\\\": \\n[... 555 bytes left out ...]\\n(HOLE_TOLERANCE_MM, HOLE_TOLERANCE_REL * want)\\n        good = got is not None and abs(got - want) <= tol\\n        ok &= good\\n        checks.append({\\\"depth_mm\\\": depth, \\\"expected_mm\\\": want, \\\"measured_mm\\\": got, \\\"ok\\\": good})\\n    mouth_point = p + mouth * basis[2]\\n    return {\\n        \\\"ok\\\": ok,\\n        \\\"mouth\\\": section._r(mouth_point),\\n        \\\"mouth_from_point_mm\\\": round(mouth, 3),\\n        \\\"diameters\\\": checks,\\n        \\\"profile\\\": profile,\\n        \\\"note\\\": \\\"Ø of the circle with the same area, at each depth from the mouth (the first \\\"\\n        f\\\"closed section around the axis, coming from the point); 0 = {MOUTH_INSET_MM} mm\\\",\\n    }\\n\\n\\ndef thickness(mesh: trimesh.Trimesh, point, direction, expected: float) -> dict[str, Any]:\\n    \\\"\\\"\\\"Material crossed along the ray from `point`: from where it enters to where it leaves.\\\"\\\"\\\"\\n    p = np.asarray(point, float)\\n    d = np.asarray(direction, float)\\n    d = d / np.linalg.norm(d)\\n    locations, _, faces = mesh.ray.intersects_location([p], [d], multiple_hits=True)\\n    if len(locations) == 0:\\n        return {\\\"ok\\\": False, \\\"error\\\": \\\"the ray does not hit the part\\\"}\\n    t = (locations - p) @ d\\n    order = np.argsort(t)\\n    t, faces = t[order], faces[order]\\n    entering = mesh.face_normals[faces] @ d < 0\\n    keep = np.ones(len(t), bool)\\n    keep[1:] = np.diff(t) > 1e-6  # an edge or a vertex hit twice\\n    t, entering = t[keep], entering[keep]\\n    if not entering[0]:\\n        return {\\\"ok\\\": False, \\\"error\\\": \\\"the point is inside the material: it goes outside the part\\\"}\\n    exits = np.flatnonzero(~entering)\\n    if not len(exits):\\n        return {\\\"ok\\\": False, \\\"error\\\": \\\"the ray enters the part and does not leave it\\\"}\\n    measured = float(t[exits[0]] - t[0])\\n    tol = max(THICKNESS_TOLERANCE_MM, THICKNESS_TOLERANCE_REL * expected)\\n    return {\\n        \\\"ok\\\": abs(measured - expected) <= tol,\\n        \\\"expected_mm\\\": expected,\\n        \\\"measured_mm\\\": round(measured, 3),\\n        \\\"enters_at\\\": section._r(p + t[0] * d),\\n        \\\"tolerance_mm\\\": round(tol, 3),\\n    }\\n\", \"stderr\": \"\", \"stdout_bytes\": 8555, \"stderr_bytes\": 0, \"stdout_omitted_bytes\": 555, \"stderr_omitted_bytes\": 0, \"files\": {\"created\": [], \"modified\": [], \"deleted\": []}}"
+      },
+      {
+        "type": "function_call",
+        "call_id": "call_01a19f543dcb72cfba747a1226a2ccdb",
+        "name": "run_shell",
+        "arguments": "{\"cmd\":\"grep -n \\\"cadverify_instance\\\\|cadverify_only\\\\|OPENSCADPATH\\\\|cadverify_parts\\\" /opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/*.py /opt/venv/lib/python3.12/site-packages/cadverify/*.py | head -n 120\"}"
+      },
+      {
+        "type": "function_call_output",
+        "call_id": "call_01a19f543dcb72cfba747a1226a2ccdb",
+        "output": "{\"ok\": true, \"exit_code\": 0, \"timed_out\": false, \"seconds\": 0.006, \"stdout\": \"/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/assembly.py:5:    cadverify_only = \\\"\\\";\\n/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/assembly.py:7:        echo(cadverify_instance = [name, part, unit]);\\n/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/assembly.py:8:        if (cadverify_only == \\\"\\\" || cadverify_only == name) children();\\n/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/assembly.py:11:so the list of instances comes from the code, and `-D cadverify_only=\\\"<name>\\\"` exports one\\n/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/assembly.py:15:of standard/cadverify_parts.scad, which is checked like a printed part against the module itself.\\n/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/assembly.py:101:SOLO = \\\"cadverify_only\\\"\\n/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/assembly.py:104:STANDARD = \\\"standard:\\\"  # a part of cadverify_parts.scad, `standard:<module>`\\n/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/assembly.py:323:                f\\\"{part.removeprefix(STANDARD)}() of cadverify_parts.scad: volume {v:.1f} against \\\"\\n/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/assembly.py:336:    \\\"\\\"\\\"The volume, area and principal moments of a module of cadverify_parts.scad.\\\"\\\"\\\"\\n/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/assembly.py:338:        r\\\"^module (\\\\w+)\\\\(\\\\)\\\", (STANDARD_DIR / \\\"cadverify_parts.scad\\\").read_text(), re.M\\n/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/assembly.py:342:            f\\\"there is no standard part {name!r}: cadverify_parts.scad has {sorted(modules)}\\\"\\n/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/assembly.py:346:    source.write_text(f\\\"use <cadverify_parts.scad>\\\\n{name}();\\\\n\\\")\\n/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/assembly.py:360:                f\\\"{EXTERNAL!r} nor a {STANDARD}<module> of cadverify_parts.scad\\\"\\n/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/scad.py:26:INSTANCE_ECHO = \\\"cadverify_instance\\\"  # echoed by instance() of each part the assembly places\\n/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/scad.py:27:# `use <cadverify_parts.scad>`: the standard parts an assembly places (cadcheck.assembly).\\n/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/scad.py:278:            env={**os.environ, \\\"OPENSCADPATH\\\": str(STANDARD_DIR)},\\n\", \"stderr\": \"\", \"stdout_bytes\": 2372, \"stderr_bytes\": 0, \"stdout_omitted_bytes\": 0, \"stderr_omitted_bytes\": 0, \"files\": {\"created\": [], \"modified\": [], \"deleted\": []}}"
+      },
+      {
+        "type": "function_call",
+        "call_id": "call_01a19f545f1674c98e5b80cf6814d04d",
+        "name": "run_shell",
+        "arguments": "{\"cmd\":\"sed -n 1,240p /opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/mesh.py; grep -n \\\"through_holes\\\" -R /opt/venv/lib/python3.12/site-packages/cadverify/cadcheck | head -n 50\"}"
+      },
+      {
+        "type": "function_call_output",
+        "call_id": "call_01a19f545f1674c98e5b80cf6814d04d",
+        "output": "{\"ok\": true, \"exit_code\": 0, \"timed_out\": false, \"seconds\": 0.011, \"stdout\": \"\\\"\\\"\\\"mesh_report: watertightness, bad edges, volume, bounds and body count of an exported mesh.\\\"\\\"\\\"\\n\\nfrom __future__ import annotations\\n\\nfrom pathlib import Path\\nfrom typing import Any\\n\\nimport numpy as np\\nimport trimesh\\n\\nMAX_LOCATIONS = 10\\n\\n\\ndef mesh_report(path: str | Path) -> dict[str, Any]:\\n    \\\"\\\"\\\"Basic geometric facts of a mesh file, in its own units (mm for OpenSCAD).\\\"\\\"\\\"\\n    return report_from_mesh(load_exact(path))\\n\\n\\ndef report_from_mesh(mesh: trimesh.Trimesh) -> dict[str, Any]:\\n    \\\"\\\"\\\"mesh_report of a mesh loaded with load_exact.\\n\\n    - `bad_edges`: undirected edges not shared by exactly two triangles (holes, non-manifold\\n      joints); `bad_edge_locations` lists the midpoints of the first few.\\n    - Shells are triangles connected through manifold edges. `bodies` have positive signed\\n      volume; a negative shell is a `cavity` when it lies inside a body (a part with an enclosed\\n      void is 1 body and 1 cavity) and an `inverted_shell` otherwise (its faces point inwards).\\n      Volumes and shell counts are only meaningful when the mesh is watertight.\\n    - `through_holes`: total genus of the bodies (a plate with 4 holes has 4), from the Euler\\n      characteristic of each shell; None when the mesh is not watertight.\\n    \\\"\\\"\\\"\\n    if len(mesh.faces) == 0:\\n        return {\\\"triangles\\\": 0, \\\"watertight\\\": False, \\\"bad_edges\\\": None, \\\"bodies\\\": 0}\\n\\n    edges, counts = np.unique(mesh.edges_sorted, axis=0, return_counts=True)\\n    bad = edges[counts != 2]\\n\\n    triangles = mesh.triangles\\n    signed = np.einsum(\\\"ij,ij->i\\\", triangles[:, 0], np.cross(triangles[:, 1], triangles[:, 2])) / 6\\n    shells = trimesh.graph.connected_components(\\n        mesh.face_adjacency, nodes=np.arange(len(mesh.faces)), min_len=1\\n    )\\n    volumes = [signed[faces].sum() for faces in shells]\\n    bodies = [faces for faces, v in zip(shells, volumes, strict=True) if v > 0]\\n    negative = [faces for faces, v in zip(shells, volumes, strict=True) if v < 0]\\n    body_triangles = triangles[np.concatenate(bodies)] if bodies else triangles[:0]\\n    cavities = sum(\\n        _winding_number(triangles[faces[0]].mean(axis=0), body_triangles) > 0.5\\n        for faces in negative\\n    )\\n\\n    return {\\n        \\\"triangles\\\": len(mesh.faces),\\n        \\\"watertight\\\": bool(mesh.is_watertight),\\n        \\\"winding_consistent\\\": bool(mesh.is_winding_consistent),\\n        \\\"bad_edges\\\": len(bad),\\n        \\\"bad_edge_locations\\\": _round(mesh.vertices[bad[:MAX_LOCATIONS]].mean(axis=1)),\\n        \\\"volume_mm3\\\": round(float(signed.sum()), 3),\\n        \\\"bounds\\\": _round(mesh.bounds),\\n        \\\"size\\\": _round(mesh.extents),\\n        \\\"bodies\\\": len(bodies),\\n        \\\"cavities\\\": int(cavities),\\n        \\\"inverted_shells\\\": len(negative) - int(cavities),\\n        \\\"through_holes\\\": sum(_genus(mesh.faces[f]) for f in bodies) if mesh.is_watertight else None,\\n    }\\n\\n\\ndef load_exact(path: str | Path) -> trimesh.Trimesh:\\n    \\\"\\\"\\\"Load a mesh merging only vertices written with identical coordinates.\\n\\n    trimesh's default merge tolerance (1e-8) fuses distinct vertices that OpenSCAD 2026.10\\n    leaves 1e-9 mm apart and fabricates bad edges in meshes that are closed.\\n    \\\"\\\"\\\"\\n    raw = trimesh.load_mesh(Path(path), process=False)\\n    if len(raw.faces) == 0:\\n        return trimesh.Trimesh(np.zeros((0, 3)), np.zeros((0, 3), dtype=np.int64), process=False)\\n    vertices, inverse = np.unique(\\n        raw.vertices[raw.faces].reshape(-1, 3), axis=0, return_inverse=True\\n    )\\n    return trimesh.Trimesh(vertices, inverse.reshape(-1, 3), process=False)\\n\\n\\ndef _genus(faces: np.ndarray) -> int:\\n    \\\"\\\"\\\"Genus of one closed shell: V - E + F = 2 - 2g.\\\"\\\"\\\"\\n    edges = np.unique(np.sort(faces[:, [0, 1, 1, 2, 2, 0]].reshape(-1, 2), axis=1), axis=0)\\n    euler = len(np.unique(faces)) - len(edges) + len(faces)\\n    return (2 - euler) // 2\\n\\n\\ndef _winding_number(point: np.ndarray, triangles: np.ndarray) -> float:\\n    \\\"\\\"\\\"Generalized winding number: about 1 inside outward-facing closed shells, 0 outside.\\\"\\\"\\\"\\n    a, b, c = (triangles[:, i] - point for i in range(3))\\n    la, lb, lc = (np.linalg.norm(v, axis=1) for v in (a, b, c))\\n\\n    def dot(u: np.ndarray, v: np.ndarray) -> np.ndarray:\\n        return np.einsum(\\\"ij,ij->i\\\", u, v)\\n\\n    # Van Oosterom & Strackee: tan(solid angle / 2) of each triangle seen from the point.\\n    numerator = dot(a, np.cross(b, c))\\n    denominator = la * lb * lc + dot(a, b) * lc + dot(a, c) * lb + dot(b, c) * la\\n    return float(np.arctan2(numerator, denominator).sum() / (2 * np.pi))\\n\\n\\ndef _round(array: np.ndarray) -> list:\\n    return np.round(array, 3).tolist()\\n/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/section.py:237:def through_holes(\\n/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/mesh.py:28:    - `through_holes`: total genus of the bodies (a plate with 4 holes has 4), from the Euler\\n/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/mesh.py:63:        \\\"through_holes\\\": sum(_genus(mesh.faces[f]) for f in bodies) if mesh.is_watertight else None,\\n/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/view.py:249:        holes = section.through_holes(mesh)\\n/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/view.py:268:            \\\"through_holes_total\\\": genus,\\n/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/view.py:896:    return report_from_mesh(mesh)[\\\"through_holes\\\"]\\n/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/spec.py:9:        [\\\"through_holes\\\", 3],\\n/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/spec.py:93:_KEYS = {\\\"bounds\\\", \\\"bodies\\\", \\\"through_holes\\\", \\\"support_faces\\\", \\\"overhangs_allowed\\\"}\\n/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/spec.py:153:        \\\"through_holes\\\": None,\\n/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/spec.py:157:    if pairs.get(\\\"through_holes\\\") is not None:\\n/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/spec.py:158:        spec[\\\"through_holes\\\"] = _count(pairs[\\\"through_holes\\\"], \\\"through_holes\\\", minimum=0)\\n/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/spec.py:537:    if spec[\\\"through_holes\\\"] is not None:\\n/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/spec.py:538:        checks[\\\"through_holes\\\"] = {\\n/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/spec.py:539:            \\\"ok\\\": report[\\\"through_holes\\\"] == spec[\\\"through_holes\\\"],\\n/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/spec.py:540:            \\\"expected\\\": spec[\\\"through_holes\\\"],\\n/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/spec.py:541:            \\\"actual\\\": report[\\\"through_holes\\\"],\\n\", \"stderr\": \"grep: /opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/__pycache__/section.cpython-312.pyc: binary file matches\\ngrep: /opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/__pycache__/mesh.cpython-312.pyc: binary file matches\\ngrep: /opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/__pycache__/spec.cpython-312.pyc: binary file matches\\ngrep: /opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/__pycache__/view.cpython-312.pyc: binary file matches\\n\", \"stdout_bytes\": 6518, \"stderr_bytes\": 475, \"stdout_omitted_bytes\": 0, \"stderr_omitted_bytes\": 0, \"files\": {\"created\": [], \"modified\": [], \"deleted\": []}}"
+      },
+      {
+        "type": "function_call",
+        "call_id": "call_01a19f55defc75fe89adc65dbeb6beef",
+        "name": "run_shell",
+        "arguments": "{\"cmd\":\"sed -n 1224,1360p /opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/assembly.py\"}"
+      },
+      {
+        "type": "function_call_output",
+        "call_id": "call_01a19f55defc75fe89adc65dbeb6beef",
+        "output": "{\"ok\": true, \"exit_code\": 0, \"timed_out\": false, \"seconds\": 0.005, \"stdout\": \"def _assembly_order(\\n    steps: list[dict],\\n    instances: list[dict],\\n    names: dict,\\n    skip: set,\\n    pressed: set,\\n    in_place: bool,\\n    out_dir: Path,\\n    problems,\\n) -> list[dict]:\\n    if len(instances) < 2:\\n        return []\\n    if not steps:\\n        problems.append(\\n            \\\"the assembly order is missing (assembly_order in the assembly's spec): every \\\"\\n            \\\"instance, in order, with the direction it moves along as it comes in\\\"\\n        )\\n        return []\\n    if not in_place and len(steps[0][\\\"instances\\\"]) > 1:\\n        # Parts that start out together were never put together: only a print does that.\\n        problems.append(\\n            f\\\"assembly_order, step 1 places {', '.join(steps[0]['instances'])} together, and only \\\"\\n            \\\"an assembly printed in place starts out in more than one part: start with one and \\\"\\n            \\\"bring each of the others in along its direction\\\"\\n        )\\n    order = [n for s in steps for n in s[\\\"instances\\\"]]\\n    every = [i[\\\"name\\\"] for i in instances]\\n    repeated = sorted({n for n in order if order.count(n) > 1})\\n    unknown = sorted(set(order) - set(every))\\n    missing = [n for n in every if n not in order]\\n    for what, items in ((\\\"repeats\\\", repeated), (\\\"names instances that do not exist:\\\", unknown)):\\n        if items:\\n            problems.append(f\\\"assembly_order {what} {items}\\\")\\n    if missing:\\n        problems.append(f\\\"assembly_order does not say when {missing} comes in\\\")\\n    rows, placed = [], []\\n    ctx = None\\n    try:\\n        for k, step in enumerate(steps, 1):\\n            moving = [names[n] for n in step[\\\"instances\\\"] if n in names]\\n            row: dict[str, Any] = {\\\"step\\\": k, \\\"instances\\\": step[\\\"instances\\\"], \\\"ok\\\": True}\\n            direction = np.asarray(step[\\\"direction\\\"], float)\\n            moving_names = set(step[\\\"instances\\\"])\\n            against = [\\n                p\\n                for p in placed\\n                if not any(frozenset((p[\\\"name\\\"], m)) in skip for m in moving_names)\\n            ]\\n            if np.linalg.norm(direction) < 1e-9:\\n                if placed:\\n                    row[\\\"ok\\\"] = False\\n                    problems.append(\\n                        f\\\"assembly_order, step {k} ({', '.join(step['instances'])}): no direction \\\"\\n                        \\\"to come in along; only the first step may have none\\\"\\n                    )\\n            elif against and moving:\\n                turn = step.get(\\\"turn\\\")\\n                start = _pose(turn, -turn[\\\"degrees\\\"]) if turn else np.eye(4)\\n                meshes = [_transformed(m[\\\"_mesh\\\"], start) for m in moving]\\n                if ctx is None:\\n                    import moderngl\\n\\n                    ctx = moderngl.create_context(standalone=True, backend=\\\"egl\\\")\\n                direction /= np.linalg.norm(direction)\\n                flexes = step.get(\\\"flex\\\") or []\\n                keys = {n: (n in moving_names, -1) for n in names}\\n                partners = {n for f in flexes for n in (f[\\\"a\\\"], f[\\\"b\\\"])}\\n                # What snaps in comes in by steps, against what it flexes on; the rest, whole.\\n                swept = [p for p in against if p[\\\"name\\\"] in partners]\\n                rigid = [p for p in against if p not in swept]\\n                # A part pressed in place comes in straight; one that turns presses as it turns.\\n                fits = {} if turn else _fits(moving, rigid, pressed)\\n                approach = blocked(\\n                    ctx, meshes, [(p[\\\"name\\\"], p[\\\"_mesh\\\"]) for p in rigid], direction, fits\\n                )\\n                flexed: list[list[dict]] = []\\n                if swept:\\n                    span = _clear_after(meshes, swept, direction)\\n                    count = min(SWEEP_MAX_STEPS, max(1, math.ceil(span / SWEEP_STEP_MM)))\\n                    poses = [\\n                        (float(v), {m[\\\"name\\\"]: translation(direction, v) @ start for m in moving})\\n                        for v in np.linspace(-span, 0.0, count + 1)\\n                    ]\\n                    hits = _fits_left_out(\\n                        _sweep([(m, p) for m in moving for p in swept], poses), pressed\\n                    )\\n                    coming = {\\n                        \\\"name\\\": f\\\"step {k}\\\",\\n                        \\\"kind\\\": \\\"slide\\\",\\n                        \\\"label\\\": f\\\"assembly_order, step {k}\\\",\\n                    }\\n                    rows_in, hits = _flexes(\\n                        coming,\\n                        flexes,\\n                        hits,\\n                        names,\\n                        keys,\\n                        (-span,) if turn else (-span, 0.0),\\n                        out_dir,\\n                        problems,\\n                        touch=False,\\n                    )\\n                    flexed.append(rows_in)\\n                    row[\\\"flex\\\"] = rows_in\\n                    if hits:\\n                        row[\\\"ok\\\"] = False\\n                        worst = max(hits, key=lambda h: h[\\\"volume_mm3\\\"])\\n                        row[\\\"approach_collision\\\"] = _public(worst)\\n                        problems.append(\\n                            f\\\"assembly_order, step {k}: coming in along {_vec(direction)}, \\\"\\n                            f\\\"{worst['moving']} hits {worst['with']} {-worst['pose']:g} mm before \\\"\\n                            f\\\"it is in ({worst['volume_mm3']} mm³, {worst['thickness_mm']} mm \\\"\\n                            \\\"thick): deeper than any flex it declares\\\"\\n                        )\\n                if not approach[\\\"ok\\\"]:\\n                    row[\\\"ok\\\"] = False\\n                    free = [\\n                        name\\n                        for name, axis in AXES.items()\\n                        if blocked(\\n                            ctx,\\n                            meshes,\\n                            [(p[\\\"name\\\"], p[\\\"_mesh\\\"]) for p in against],\\n                            np.array(axis, float),\\n                            fits,\\n                        )[\\\"ok\\\"]\\n                    ]\\n                    row[\\\"approach\\\"] = approach\\n                    row[\\\"free_axes\\\"] = free\\n                    problems.append(\\n                        f\\\"assembly_order, step {k}: {', '.join(step['instances'])} does not go in \\\"\\n                        f\\\"moving along {_vec(direction)}: it hits \\\"\\n                        f\\\"{', '.join(approach['against'])} on {approach['area_mm2']} mm² of its \\\"\\n                        f\\\"shadow (zone {approach['bounds']}); \\\"\\n                        + (\\n                            f\\\"it would go in along {', '.join(free)}\\\"\\n                            if free\\n\", \"stderr\": \"\", \"stdout_bytes\": 6516, \"stderr_bytes\": 0, \"stdout_omitted_bytes\": 0, \"stderr_omitted_bytes\": 0, \"files\": {\"created\": [], \"modified\": [], \"deleted\": []}}"
+      },
+      {
+        "role": "assistant",
+        "content": "I've mapped the Pi 4 ports and standoffs from the standard board model — now building the snap-together base and lid."
+      },
+      {
+        "type": "function_call",
+        "call_id": "call_01a19f58d3d57395a433319a4c1af499",
+        "name": "run_shell",
+        "arguments": "{\"cmd\":\"sed -n 300,370p /opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/spec.py\"}"
+      },
+      {
+        "type": "function_call_output",
+        "call_id": "call_01a19f58d3d57395a433319a4c1af499",
+        "output": "{\"ok\": true, \"exit_code\": 0, \"timed_out\": false, \"seconds\": 0.014, \"stdout\": \"                )\\n        outside = [v for v in motion[\\\"rests\\\"] if not ends[0] - 1e-9 <= v <= ends[1] + 1e-9]\\n        if outside:\\n            raise SpecError(\\n                f\\\"{where}: a rest is a value of the range it sweeps, {ends[0]:g} to {ends[1]:g}; \\\"\\n                f\\\"got {outside[0]:g}\\\"\\n            )\\n        if motion[\\\"rests\\\"] and not motion[\\\"flex\\\"]:\\n            raise SpecError(\\n                f\\\"{where}: rests are where a detent holds the motion, so it needs the flex that \\\"\\n                \\\"rides over something between them\\\"\\n            )\\n        driven = [n for d in motion[\\\"drives\\\"] for n in d[\\\"instances\\\"]]\\n        if len(set(driven)) < len(driven):\\n            raise SpecError(f\\\"{where}: an instance it drives is in one group of its drives only\\\")\\n        motions.append({\\\"name\\\": name, \\\"instances\\\": moving, \\\"kind\\\": kind, **motion})\\n    steps = []\\n    for item in _list(pairs.get(\\\"assembly_order\\\", []), \\\"assembly_order\\\"):\\n        usage = (\\n            'assembly_order: each step is [[\\\"instance\\\", ...], direction it moves along as it '\\n            'comes in] or, if it turns after it comes in, [[\\\"instance\\\", ...], direction, '\\n            '[\\\"rotate\\\", point, axis, degrees]] or [[\\\"instance\\\", ...], direction, '\\n            '[\\\"screw\\\", point, axis, pitch_mm, degrees]], with an optional [\\\"flex\\\", '\\n            '[[\\\"instance\\\", \\\"instance\\\", mm, \\\"reason\\\"], ...]] at the end for what snaps in'\\n        )\\n        if not (isinstance(item, list) and len(item) in (2, 3, 4)):\\n            raise SpecError(f\\\"{usage}; got {item!r}\\\")\\n        where = f\\\"assembly_order {item[0]!r}\\\"\\n        step = {\\\"instances\\\": _names(item[0], where), \\\"direction\\\": _vector(item[1], where)}\\n        rest = item[2:]\\n        if rest and isinstance(rest[-1], list) and rest[-1][:1] == [\\\"flex\\\"]:\\n            step[\\\"flex\\\"] = _flex(rest[-1], where)\\n            rest = rest[:-1]\\n        if len(rest) > 1:\\n            raise SpecError(f\\\"{usage}; got {item!r}\\\")\\n        if rest:\\n            turn = rest[0]\\n            size = _size(turn, 0, {\\\"rotate\\\": 4, \\\"screw\\\": 5})\\n            if not (size and len(turn) == size):\\n                raise SpecError(f\\\"{usage}; got {item!r}\\\")\\n            if not _number(turn[-1]):\\n                raise SpecError(f\\\"{where}: the turn is a number of degrees\\\")\\n            step[\\\"turn\\\"] = {**_movement(turn[:-1], where), \\\"degrees\\\": float(turn[-1])}\\n        steps.append(step)\\n    in_place = pairs.get(\\\"print_in_place\\\")\\n    if in_place is not None:\\n        lo, hi = PRINT_IN_PLACE_GAP_MM\\n        if not (_number(in_place) and lo <= in_place <= hi):\\n            raise SpecError(\\n                f\\\"print_in_place is the smallest clearance between two parts printed together, \\\"\\n                f\\\"from {lo} to {hi} mm (closer, they fuse); got {in_place!r}\\\"\\n            )\\n        in_place = {\\\"min_gap_mm\\\": float(in_place)}\\n    held = _names(pairs[\\\"held\\\"], \\\"held\\\") if \\\"held\\\" in pairs else []\\n    pose = _print_pose(pairs.get(\\\"print_pose\\\", []), motions)\\n    if pose and in_place is None:\\n        raise SpecError(\\n            \\\"print_pose is the pose an assembly printed in place prints in: it needs print_in_place\\\"\\n        )\\n    return {\\n        \\\"allowed_interferences\\\": allowed,\\n        \\\"motions\\\": motions,\\n        \\\"assembly_order\\\": steps,\\n        \\\"print_in_place\\\": in_place,\\n        \\\"print_pose\\\": pose,\\n        \\\"held\\\": held,\\n    }\\n\\n\\ndef _print_pose(value: Any, motions: list[dict[str, Any]]) -> list[dict[str, Any]]:\\n    \\\"\\\"\\\"The motions that take the assembly to the pose it prints in, each at a value.\\\"\\\"\\\"\\n\", \"stderr\": \"\", \"stdout_bytes\": 3493, \"stderr_bytes\": 0, \"stdout_omitted_bytes\": 0, \"stderr_omitted_bytes\": 0, \"files\": {\"created\": [], \"modified\": [], \"deleted\": []}}"
+      },
+      {
+        "role": "user",
+        "content": "About 10 requests of the session are left: 12 of 100 done, USD 2.11 of 4.00 and 18 of 60 min. Put closing first: finish what you are fixing, export each part with the default parameters and look at it, verify the assembly if there is one, and close. A big change now may stay unverified."
+      },
+      {
+        "type": "function_call",
+        "call_id": "call_01a19f5bc35e72078acc5fe0e2e682f1",
+        "name": "scad_write",
+        "arguments": "{\"path\":\"model.scad\",\"content\":\"// Two-part case for a Raspberry Pi 4 Model B (PLA, Bambu Lab A1, 0.4 mm nozzle, no supports).\\n//\\n// Assembly coordinates: x east (USB/Ethernet end), y north (GPIO side), z up.\\n// The board sits at translate([3,3,4.4]): its underside is on four standoffs (floor 2 mm +\\n// standoff 2.4 mm).  Base outer 91 x 62 x 14 mm.  The lid is a cover whose skirt\\n// (outer 95 x 66 mm, walls 1.8 mm) slides over the base with 0.2 mm clearance per side;\\n// its underside ceiling is at z = 22.6 mm, clear of the 16 mm USB stacks (top z = 21.8 mm).\\n// Snap ribs on the base (y = +/- faces, z 10.2..11.0 mm) engage grooves inside the lid skirt.\\n//\\n// Ports (board coords + [3,3]): USB-C / 2x micro-HDMI / audio face -y (south wall of the\\n// base, windows open at the top of that wall so the board drops straight in); USB x2 and\\n// Ethernet face +x (east wall, likewise); microSD faces -x under the board (west wall,\\n// gable-roofed window: its 45 deg slopes are not overhangs, and the card passes the\\n// 14 mm wide lower part).  The lid skirt repeats the east windows and has notches over\\n// the south ports so plugs clear it while the case is closed.\\n//\\n// Print orientation: base as assembled (floor on the bed).  The lid is printed top-down\\n// (its top face on the bed, skirt pointing up, cavity open upward): no ceilings except\\n// the shallow snap-groove roofs.\\n\\nuse <cadverify_parts.scad>\\n\\npart = \\\"assembly\\\"; // [base, lid, assembly]\\n\\n$fn = 36;\\n\\ncadverify_only = \\\"\\\";\\nmodule instance(name, part, unit = 1) {\\n    echo(cadverify_instance = [name, part, unit]);\\n    if (cadverify_only == \\\"\\\" || cadverify_only == name) children();\\n}\\n\\n/* ================= base (print coords == assembly coords) ================= */\\n\\nmodule base_part() {\\n    difference() {\\n        union() {\\n            // floor and four walls: outer 91 x 62 x 14, wall 2, floor 2\\n            difference() {\\n                cube([91, 62, 14]);\\n                translate([2, 2, 2]) cube([87, 58, 13]);\\n            }\\n            // standoffs: d6, floor top (z2) to board underside (z4.4), at the board holes\\n            for (x = [6.5, 64.5], y = [6.5, 55.5])\\n                translate([x, y, 2]) cylinder(d = 6, h = 2.4);\\n            // snap ribs, protrude 0.5, z 10.2..11.0\\n            translate([20, 62, 10.2]) cube([51, 0.5, 0.8]);      // north, clear of ports\\n            translate([21, -0.5, 10.2]) cube([3, 0.5, 0.8]);     // south, on wall pillars\\n            translate([34.5, -0.5, 10.2]) cube([3, 0.5, 0.8]);   // (between the port windows)\\n            translate([48, -0.5, 10.2]) cube([4, 0.5, 0.8]);\\n        }\\n        // M2.5 pilot holes, d2.2, from standoff top down to z1 (blind)\\n        for (x = [6.5, 64.5], y = [6.5, 55.5])\\n            translate([x, y, 1]) cylinder(d = 2.2, h = 4);\\n        // south port windows, open at the top of the wall (z5..15), board drops straight in\\n        translate([8.7, -1, 5]) cube([11, 4, 10]);     // USB-C   (port x 9.7..18.7)\\n        translate([24.75, -1, 5]) cube([8.5, 4, 10]);  // HDMI 1  (port x 25.75..32.25)\\n        translate([38.25, -1, 5]) cube([8.5, 4, 10]);  // HDMI 2  (port x 39.25..45.75)\\n        translate([53, -1, 5]) cube([8, 4, 10]);       // audio   (port x 54..60)\\n        // east port windows, open at the top of the wall\\n        translate([88, 4.5, 5]) cube([4, 15, 10]);     // USB 1   (port y 5.25..18.75)\\n        translate([88, 22.5, 5]) cube([4, 15, 10]);    // USB 2   (port y 23.25..36.75)\\n        translate([88, 40.2, 5]) cube([4, 17.1, 10]);  // Ethernet(port y 40.95..56.55)\\n        // microSD window in the west wall: 14 wide under the board, 45 deg gable roof\\n        translate([3, 0, 0]) rotate([0, -90, 0])\\n            linear_extrude(height = 4)\\n                polygon(points = [[2.2, 21], [2.2, 35], [4.6, 35], [11.6, 28], [4.6, 21]]);\\n    }\\n}\\n\\n/* ================= lid, drawn in assembly coords, then flipped to print ================= */\\n\\nmodule lid_asm() {\\n    difference() {\\n        union() {\\n            translate([-2, -2, 22.6]) cube([95, 66, 2]);       // top plate, ceiling z22.6\\n            difference() {                                     // skirt z8..22.6, wall 1.8\\n                translate([-2, -2, 8]) cube([95, 66, 14.6]);\\n                translate([-0.2, -0.2, 7]) cube([91.4, 62.4, 15.6]);\\n            }\\n        }\\n        // vents over the processor (board SoC area), 5 slots 22 x 1.8 through the top\\n        for (i = [0 : 4]) translate([36, 26 + i * 3.4, 22]) cube([22, 1.8, 3]);\\n        // east windows in the skirt, continuing the base windows (notches from skirt rim)\\n        translate([90, 4.5, 8]) cube([4, 15, 14.2]);    // USB 1, up to z22.2\\n        translate([90, 22.5, 8]) cube([4, 15, 14.2]);   // USB 2\\n        translate([90, 40.2, 8]) cube([4, 17.1, 11.9]); // Ethernet, up to z19.9\\n        // south notches in the skirt so plugs reach the south ports with the lid on\\n        translate([8.7, -3, 8]) cube([11, 4, 1.6]);     // USB-C, up to z9.6\\n        translate([24.75, -3, 8]) cube([8.5, 4, 1.4]);  // HDMI 1, up to z9.4\\n        translate([38.25, -3, 8]) cube([8.5, 4, 1.4]);  // HDMI 2\\n        translate([53, -3, 8]) cube([8, 4, 4.4]);       // audio, up to z12.4\\n        // snap grooves inside the skirt: z10..11.2, 0.7 deep, for the base ribs\\n        translate([18, 62.2, 10]) cube([55, 0.7, 1.2]);   // north\\n        translate([4, -0.9, 10]) cube([83, 0.7, 1.2]);    // south\\n    }\\n}\\n\\nmodule lid_part() {\\n    // assembly -> print: (x, y, z) -> (x + 2, 64 - y, 24.6 - z); top face on the bed\\n    translate([2, 64, 24.6]) rotate([180, 0, 0]) lid_asm();\\n}\\n\\n/* ================= output ================= */\\n\\nif (part == \\\"base\\\") {\\n    echo(cadverify_spec = [\\n        [\\\"bounds\\\", [[0, 0, 0], [91, 62, 14]]],\\n        [\\\"bodies\\\", 1],\\n        [\\\"through_holes\\\", 1],\\n        [\\\"support_faces\\\", [[\\\"bed\\\", \\\"-z\\\", 5600]]],\\n        [\\\"overhangs_allowed\\\", [\\n            [\\\"screw pilot hole floors\\\", [[2, 2, 0.4], [89, 60, 1.6]]],\\n            [\\\"north snap rib underside\\\", [[19, 61.5, 9.6], [72, 63, 10.4]]],\\n            [\\\"south snap rib undersides\\\", [[19, -1, 9.6], [53, 0.5, 10.4]]]\\n        ]],\\n        [\\\"copies\\\", 1],\\n        [\\\"details\\\", [\\n            [\\\"base floor\\\", \\\"thickness\\\", [45, 31, -2], [0, 0, 1], 2],\\n            [\\\"front wall\\\", \\\"thickness\\\", [22, -2, 7], [0, 1, 0], 2],\\n            [\\\"standoff\\\", \\\"material\\\", [[3.5, 3.5, 2], [9.5, 9.5, 4.4]], 0.55],\\n            [\\\"screw pilot\\\", \\\"hole\\\", [6.5, 6.5, 8], [0, 0, -1], [[0, 2.2], [2, 2.2], [3, 2.2]]],\\n            [\\\"usb-c opening\\\", \\\"void\\\", [[8.7, 0, 5], [19.7, 2, 9.4]], 0.9],\\n            [\\\"ethernet opening\\\", \\\"void\\\", [[89, 40.2, 5], [91, 57.3, 14]], 0.9],\\n            [\\\"microsd opening\\\", \\\"void\\\", [[0, 21, 2.2], [2, 35, 4.6]], 0.9],\\n            [\\\"north snap rib\\\", \\\"material\\\", [[20, 62, 10.2], [71, 62.5, 11.0]], 0.85]\\n        ]]\\n    ]);\\n    base_part();\\n} else if (part == \\\"lid\\\") {\\n    // spec in print coordinates (top face on the bed, skirt up)\\n    echo(cadverify_spec = [\\n        [\\\"bounds\\\", [[0, 0, 0], [95, 66, 16.6]]],\\n        [\\\"bodies\\\", 1],\\n        [\\\"through_holes\\\", 5],\\n        [\\\"support_faces\\\", [[\\\"bed\\\", \\\"-z\\\", 5900]]],\\n        [\\\"overhangs_allowed\\\", [\\n            [\\\"north snap groove roof\\\", [[19, 0.5, 13], [76, 2.5, 15]]],\\n            [\\\"south snap groove roof\\\", [[5, 63.5, 13], [89, 65.5, 15]]]\\n        ]],\\n        [\\\"copies\\\", 1],\\n        [\\\"details\\\", [\\n            [\\\"lid top\\\", \\\"thickness\\\", [12, 54, -2], [0, 0, 1], 2],\\n            [\\\"processor vents\\\", \\\"void\\\", [[38, 22.6, 0], [60, 38, 2]], 0.5],\\n            [\\\"lid usb opening\\\", \\\"void\\\", [[93.2, 44.5, 2.4], [95, 59.5, 16.6]], 0.9],\\n            [\\\"north snap groove\\\", \\\"void\\\", [[20, 1.1, 13.4], [75, 1.8, 14.6]], 0.85],\\n            [\\\"skirt wall\\\", \\\"thickness\\\", [20, 68, 8], [0, -1, 0], 1.8]\\n        ]]\\n    ]);\\n    lid_part();\\n} else if (part == \\\"assembly\\\") {\\n    echo(cadverify_spec = [\\n        [\\\"bounds\\\", [[-2, -2, 0], [93, 64, 24.6]]],\\n        [\\\"assembly_order\\\", [\\n            [[\\\"base\\\"], [0, 0, 0]],\\n            [[\\\"board\\\"], [0, 0, -1]],\\n            [[\\\"lid\\\"], [0, 0, -1],\\n                [\\\"flex\\\", [[\\\"lid\\\", \\\"base\\\", 0.4, \\\"snap ribs ride over the lid skirt into their grooves\\\"]]]]\\n        ]],\\n        [\\\"held\\\", [\\\"lid\\\"]]\\n    ]);\\n    instance(\\\"base\\\", \\\"base\\\") base_part();\\n    instance(\\\"board\\\", \\\"standard:pi4_board\\\") translate([3, 3, 4.4]) pi4_board();\\n    // print -> assembly is the inverse of the flip in lid_part()\\n    instance(\\\"lid\\\", \\\"lid\\\") translate([-2, 64, 24.6]) rotate([180, 0, 0]) lid_part();\\n}\\n\"}"
+      },
+      {
+        "type": "function_call_output",
+        "call_id": "call_01a19f5bc35e72078acc5fe0e2e682f1",
+        "output": "{\"ok\": true, \"path\": \"model.scad\", \"replaced\": false, \"bytes\": 8350, \"lines\": 166, \"sha256\": \"36173f45e776c787323c2147dd06b2a25dbf3224fe530a8f426400bb7c8e9376\"}"
+      },
+      {
+        "role": "user",
+        "content": "About 7 requests of the session are left: 13 of 100 done, USD 2.59 of 4.00 and 22 of 60 min. Put closing first: finish what you are fixing, export each part with the default parameters and look at it, verify the assembly if there is one, and close. A big change now may stay unverified."
+      },
+      {
+        "type": "function_call",
+        "call_id": "call_01a19f5c154172b6b2bd34f9b449969e",
+        "name": "scad_compile",
+        "arguments": "{\"path\":\"model.scad\"}"
+      },
+      {
+        "type": "function_call",
+        "call_id": "call_01a19f5c1596728f83e930aaef8a0fef",
+        "name": "scad_export",
+        "arguments": "{\"path\":\"model.scad\",\"part\":\"base\"}"
+      },
+      {
+        "type": "function_call",
+        "call_id": "call_01a19f5c1607730e9aa42a1f22457c2c",
+        "name": "scad_export",
+        "arguments": "{\"path\":\"model.scad\",\"part\":\"lid\"}"
+      },
+      {
+        "type": "function_call",
+        "call_id": "call_01a19f5c167977b2a82ad5740a10b228",
+        "name": "scad_export",
+        "arguments": "{\"path\":\"model.scad\",\"part\":\"assembly\"}"
+      },
+      {
+        "type": "function_call_output",
+        "call_id": "call_01a19f5c154172b6b2bd34f9b449969e",
+        "output": "{\"ok\": true, \"echo\": [\"cadverify_spec = [[\\\"bounds\\\", [[-2, -2, 0], [93, 64, 24.6]]], [\\\"assembly_order\\\", [[[\\\"base\\\"], [0, 0, 0]], [[\\\"board\\\"], [0, 0, -1]], [[\\\"lid\\\"], [0, 0, -1], [\\\"flex\\\", [[\\\"lid\\\", \\\"base\\\", 0.4, \\\"snap ribs ride over the lid skirt into their grooves\\\"]]]]]], [\\\"held\\\", [\\\"lid\\\"]]]\", \"cadverify_instance = [\\\"base\\\", \\\"base\\\", 1]\", \"cadverify_instance = [\\\"board\\\", \\\"standard:pi4_board\\\", 1]\", \"cadverify_instance = [\\\"lid\\\", \\\"lid\\\", 1]\"], \"warnings\": [], \"asserts_failed\": [], \"errors\": [], \"seconds\": 0.065, \"returncode\": 0, \"timed_out\": false}"
+      },
+      {
+        "type": "function_call_output",
+        "call_id": "call_01a19f5c1596728f83e930aaef8a0fef",
+        "output": [
+          {
+            "type": "input_text",
+            "text": "{\"ok\": true, \"path\": \"exports/model.base.87e59dfb.stl\", \"sha256\": \"ddcad85d0186588716e763129b56ad719a05f6c78e86b0c5bb1d669f9b823a8f\", \"part\": \"base\", \"empty\": false, \"warnings\": [], \"asserts_failed\": [], \"errors\": [], \"seconds\": 0.089, \"returncode\": 0, \"timed_out\": false, \"mesh\": {\"triangles\": 1380, \"watertight\": true, \"winding_consistent\": true, \"bad_edges\": 0, \"bad_edge_locations\": [], \"volume_mm3\": 17018.022, \"bounds\": [[0.0, -0.5, 0.0], [91.0, 62.5, 14.0]], \"size\": [91.0, 63.0, 14.0], \"bodies\": 1, \"cavities\": 0, \"inverted_shells\": 0, \"through_holes\": 1}, \"spec\": {\"bounds\": [[0.0, 0.0, 0.0], [91.0, 62.0, 14.0]], \"bodies\": 1, \"through_holes\": 1, \"support_faces\": [{\"name\": \"bed\", \"direction\": \"-z\", \"min_area_mm2\": 5600}], \"overhangs_allowed\": [{\"name\": \"screw pilot hole floors\", \"bounds\": [[2.0, 2.0, 0.4], [89.0, 60.0, 1.6]]}, {\"name\": \"north snap rib underside\", \"bounds\": [[19.0, 61.5, 9.6], [72.0, 63.0, 10.4]]}, {\"name\": \"south snap rib undersides\", \"bounds\": [[19.0, -1.0, 9.6], [53.0, 0.5, 10.4]]}], \"copies\": 1, \"details\": [{\"name\": \"base floor\", \"kind\": \"thickness\", \"point\": [45.0, 31.0, -2.0], \"direction\": [0.0, 0.0, 1.0], \"mm\": 2.0}, {\"name\": \"front wall\", \"kind\": \"thickness\", \"point\": [22.0, -2.0, 7.0], \"direction\": [0.0, 1.0, 0.0], \"mm\": 2.0}, {\"name\": \"standoff\", \"kind\": \"material\", \"box\": [[3.5, 3.5, 2.0], [9.5, 9.5, 4.4]], \"fraction\": 0.55}, {\"name\": \"screw pilot\", \"kind\": \"hole\", \"point\": [6.5, 6.5, 8.0], \"direction\": [0.0, 0.0, -1.0], \"diameters\": [[0.0, 2.2], [2.0, 2.2], [3.0, 2.2]]}, {\"name\": \"usb-c opening\", \"kind\": \"void\", \"box\": [[8.7, 0.0, 5.0], [19.7, 2.0, 9.4]], \"fraction\": 0.9}, {\"name\": \"ethernet opening\", \"kind\": \"void\", \"box\": [[89.0, 40.2, 5.0], [91.0, 57.3, 14.0]], \"fraction\": 0.9}, {\"name\": \"microsd opening\", \"kind\": \"void\", \"box\": [[0.0, 21.0, 2.2], [2.0, 35.0, 4.6]], \"fraction\": 0.9}, {\"name\": \"north snap rib\", \"kind\": \"material\", \"box\": [[20.0, 62.0, 10.2], [71.0, 62.5, 11.0]], \"fraction\": 0.85}]}, \"spec_error\": null, \"spec_check\": {\"ok\": false, \"bounds\": {\"ok\": false, \"expected\": [[0.0, 0.0, 0.0], [91.0, 62.0, 14.0]], \"actual\": [[0.0, -0.5, 0.0], [91.0, 62.5, 14.0]], \"tolerance_mm\": 0.2, \"deviations\": [\"min y: measured -0.500, specified 0 (off by -0.500 mm)\", \"max y: measured 62.500, specified 62 (off by +0.500 mm)\"]}, \"bodies\": {\"ok\": true, \"expected\": 1, \"actual\": 1}, \"through_holes\": {\"ok\": true, \"expected\": 1, \"actual\": 1}, \"support_faces\": [{\"name\": \"bed\", \"direction\": \"-z\", \"ok\": true, \"min_area_mm2\": 5600, \"area_on_extreme_plane_mm2\": 5642.0, \"extreme_plane\": \"z = 0.000\", \"largest_flat_face\": {\"plane\": \"z = 0.000\", \"area_mm2\": 5642.0}}], \"details\": [{\"name\": \"base floor\", \"kind\": \"thickness\", \"ok\": true, \"expected_mm\": 2.0, \"measured_mm\": 2.0, \"enters_at\": [45.0, 31.0, 0.0], \"tolerance_mm\": 0.1}, {\"name\": \"front wall\", \"kind\": \"thickness\", \"ok\": true, \"expected_mm\": 2.0, \"measured_mm\": 2.0, \"enters_at\": [22.0, 0.0, 7.0], \"tolerance_mm\": 0.1}, {\"name\": \"standoff\", \"kind\": \"material\", \"box\": [[3.5, 3.5, 2.0], [9.5, 9.5, 4.4]], \"material_fraction\": 0.6764, \"min_fraction\": 0.55, \"ok\": true}, {\"name\": \"screw pilot\", \"kind\": \"hole\", \"ok\": true, \"mouth\": [6.5, 6.5, 4.4], \"mouth_from_point_mm\": 3.6, \"diameters\": [{\"depth_mm\": 0.0, \"expected_mm\": 2.2, \"measured_mm\": 2.194, \"ok\": true}, {\"depth_mm\": 2.0, \"expected_mm\": 2.2, \"measured_mm\": 2.194, \"ok\": true}, {\"depth_mm\": 3.0, \"expected_mm\": 2.2, \"measured_mm\": 2.194, \"ok\": true}], \"profile\": [[0.0, 2.194], [0.25, 2.194], [0.5, 2.194], [0.75, 2.194], [1.0, 2.194], [1.5, 2.194], [2.0, 2.194], [3.0, 2.194], [4.0, null], [5.0, null]], \"note\": \"Ø of the circle with the same area, at each depth from the mouth (the first closed section around the axis, coming from the point); 0 = 0.05 mm\"}, {\"name\": \"usb-c opening\", \"kind\": \"void\", \"box\": [[8.7, 0.0, 5.0], [19.7, 2.0, 9.4]], \"material_fraction\": 0.0, \"min_empty_fraction\": 0.9, \"ok\": true}, {\"name\": \"ethernet opening\", \"kind\": \"void\", \"box\": [[89.0, 40.2, 5.0], [91.0, 57.3, 14.0]], \"material_fraction\": 0.0, \"min_empty_fraction\": 0.9, \"ok\": true}, {\"name\": \"microsd opening\", \"kind\": \"void\", \"box\": [[0.0, 21.0, 2.2], [2.0, 35.0, 4.6]], \"material_fraction\": 0.0, \"min_empty_fraction\": 0.9, \"ok\": true}, {\"name\": \"north snap rib\", \"kind\": \"material\", \"box\": [[20.0, 62.0, 10.2], [71.0, 62.5, 11.0]], \"material_fraction\": 1.0, \"min_fraction\": 0.85, \"ok\": true}]}, \"sheet\": {\"png\": \"renders/sheet-015.png\", \"views\": [\"iso\", \"iso_back\", \"front\", \"side\", \"top\", \"bottom\"], \"note\": \"The sheet of this mesh is attached as an image: look at it before going on. It comes with the export's numbers, so it leaves nothing to confirm. An export of the same mesh does not repeat it: ask for it with render_sheet.\"}}"
+          },
+          {
+            "type": "input_image",
+            "image_url": "<inline image/png base64, 148388 chars, sha256:cc76575b0e1948de>"
+          }
+        ]
+      },
+      {
+        "type": "function_call_output",
+        "call_id": "call_01a19f5c1607730e9aa42a1f22457c2c",
+        "output": [
+          {
+            "type": "input_text",
+            "text": "{\"ok\": true, \"path\": \"exports/model.lid.6029fe16.stl\", \"sha256\": \"98a37a81fc861be8ba565253c7b9795b4af6c43ad01b14cc41ccbc6c296ae346\", \"part\": \"lid\", \"empty\": false, \"warnings\": [], \"asserts_failed\": [], \"errors\": [], \"seconds\": 0.074, \"returncode\": 0, \"timed_out\": false, \"mesh\": {\"triangles\": 292, \"watertight\": true, \"winding_consistent\": true, \"bad_edges\": 0, \"bad_edge_locations\": [], \"volume_mm3\": 19036.782, \"bounds\": [[0.0, 0.0, 0.0], [95.0, 66.0, 16.6]], \"size\": [95.0, 66.0, 16.6], \"bodies\": 1, \"cavities\": 1, \"inverted_shells\": 0, \"through_holes\": 5}, \"spec\": {\"bounds\": [[0.0, 0.0, 0.0], [95.0, 66.0, 16.6]], \"bodies\": 1, \"through_holes\": 5, \"support_faces\": [{\"name\": \"bed\", \"direction\": \"-z\", \"min_area_mm2\": 5900}], \"overhangs_allowed\": [{\"name\": \"north snap groove roof\", \"bounds\": [[19.0, 0.5, 13.0], [76.0, 2.5, 15.0]]}, {\"name\": \"south snap groove roof\", \"bounds\": [[5.0, 63.5, 13.0], [89.0, 65.5, 15.0]]}], \"copies\": 1, \"details\": [{\"name\": \"lid top\", \"kind\": \"thickness\", \"point\": [12.0, 54.0, -2.0], \"direction\": [0.0, 0.0, 1.0], \"mm\": 2.0}, {\"name\": \"processor vents\", \"kind\": \"void\", \"box\": [[38.0, 22.6, 0.0], [60.0, 38.0, 2.0]], \"fraction\": 0.5}, {\"name\": \"lid usb opening\", \"kind\": \"void\", \"box\": [[93.2, 44.5, 2.4], [95.0, 59.5, 16.6]], \"fraction\": 0.9}, {\"name\": \"north snap groove\", \"kind\": \"void\", \"box\": [[20.0, 1.1, 13.4], [75.0, 1.8, 14.6]], \"fraction\": 0.85}, {\"name\": \"skirt wall\", \"kind\": \"thickness\", \"point\": [20.0, 68.0, 8.0], \"direction\": [0.0, -1.0, 0.0], \"mm\": 1.8}]}, \"spec_error\": null, \"spec_check\": {\"ok\": false, \"bounds\": {\"ok\": true, \"expected\": [[0.0, 0.0, 0.0], [95.0, 66.0, 16.6]], \"actual\": [[0.0, 0.0, 0.0], [95.0, 66.0, 16.6]], \"tolerance_mm\": 0.2, \"deviations\": []}, \"bodies\": {\"ok\": true, \"expected\": 1, \"actual\": 1}, \"through_holes\": {\"ok\": true, \"expected\": 5, \"actual\": 5}, \"support_faces\": [{\"name\": \"bed\", \"direction\": \"-z\", \"ok\": true, \"min_area_mm2\": 5900, \"area_on_extreme_plane_mm2\": 6072.0, \"extreme_plane\": \"z = 0.000\", \"largest_flat_face\": {\"plane\": \"z = 0.000\", \"area_mm2\": 6072.0}}], \"details\": [{\"name\": \"lid top\", \"kind\": \"thickness\", \"ok\": true, \"expected_mm\": 2.0, \"measured_mm\": 2.0, \"enters_at\": [12.0, 54.0, 0.0], \"tolerance_mm\": 0.1}, {\"name\": \"processor vents\", \"kind\": \"void\", \"ok\": false, \"error\": \"manifold3d does not accept the mesh (it is not a closed, oriented solid)\"}, {\"name\": \"lid usb opening\", \"kind\": \"void\", \"ok\": false, \"error\": \"manifold3d does not accept the mesh (it is not a closed, oriented solid)\"}, {\"name\": \"north snap groove\", \"kind\": \"void\", \"ok\": false, \"error\": \"manifold3d does not accept the mesh (it is not a closed, oriented solid)\"}, {\"name\": \"skirt wall\", \"kind\": \"thickness\", \"ok\": true, \"expected_mm\": 1.8, \"measured_mm\": 1.8, \"enters_at\": [20.0, 66.0, 8.0], \"tolerance_mm\": 0.1}]}, \"sheet\": {\"png\": \"renders/sheet-016.png\", \"views\": [\"iso\", \"iso_back\", \"front\", \"side\", \"top\", \"bottom\"], \"note\": \"The sheet of this mesh is attached as an image: look at it before going on. It comes with the export's numbers, so it leaves nothing to confirm. An export of the same mesh does not repeat it: ask for it with render_sheet.\"}}"
+          },
+          {
+            "type": "input_image",
+            "image_url": "<inline image/png base64, 143520 chars, sha256:9528e217c4548286>"
+          }
+        ]
+      },
+      {
+        "type": "function_call_output",
+        "call_id": "call_01a19f5c167977b2a82ad5740a10b228",
+        "output": [
+          {
+            "type": "input_text",
+            "text": "{\"ok\": true, \"path\": \"exports/model.assembly.8a16e71a.stl\", \"sha256\": \"9ee791e1af0c1a74c1914ce87c0b268819b0ec665fd04ad18e6aa2bebb3eaf2e\", \"part\": \"assembly\", \"empty\": false, \"warnings\": [], \"asserts_failed\": [], \"errors\": [], \"seconds\": 0.116, \"returncode\": 0, \"timed_out\": false, \"mesh\": {\"triangles\": 2770, \"watertight\": false, \"winding_consistent\": true, \"bad_edges\": 15, \"bad_edge_locations\": [[21.0, -0.2, 10.6], [22.5, -0.2, 10.2], [22.5, -0.2, 11.0], [24.0, -0.2, 10.6], [34.5, -0.2, 10.6], [36.0, -0.2, 10.2], [36.0, -0.2, 11.0], [37.5, -0.2, 10.6], [48.0, -0.2, 10.6], [50.0, -0.2, 10.2]], \"volume_mm3\": 57997.294, \"bounds\": [[-2.0, -2.0, 0.0], [93.0, 64.0, 24.6]], \"size\": [95.0, 66.0, 24.6], \"bodies\": 6, \"cavities\": 1, \"inverted_shells\": 1, \"through_holes\": null}, \"spec\": {\"bounds\": [[-2.0, -2.0, 0.0], [93.0, 64.0, 24.6]], \"bodies\": null, \"through_holes\": null, \"support_faces\": [], \"overhangs_allowed\": [], \"allowed_interferences\": [], \"motions\": [], \"assembly_order\": [{\"instances\": [\"base\"], \"direction\": [0.0, 0.0, 0.0]}, {\"instances\": [\"board\"], \"direction\": [0.0, 0.0, -1.0]}, {\"instances\": [\"lid\"], \"direction\": [0.0, 0.0, -1.0], \"flex\": [{\"a\": \"lid\", \"b\": \"base\", \"max_mm\": 0.4, \"reason\": \"snap ribs ride over the lid skirt into their grooves\"}]}], \"print_in_place\": null, \"print_pose\": [], \"held\": [\"lid\"]}, \"spec_error\": null, \"spec_check\": {\"ok\": true, \"bounds\": {\"ok\": true, \"expected\": [[-2.0, -2.0, 0.0], [93.0, 64.0, 24.6]], \"actual\": [[-2.0, -2.0, 0.0], [93.0, 64.0, 24.6]], \"tolerance_mm\": 0.2, \"deviations\": []}, \"support_faces\": [], \"details\": []}, \"instances\": [{\"name\": \"base\", \"part\": \"base\", \"unit\": 1}, {\"name\": \"board\", \"part\": \"standard:pi4_board\", \"unit\": 1}, {\"name\": \"lid\", \"part\": \"lid\", \"unit\": 1}], \"sheet\": {\"png\": \"renders/sheet-017.png\", \"views\": [\"iso\", \"iso_back\", \"front\", \"side\", \"top\", \"bottom\"], \"note\": \"The sheet of this mesh is attached as an image: look at it before going on. It comes with the export's numbers, so it leaves nothing to confirm. An export of the same mesh does not repeat it: ask for it with render_sheet.\"}}"
+          },
+          {
+            "type": "input_image",
+            "image_url": "<inline image/png base64, 123840 chars, sha256:31e4892b78a707a6>"
+          }
+        ]
+      },
+      {
+        "role": "user",
+        "content": "About 7 requests of the session are left: 14 of 100 done, USD 2.62 of 4.00 and 22 of 60 min. Put closing first: finish what you are fixing, export each part with the default parameters and look at it, verify the assembly if there is one, and close. A big change now may stay unverified."
+      },
+      {
+        "role": "assistant",
+        "content": "Base fits except its snap ribs extend the bounds, and the lid mesh needs a manifold check — diagnosing both and verifying printability and assembly now."
+      },
+      {
+        "type": "function_call",
+        "call_id": "call_01a19f5c99e9765c8e01053990113ca0",
+        "name": "scad_patch",
+        "arguments": "{\"path\":\"model.scad\",\"old\":\"        [\\\"bounds\\\", [[0, 0, 0], [91, 62, 14]]],\",\"new\":\"        [\\\"bounds\\\", [[0, -0.5, 0], [91, 62.5, 14]]],\"}"
+      },
+      {
+        "type": "function_call",
+        "call_id": "call_01a19f5c9b4972a183237b6d5aeca3fd",
+        "name": "printability_report",
+        "arguments": "{\"stl\":\"exports/model.base.87e59dfb.stl\"}"
+      },
+      {
+        "type": "function_call",
+        "call_id": "call_01a19f5c9bc3767ea795233df155dc30",
+        "name": "printability_report",
+        "arguments": "{\"stl\":\"exports/model.lid.6029fe16.stl\"}"
+      },
+      {
+        "type": "function_call",
+        "call_id": "call_01a19f5c9c7e7108812541bfabbd92c6",
+        "name": "run_python",
+        "arguments": "{\"code\":\"import trimesh, manifold3d, numpy as np\\nfor p in [\\\"exports/model.lid.6029fe16.stl\\\",\\\"exports/model.base.87e59dfb.stl\\\"]:\\n    m=trimesh.load_mesh(p,process=False)\\n    print(p, m.is_watertight, m.is_winding_consistent, m.volume)\\n    try:\\n        mm=manifold3d.Manifold(mesh=manifold3d.Mesh(np.array(m.vertices,dtype=np.float32), np.array(m.faces,dtype=np.uint32)))\\n        print(\\\" manifold status\\\", mm.status, \\\"vol\\\", mm.volume, \\\"genus\\\", mm.genus)\\n    except Exception as e:\\n        print(\\\" err\\\", e)\\n    # self intersection?\\n    print(\\\" euler\\\", m.euler_number)\\n\"}"
+      },
+      {
+        "type": "function_call_output",
+        "call_id": "call_01a19f5c99e9765c8e01053990113ca0",
+        "output": "{\"ok\": true, \"path\": \"model.scad\", \"line\": 108, \"lines_removed\": 1, \"lines_added\": 1, \"bytes\": 8355, \"lines\": 166, \"sha256\": \"1cafe727f401e6ca1facc8a607fb388aff62e62770584295b20312ed6371aed9\"}"
+      },
+      {
+        "type": "function_call_output",
+        "call_id": "call_01a19f5c9b4972a183237b6d5aeca3fd",
+        "output": "{\"ok\": true, \"printer\": \"bambu_a1\", \"bed_mm\": [256.0, 256.0, 256.0], \"size\": [91.0, 63.0, 14.0], \"fits_bed\": true, \"bed_margin_mm\": [82.5, 96.5, 242.0], \"z_min\": 0.0, \"base_area_mm2\": 5642.0, \"max_overhang_deg\": 45.0, \"bridge_deg\": 60.0, \"max_bridge_mm\": 10.0, \"overhang_area_mm2\": 30.5, \"zones_total\": 4, \"zones_undeclared\": 0, \"undeclared_area_mm2\": 0, \"zones\": [{\"area_mm2\": 25.5, \"max_angle_deg\": 90.0, \"bounds\": [[20.0, 62.0, 10.2], [71.0, 62.5, 10.2]], \"faces\": 2, \"declared\": true, \"declared_as\": \"north snap rib underside\", \"id\": \"v1\", \"bridge\": null}, {\"area_mm2\": 2.0, \"max_angle_deg\": 90.0, \"bounds\": [[48.0, -0.5, 10.2], [52.0, 0.0, 10.2]], \"faces\": 2, \"declared\": true, \"declared_as\": \"south snap rib undersides\", \"id\": \"v2\", \"bridge\": null}, {\"area_mm2\": 1.5, \"max_angle_deg\": 90.0, \"bounds\": [[21.0, -0.5, 10.2], [24.0, 0.0, 10.2]], \"faces\": 2, \"declared\": true, \"declared_as\": \"south snap rib undersides\", \"id\": \"v3\", \"bridge\": null}, {\"area_mm2\": 1.5, \"max_angle_deg\": 90.0, \"bounds\": [[34.5, -0.5, 10.2], [37.5, 0.0, 10.2]], \"faces\": 2, \"declared\": true, \"declared_as\": \"south snap rib undersides\", \"id\": \"v4\", \"bridge\": null}], \"in_the_air\": [], \"allowed_coverage\": {\"share\": 0.593, \"per_box\": [{\"name\": \"screw pilot hole floors\", \"share\": 0.5869}, {\"name\": \"north snap rib underside\", \"share\": 0.0037}, {\"name\": \"south snap rib undersides\", \"share\": 0.0024}]}, \"warning\": \"The .scad changed after this STL was exported: export it again\"}"
+      },
+      {
+        "type": "function_call_output",
+        "call_id": "call_01a19f5c9bc3767ea795233df155dc30",
+        "output": "{\"ok\": true, \"printer\": \"bambu_a1\", \"bed_mm\": [256.0, 256.0, 256.0], \"size\": [95.0, 66.0, 16.6], \"fits_bed\": true, \"bed_margin_mm\": [80.5, 95.0, 239.4], \"z_min\": 0.0, \"base_area_mm2\": 6072.0, \"max_overhang_deg\": 45.0, \"bridge_deg\": 60.0, \"max_bridge_mm\": 10.0, \"overhang_area_mm2\": 91.0, \"zones_total\": 3, \"zones_undeclared\": 0, \"undeclared_area_mm2\": 0, \"zones\": [{\"area_mm2\": 38.5, \"max_angle_deg\": 90.0, \"bounds\": [[20.0, 1.1, 14.6], [75.0, 1.8, 14.6]], \"faces\": 2, \"declared\": true, \"declared_as\": \"north snap groove roof\", \"id\": \"v1\", \"bridge\": null}, {\"area_mm2\": 34.3, \"max_angle_deg\": 90.0, \"bounds\": [[6.0, 64.2, 14.6], [55.0, 64.9, 14.6]], \"faces\": 2, \"declared\": true, \"declared_as\": \"south snap groove roof\", \"id\": \"v2\", \"bridge\": null}, {\"area_mm2\": 18.2, \"max_angle_deg\": 90.0, \"bounds\": [[63.0, 64.2, 14.6], [89.0, 64.9, 14.6]], \"faces\": 2, \"declared\": true, \"declared_as\": \"south snap groove roof\", \"id\": \"v3\", \"bridge\": null}], \"in_the_air\": [], \"allowed_coverage\": {\"share\": 0.0315, \"per_box\": [{\"name\": \"north snap groove roof\", \"share\": 0.0097}, {\"name\": \"south snap groove roof\", \"share\": 0.0218}]}, \"warning\": \"The .scad changed after this STL was exported: export it again\"}"
+      },
+      {
+        "type": "function_call_output",
+        "call_id": "call_01a19f5c9c7e7108812541bfabbd92c6",
+        "output": "{\"ok\": true, \"exit_code\": 0, \"timed_out\": false, \"seconds\": 1.176, \"stdout\": \"exports/model.lid.6029fe16.stl False True 19036.781999999996\\n manifold status <nanobind.nb_bound_method object at 0x7d3b6f590c00> vol <nanobind.nb_bound_method object at 0x7d3b6fefb3c0> genus <nanobind.nb_bound_method object at 0x7d3b6f567300>\\n euler 292\\nexports/model.base.87e59dfb.stl False True 17018.021666538967\\n manifold status <nanobind.nb_bound_method object at 0x7d3b6d649e40> vol <nanobind.nb_bound_method object at 0x7d3b6d649ec0> genus <nanobind.nb_bound_method object at 0x7d3b6d649f00>\\n euler 1380\\n\", \"stderr\": \"\", \"stdout_bytes\": 512, \"stderr_bytes\": 0, \"stdout_omitted_bytes\": 0, \"stderr_omitted_bytes\": 0, \"files\": {\"created\": [], \"modified\": [], \"deleted\": []}}"
+      },
+      {
+        "role": "user",
+        "content": "About 7 requests of the session are left: 15 of 100 done, USD 2.71 of 4.00 and 23 of 60 min. Put closing first: finish what you are fixing, export each part with the default parameters and look at it, verify the assembly if there is one, and close. A big change now may stay unverified."
+      },
+      {
+        "type": "function_call",
+        "call_id": "call_01a19f5d2b7a76f6a7e8b4f111bf4c4b",
+        "name": "scad_export",
+        "arguments": "{\"path\":\"model.scad\",\"part\":\"base\"}"
+      },
+      {
+        "type": "function_call",
+        "call_id": "call_01a19f5d2c12752bbf944ebdde5f0734",
+        "name": "scad_export",
+        "arguments": "{\"path\":\"model.scad\",\"part\":\"lid\"}"
+      },
+      {
+        "type": "function_call",
+        "call_id": "call_01a19f5d2ca970faaa2555c701748529",
+        "name": "interference_check",
+        "arguments": "{\"path\":\"model.scad\"}"
+      },
+      {
+        "type": "function_call",
+        "call_id": "call_01a19f5d2d11713b8727e6cff1fbbf55",
+        "name": "run_python",
+        "arguments": "{\"code\":\"import trimesh, numpy as np\\nraw=trimesh.load_mesh(\\\"exports/model.lid.6029fe16.stl\\\",process=False)\\nverts,inv=np.unique(raw.vertices[raw.faces].reshape(-1,3),axis=0,return_inverse=True)\\nm=trimesh.Trimesh(verts,inv.reshape(-1,3),process=False)\\nprint(\\\"watertight\\\",m.is_watertight,\\\"euler\\\",m.euler_number)\\ncomps=trimesh.graph.connected_components(m.face_adjacency,nodes=np.arange(len(m.faces)),min_len=1)\\ntri=m.triangles\\nsigned=np.einsum(\\\"ij,ij->i\\\",tri[:,0],np.cross(tri[:,1],tri[:,2]))/6\\nfor c in comps:\\n    print(\\\"shell faces\\\",len(c),\\\"vol\\\",round(float(signed[c].sum()),2),\\\"bounds\\\",np.round(m.vertices[m.faces[c]].reshape(-1,3).min(0),2),np.round(m.vertices[m.faces[c]].reshape(-1,3).max(0),2))\\n\"}"
+      },
+      {
+        "type": "function_call_output",
+        "call_id": "call_01a19f5d2b7a76f6a7e8b4f111bf4c4b",
+        "output": "{\"ok\": true, \"path\": \"exports/model.base.87e59dfb.stl\", \"sha256\": \"ddcad85d0186588716e763129b56ad719a05f6c78e86b0c5bb1d669f9b823a8f\", \"part\": \"base\", \"empty\": false, \"warnings\": [], \"asserts_failed\": [], \"errors\": [], \"seconds\": 0.066, \"returncode\": 0, \"timed_out\": false, \"mesh\": {\"triangles\": 1380, \"watertight\": true, \"winding_consistent\": true, \"bad_edges\": 0, \"bad_edge_locations\": [], \"volume_mm3\": 17018.022, \"bounds\": [[0.0, -0.5, 0.0], [91.0, 62.5, 14.0]], \"size\": [91.0, 63.0, 14.0], \"bodies\": 1, \"cavities\": 0, \"inverted_shells\": 0, \"through_holes\": 1}, \"spec\": {\"bounds\": [[0.0, -0.5, 0.0], [91.0, 62.5, 14.0]], \"bodies\": 1, \"through_holes\": 1, \"support_faces\": [{\"name\": \"bed\", \"direction\": \"-z\", \"min_area_mm2\": 5600}], \"overhangs_allowed\": [{\"name\": \"screw pilot hole floors\", \"bounds\": [[2.0, 2.0, 0.4], [89.0, 60.0, 1.6]]}, {\"name\": \"north snap rib underside\", \"bounds\": [[19.0, 61.5, 9.6], [72.0, 63.0, 10.4]]}, {\"name\": \"south snap rib undersides\", \"bounds\": [[19.0, -1.0, 9.6], [53.0, 0.5, 10.4]]}], \"copies\": 1, \"details\": [{\"name\": \"base floor\", \"kind\": \"thickness\", \"point\": [45.0, 31.0, -2.0], \"direction\": [0.0, 0.0, 1.0], \"mm\": 2.0}, {\"name\": \"front wall\", \"kind\": \"thickness\", \"point\": [22.0, -2.0, 7.0], \"direction\": [0.0, 1.0, 0.0], \"mm\": 2.0}, {\"name\": \"standoff\", \"kind\": \"material\", \"box\": [[3.5, 3.5, 2.0], [9.5, 9.5, 4.4]], \"fraction\": 0.55}, {\"name\": \"screw pilot\", \"kind\": \"hole\", \"point\": [6.5, 6.5, 8.0], \"direction\": [0.0, 0.0, -1.0], \"diameters\": [[0.0, 2.2], [2.0, 2.2], [3.0, 2.2]]}, {\"name\": \"usb-c opening\", \"kind\": \"void\", \"box\": [[8.7, 0.0, 5.0], [19.7, 2.0, 9.4]], \"fraction\": 0.9}, {\"name\": \"ethernet opening\", \"kind\": \"void\", \"box\": [[89.0, 40.2, 5.0], [91.0, 57.3, 14.0]], \"fraction\": 0.9}, {\"name\": \"microsd opening\", \"kind\": \"void\", \"box\": [[0.0, 21.0, 2.2], [2.0, 35.0, 4.6]], \"fraction\": 0.9}, {\"name\": \"north snap rib\", \"kind\": \"material\", \"box\": [[20.0, 62.0, 10.2], [71.0, 62.5, 11.0]], \"fraction\": 0.85}]}, \"spec_error\": null, \"spec_check\": {\"ok\": true, \"bounds\": {\"ok\": true, \"expected\": [[0.0, -0.5, 0.0], [91.0, 62.5, 14.0]], \"actual\": [[0.0, -0.5, 0.0], [91.0, 62.5, 14.0]], \"tolerance_mm\": 0.2, \"deviations\": []}, \"bodies\": {\"ok\": true, \"expected\": 1, \"actual\": 1}, \"through_holes\": {\"ok\": true, \"expected\": 1, \"actual\": 1}, \"support_faces\": [{\"name\": \"bed\", \"direction\": \"-z\", \"ok\": true, \"min_area_mm2\": 5600, \"area_on_extreme_plane_mm2\": 5642.0, \"extreme_plane\": \"z = 0.000\", \"largest_flat_face\": {\"plane\": \"z = 0.000\", \"area_mm2\": 5642.0}}], \"details\": [{\"name\": \"base floor\", \"kind\": \"thickness\", \"ok\": true, \"expected_mm\": 2.0, \"measured_mm\": 2.0, \"enters_at\": [45.0, 31.0, 0.0], \"tolerance_mm\": 0.1}, {\"name\": \"front wall\", \"kind\": \"thickness\", \"ok\": true, \"expected_mm\": 2.0, \"measured_mm\": 2.0, \"enters_at\": [22.0, 0.0, 7.0], \"tolerance_mm\": 0.1}, {\"name\": \"standoff\", \"kind\": \"material\", \"box\": [[3.5, 3.5, 2.0], [9.5, 9.5, 4.4]], \"material_fraction\": 0.6764, \"min_fraction\": 0.55, \"ok\": true}, {\"name\": \"screw pilot\", \"kind\": \"hole\", \"ok\": true, \"mouth\": [6.5, 6.5, 4.4], \"mouth_from_point_mm\": 3.6, \"diameters\": [{\"depth_mm\": 0.0, \"expected_mm\": 2.2, \"measured_mm\": 2.194, \"ok\": true}, {\"depth_mm\": 2.0, \"expected_mm\": 2.2, \"measured_mm\": 2.194, \"ok\": true}, {\"depth_mm\": 3.0, \"expected_mm\": 2.2, \"measured_mm\": 2.194, \"ok\": true}], \"profile\": [[0.0, 2.194], [0.25, 2.194], [0.5, 2.194], [0.75, 2.194], [1.0, 2.194], [1.5, 2.194], [2.0, 2.194], [3.0, 2.194], [4.0, null], [5.0, null]], \"note\": \"Ø of the circle with the same area, at each depth from the mouth (the first closed section around the axis, coming from the point); 0 = 0.05 mm\"}, {\"name\": \"usb-c opening\", \"kind\": \"void\", \"box\": [[8.7, 0.0, 5.0], [19.7, 2.0, 9.4]], \"material_fraction\": 0.0, \"min_empty_fraction\": 0.9, \"ok\": true}, {\"name\": \"ethernet opening\", \"kind\": \"void\", \"box\": [[89.0, 40.2, 5.0], [91.0, 57.3, 14.0]], \"material_fraction\": 0.0, \"min_empty_fraction\": 0.9, \"ok\": true}, {\"name\": \"microsd opening\", \"kind\": \"void\", \"box\": [[0.0, 21.0, 2.2], [2.0, 35.0, 4.6]], \"material_fraction\": 0.0, \"min_empty_fraction\": 0.9, \"ok\": true}, {\"name\": \"north snap rib\", \"kind\": \"material\", \"box\": [[20.0, 62.0, 10.2], [71.0, 62.5, 11.0]], \"material_fraction\": 1.0, \"min_fraction\": 0.85, \"ok\": true}]}}"
+      },
+      {
+        "type": "function_call_output",
+        "call_id": "call_01a19f5d2c12752bbf944ebdde5f0734",
+        "output": "{\"ok\": true, \"path\": \"exports/model.lid.6029fe16.stl\", \"sha256\": \"98a37a81fc861be8ba565253c7b9795b4af6c43ad01b14cc41ccbc6c296ae346\", \"part\": \"lid\", \"empty\": false, \"warnings\": [], \"asserts_failed\": [], \"errors\": [], \"seconds\": 0.058, \"returncode\": 0, \"timed_out\": false, \"mesh\": {\"triangles\": 292, \"watertight\": true, \"winding_consistent\": true, \"bad_edges\": 0, \"bad_edge_locations\": [], \"volume_mm3\": 19036.782, \"bounds\": [[0.0, 0.0, 0.0], [95.0, 66.0, 16.6]], \"size\": [95.0, 66.0, 16.6], \"bodies\": 1, \"cavities\": 1, \"inverted_shells\": 0, \"through_holes\": 5}, \"spec\": {\"bounds\": [[0.0, 0.0, 0.0], [95.0, 66.0, 16.6]], \"bodies\": 1, \"through_holes\": 5, \"support_faces\": [{\"name\": \"bed\", \"direction\": \"-z\", \"min_area_mm2\": 5900}], \"overhangs_allowed\": [{\"name\": \"north snap groove roof\", \"bounds\": [[19.0, 0.5, 13.0], [76.0, 2.5, 15.0]]}, {\"name\": \"south snap groove roof\", \"bounds\": [[5.0, 63.5, 13.0], [89.0, 65.5, 15.0]]}], \"copies\": 1, \"details\": [{\"name\": \"lid top\", \"kind\": \"thickness\", \"point\": [12.0, 54.0, -2.0], \"direction\": [0.0, 0.0, 1.0], \"mm\": 2.0}, {\"name\": \"processor vents\", \"kind\": \"void\", \"box\": [[38.0, 22.6, 0.0], [60.0, 38.0, 2.0]], \"fraction\": 0.5}, {\"name\": \"lid usb opening\", \"kind\": \"void\", \"box\": [[93.2, 44.5, 2.4], [95.0, 59.5, 16.6]], \"fraction\": 0.9}, {\"name\": \"north snap groove\", \"kind\": \"void\", \"box\": [[20.0, 1.1, 13.4], [75.0, 1.8, 14.6]], \"fraction\": 0.85}, {\"name\": \"skirt wall\", \"kind\": \"thickness\", \"point\": [20.0, 68.0, 8.0], \"direction\": [0.0, -1.0, 0.0], \"mm\": 1.8}]}, \"spec_error\": null, \"spec_check\": {\"ok\": false, \"bounds\": {\"ok\": true, \"expected\": [[0.0, 0.0, 0.0], [95.0, 66.0, 16.6]], \"actual\": [[0.0, 0.0, 0.0], [95.0, 66.0, 16.6]], \"tolerance_mm\": 0.2, \"deviations\": []}, \"bodies\": {\"ok\": true, \"expected\": 1, \"actual\": 1}, \"through_holes\": {\"ok\": true, \"expected\": 5, \"actual\": 5}, \"support_faces\": [{\"name\": \"bed\", \"direction\": \"-z\", \"ok\": true, \"min_area_mm2\": 5900, \"area_on_extreme_plane_mm2\": 6072.0, \"extreme_plane\": \"z = 0.000\", \"largest_flat_face\": {\"plane\": \"z = 0.000\", \"area_mm2\": 6072.0}}], \"details\": [{\"name\": \"lid top\", \"kind\": \"thickness\", \"ok\": true, \"expected_mm\": 2.0, \"measured_mm\": 2.0, \"enters_at\": [12.0, 54.0, 0.0], \"tolerance_mm\": 0.1}, {\"name\": \"processor vents\", \"kind\": \"void\", \"ok\": false, \"error\": \"manifold3d does not accept the mesh (it is not a closed, oriented solid)\"}, {\"name\": \"lid usb opening\", \"kind\": \"void\", \"ok\": false, \"error\": \"manifold3d does not accept the mesh (it is not a closed, oriented solid)\"}, {\"name\": \"north snap groove\", \"kind\": \"void\", \"ok\": false, \"error\": \"manifold3d does not accept the mesh (it is not a closed, oriented solid)\"}, {\"name\": \"skirt wall\", \"kind\": \"thickness\", \"ok\": true, \"expected_mm\": 1.8, \"measured_mm\": 1.8, \"enters_at\": [20.0, 66.0, 8.0], \"tolerance_mm\": 0.1}]}}"
+      },
+      {
+        "type": "function_call_output",
+        "call_id": "call_01a19f5d2ca970faaa2555c701748529",
+        "output": "{\"ok\": true, \"problems\": {\"G3\": [\"the instance lid is not a closed, oriented solid\", \"assembly bounds: min x: measured 0.000, specified -2 (off by +2.000 mm)\", \"assembly bounds: min y: measured -0.500, specified -2 (off by +1.500 mm)\", \"assembly bounds: max x: measured 91.200, specified 93 (off by -1.800 mm)\", \"assembly bounds: max y: measured 62.500, specified 64 (off by -1.500 mm)\", \"assembly bounds: max z: measured 21.800, specified 24.6 (off by -2.800 mm)\", \"held: there are no instances ['lid']\"], \"G4\": [], \"G5\": []}, \"errors\": [], \"spec_error\": null, \"instances\": [{\"name\": \"base\", \"part\": \"base\", \"unit\": 1, \"stl\": \"checks/assembly/model.assembly.6062a230.stl\", \"sha256\": \"ddcad85d0186588716e763129b56ad719a05f6c78e86b0c5bb1d669f9b823a8f\", \"volume_mm3\": 17018.022, \"bounds\": [[0.0, -0.5, 0.0], [91.0, 62.5, 14.0]], \"congruent\": true, \"congruence\": {\"volume_mm3\": [17018.02, 17018.02], \"area_mm2\": [18055.0, 18055.0], \"inertia_rel_diff\": 0.0}}, {\"name\": \"board\", \"part\": \"standard:pi4_board\", \"unit\": 1, \"stl\": \"checks/assembly/model.assembly.2a8fb8f6.stl\", \"sha256\": \"1312a4740a487731b5b561eabde82c29936b130ea61f06f4f78ebdf4c07cb485\", \"volume_mm3\": 21942.49, \"bounds\": [[3.0, 0.5, 4.4], [91.2, 59.0, 21.8]], \"congruent\": true, \"congruence\": {\"volume_mm3\": [21942.49, 21942.49], \"area_mm2\": [14700.3, 14700.3], \"inertia_rel_diff\": 0.0}}, {\"name\": \"lid\", \"part\": \"lid\", \"unit\": 1, \"stl\": \"checks/assembly/model.assembly.07b3764e.stl\", \"sha256\": \"84b09dd76b8feb0421d2304f461a209d1b01e8dea8d34e5d34bc0129324ab6c8\", \"volume_mm3\": 19036.782, \"bounds\": [[-2.0, -2.0, 8.0], [93.0, 64.0, 24.6]], \"problem\": \"the instance lid is not a closed, oriented solid\"}], \"copies\": [{\"part\": \"base\", \"expected\": 1, \"placed\": 1, \"ok\": true}, {\"part\": \"lid\", \"expected\": 1, \"placed\": 1, \"ok\": true}], \"pairs\": [{\"a\": \"base\", \"b\": \"board\", \"gap_mm\": 0.0, \"contact\": true}], \"components\": [[\"base\", \"board\"]], \"units\": {\"required\": 1, \"present\": [1], \"links\": []}, \"spec_check\": {\"measured_bounds\": [[0.0, -0.5, 0.0], [91.2, 62.5, 21.8]], \"bounds\": {\"ok\": false, \"expected\": [[-2.0, -2.0, 0.0], [93.0, 64.0, 24.6]], \"actual\": [[0.0, -0.5, 0.0], [91.2, 62.5, 21.8]], \"tolerance_mm\": 0.2, \"deviations\": [\"min x: measured 0.000, specified -2 (off by +2.000 mm)\", \"min y: measured -0.500, specified -2 (off by +1.500 mm)\", \"max x: measured 91.200, specified 93 (off by -1.800 mm)\", \"max y: measured 62.500, specified 64 (off by -1.500 mm)\", \"max z: measured 21.800, specified 24.6 (off by -2.800 mm)\"]}, \"support_faces\": []}, \"held\": [], \"motions\": [], \"assembly_steps\": [{\"step\": 1, \"instances\": [\"base\"], \"ok\": true}, {\"step\": 2, \"instances\": [\"board\"], \"ok\": true}, {\"step\": 3, \"instances\": [\"lid\"], \"ok\": true}], \"assembly_order_ok\": true, \"seconds\": 0.85, \"green\": false, \"spec_notes\": [\"assembly: the spec moved toward what the mesh already measured: bounds min x from -2.0 to removed, the mesh measures 0.0 (a failing check left the spec, with the mesh unchanged); bounds min y from -2.0 to removed, the mesh measures -0.5 (a failing check left the spec, with the mesh unchanged); bounds max x from 93.0 to removed, the mesh measures 91.2 (a failing check left the spec, with the mesh unchanged); bounds max y from 64.0 to removed, the mesh measures 62.5 (a failing check left the spec, with the mesh unchanged); bounds max z from 24.6 to removed, the mesh measures 21.8 (a failing check left the spec, with the mesh unchanged). That way those checks pass without the part changing. If the spec was badly posed against the request, that is fine: say so in the close, with the reason (once per part is enough). If not, fix the geometry.\"], \"scad_edited\": [\"checks/assembly/standard-pi4_board.scad\"]}"
+      },
+      {
+        "type": "function_call_output",
+        "call_id": "call_01a19f5d2d11713b8727e6cff1fbbf55",
+        "output": "{\"ok\": true, \"exit_code\": 0, \"timed_out\": false, \"seconds\": 0.858, \"stdout\": \"watertight True euler -6\\nshell faces 280 vol 19082.98 bounds [0. 0. 0.] [95.  66.  16.6]\\nshell faces 12 vol -46.2 bounds [20.   1.1 13.4] [75.   1.8 14.6]\\n\", \"stderr\": \"\", \"stdout_bytes\": 155, \"stderr_bytes\": 0, \"stdout_omitted_bytes\": 0, \"stderr_omitted_bytes\": 0, \"files\": {\"created\": [], \"modified\": [], \"deleted\": []}}"
+      },
+      {
+        "role": "user",
+        "content": "About 7 requests of the session are left: 16 of 100 done, USD 2.78 of 4.00 and 23 of 60 min. Put closing first: finish what you are fixing, export each part with the default parameters and look at it, verify the assembly if there is one, and close. A big change now may stay unverified."
+      },
+      {
+        "type": "function_call",
+        "call_id": "call_01a19f5d996c76c3a1720d2764bba995",
+        "name": "scad_patch",
+        "arguments": "{\"path\":\"model.scad\",\"old\":\"        translate([18, 62.2, 10]) cube([55, 0.7, 1.2]);   // north\\n        translate([4, -0.9, 10]) cube([83, 0.7, 1.2]);    // south\",\"new\":\"        translate([18, 61.9, 10]) cube([55, 1.0, 1.2]);   // north (starts inside the cavity)\\n        translate([4, -0.9, 10]) cube([83, 1.0, 1.2]);    // south\"}"
+      },
+      {
+        "type": "function_call",
+        "call_id": "call_01a19f5d9bfc7372aab2c3dc68fd43bc",
+        "name": "scad_patch",
+        "arguments": "{\"path\":\"model.scad\",\"old\":\"        [\\\"overhangs_allowed\\\", [\\n            [\\\"screw pilot hole floors\\\", [[2, 2, 0.4], [89, 60, 1.6]]],\\n            [\\\"north snap rib underside\\\", [[19, 61.5, 9.6], [72, 63, 10.4]]],\",\"new\":\"        [\\\"overhangs_allowed\\\", [\\n            [\\\"north snap rib underside\\\", [[19, 61.5, 9.6], [72, 63, 10.4]]],\"}"
+      },
+      {
+        "type": "function_call_output",
+        "call_id": "call_01a19f5d996c76c3a1720d2764bba995",
+        "output": "{\"ok\": true, \"path\": \"model.scad\", \"line\": 94, \"lines_removed\": 2, \"lines_added\": 2, \"bytes\": 8382, \"lines\": 166, \"sha256\": \"62cbedbbe56a825514c9c312ed4632dacc9bc7eff540e0fd10c074c3b32f1996\"}"
+      },
+      {
+        "type": "function_call_output",
+        "call_id": "call_01a19f5d9bfc7372aab2c3dc68fd43bc",
+        "output": "{\"ok\": true, \"path\": \"model.scad\", \"line\": 112, \"lines_removed\": 3, \"lines_added\": 2, \"bytes\": 8311, \"lines\": 165, \"sha256\": \"261df5fe55407126de7c5f69d5385719a71646894bb2c872ad773205091984fa\"}"
+      },
+      {
+        "role": "user",
+        "content": "About 6 requests of the session are left: 17 of 100 done, USD 2.84 of 4.00 and 24 of 60 min. Put closing first: finish what you are fixing, export each part with the default parameters and look at it, verify the assembly if there is one, and close. A big change now may stay unverified."
+      },
+      {
+        "type": "function_call",
+        "call_id": "call_01a19f5e0d7b7239885fe959a6763274",
+        "name": "scad_export",
+        "arguments": "{\"path\":\"model.scad\",\"part\":\"lid\"}"
+      },
+      {
+        "type": "function_call",
+        "call_id": "call_01a19f5e0e3d716b9f44069c5988ab59",
+        "name": "scad_export",
+        "arguments": "{\"path\":\"model.scad\",\"part\":\"base\"}"
+      },
+      {
+        "type": "function_call",
+        "call_id": "call_01a19f5e0ed175a6983ea9e481f56e93",
+        "name": "scad_export",
+        "arguments": "{\"path\":\"model.scad\",\"part\":\"assembly\"}"
+      },
+      {
+        "type": "function_call_output",
+        "call_id": "call_01a19f5e0d7b7239885fe959a6763274",
+        "output": [
+          {
+            "type": "input_text",
+            "text": "{\"ok\": true, \"path\": \"exports/model.lid.6029fe16.stl\", \"sha256\": \"943e3fbcd59c0f0429a18d8362b8f1ddf2bffa98ff7b34772793238e5dd0ec75\", \"part\": \"lid\", \"empty\": false, \"warnings\": [], \"asserts_failed\": [], \"errors\": [], \"seconds\": 0.064, \"returncode\": 0, \"timed_out\": false, \"mesh\": {\"triangles\": 296, \"watertight\": true, \"winding_consistent\": true, \"bad_edges\": 0, \"bad_edge_locations\": [], \"volume_mm3\": 19036.782, \"bounds\": [[0.0, 0.0, 0.0], [95.0, 66.0, 16.6]], \"size\": [95.0, 66.0, 16.6], \"bodies\": 1, \"cavities\": 0, \"inverted_shells\": 0, \"through_holes\": 5}, \"spec\": {\"bounds\": [[0.0, 0.0, 0.0], [95.0, 66.0, 16.6]], \"bodies\": 1, \"through_holes\": 5, \"support_faces\": [{\"name\": \"bed\", \"direction\": \"-z\", \"min_area_mm2\": 5900}], \"overhangs_allowed\": [{\"name\": \"north snap groove roof\", \"bounds\": [[19.0, 0.5, 13.0], [76.0, 2.5, 15.0]]}, {\"name\": \"south snap groove roof\", \"bounds\": [[5.0, 63.5, 13.0], [89.0, 65.5, 15.0]]}], \"copies\": 1, \"details\": [{\"name\": \"lid top\", \"kind\": \"thickness\", \"point\": [12.0, 54.0, -2.0], \"direction\": [0.0, 0.0, 1.0], \"mm\": 2.0}, {\"name\": \"processor vents\", \"kind\": \"void\", \"box\": [[38.0, 22.6, 0.0], [60.0, 38.0, 2.0]], \"fraction\": 0.5}, {\"name\": \"lid usb opening\", \"kind\": \"void\", \"box\": [[93.2, 44.5, 2.4], [95.0, 59.5, 16.6]], \"fraction\": 0.9}, {\"name\": \"north snap groove\", \"kind\": \"void\", \"box\": [[20.0, 1.1, 13.4], [75.0, 1.8, 14.6]], \"fraction\": 0.85}, {\"name\": \"skirt wall\", \"kind\": \"thickness\", \"point\": [20.0, 68.0, 8.0], \"direction\": [0.0, -1.0, 0.0], \"mm\": 1.8}]}, \"spec_error\": null, \"spec_check\": {\"ok\": true, \"bounds\": {\"ok\": true, \"expected\": [[0.0, 0.0, 0.0], [95.0, 66.0, 16.6]], \"actual\": [[0.0, 0.0, 0.0], [95.0, 66.0, 16.6]], \"tolerance_mm\": 0.2, \"deviations\": []}, \"bodies\": {\"ok\": true, \"expected\": 1, \"actual\": 1}, \"through_holes\": {\"ok\": true, \"expected\": 5, \"actual\": 5}, \"support_faces\": [{\"name\": \"bed\", \"direction\": \"-z\", \"ok\": true, \"min_area_mm2\": 5900, \"area_on_extreme_plane_mm2\": 6072.0, \"extreme_plane\": \"z = 0.000\", \"largest_flat_face\": {\"plane\": \"z = 0.000\", \"area_mm2\": 6072.0}}], \"details\": [{\"name\": \"lid top\", \"kind\": \"thickness\", \"ok\": true, \"expected_mm\": 2.0, \"measured_mm\": 2.0, \"enters_at\": [12.0, 54.0, 0.0], \"tolerance_mm\": 0.1}, {\"name\": \"processor vents\", \"kind\": \"void\", \"box\": [[38.0, 22.6, 0.0], [60.0, 38.0, 2.0]], \"material_fraction\": 0.4156, \"min_empty_fraction\": 0.5, \"ok\": true}, {\"name\": \"lid usb opening\", \"kind\": \"void\", \"box\": [[93.2, 44.5, 2.4], [95.0, 59.5, 16.6]], \"material_fraction\": 0.0, \"min_empty_fraction\": 0.9, \"ok\": true}, {\"name\": \"north snap groove\", \"kind\": \"void\", \"box\": [[20.0, 1.1, 13.4], [75.0, 1.8, 14.6]], \"material_fraction\": 0.0, \"min_empty_fraction\": 0.85, \"ok\": true}, {\"name\": \"skirt wall\", \"kind\": \"thickness\", \"ok\": true, \"expected_mm\": 1.8, \"measured_mm\": 1.8, \"enters_at\": [20.0, 66.0, 8.0], \"tolerance_mm\": 0.1}]}, \"sheet\": {\"png\": \"renders/sheet-028.png\", \"views\": [\"iso\", \"iso_back\", \"front\", \"side\", \"top\", \"bottom\"], \"note\": \"The sheet of this mesh is attached as an image: look at it before going on. It comes with the export's numbers, so it leaves nothing to confirm. An export of the same mesh does not repeat it: ask for it with render_sheet.\"}}"
+          },
+          {
+            "type": "input_image",
+            "image_url": "<inline image/png base64, 143028 chars, sha256:528da76d2352dbed>"
+          }
+        ]
+      },
+      {
+        "type": "function_call_output",
+        "call_id": "call_01a19f5e0e3d716b9f44069c5988ab59",
+        "output": "{\"ok\": true, \"path\": \"exports/model.base.87e59dfb.stl\", \"sha256\": \"ddcad85d0186588716e763129b56ad719a05f6c78e86b0c5bb1d669f9b823a8f\", \"part\": \"base\", \"empty\": false, \"warnings\": [], \"asserts_failed\": [], \"errors\": [], \"seconds\": 0.072, \"returncode\": 0, \"timed_out\": false, \"mesh\": {\"triangles\": 1380, \"watertight\": true, \"winding_consistent\": true, \"bad_edges\": 0, \"bad_edge_locations\": [], \"volume_mm3\": 17018.022, \"bounds\": [[0.0, -0.5, 0.0], [91.0, 62.5, 14.0]], \"size\": [91.0, 63.0, 14.0], \"bodies\": 1, \"cavities\": 0, \"inverted_shells\": 0, \"through_holes\": 1}, \"spec\": {\"bounds\": [[0.0, -0.5, 0.0], [91.0, 62.5, 14.0]], \"bodies\": 1, \"through_holes\": 1, \"support_faces\": [{\"name\": \"bed\", \"direction\": \"-z\", \"min_area_mm2\": 5600}], \"overhangs_allowed\": [{\"name\": \"north snap rib underside\", \"bounds\": [[19.0, 61.5, 9.6], [72.0, 63.0, 10.4]]}, {\"name\": \"south snap rib undersides\", \"bounds\": [[19.0, -1.0, 9.6], [53.0, 0.5, 10.4]]}], \"copies\": 1, \"details\": [{\"name\": \"base floor\", \"kind\": \"thickness\", \"point\": [45.0, 31.0, -2.0], \"direction\": [0.0, 0.0, 1.0], \"mm\": 2.0}, {\"name\": \"front wall\", \"kind\": \"thickness\", \"point\": [22.0, -2.0, 7.0], \"direction\": [0.0, 1.0, 0.0], \"mm\": 2.0}, {\"name\": \"standoff\", \"kind\": \"material\", \"box\": [[3.5, 3.5, 2.0], [9.5, 9.5, 4.4]], \"fraction\": 0.55}, {\"name\": \"screw pilot\", \"kind\": \"hole\", \"point\": [6.5, 6.5, 8.0], \"direction\": [0.0, 0.0, -1.0], \"diameters\": [[0.0, 2.2], [2.0, 2.2], [3.0, 2.2]]}, {\"name\": \"usb-c opening\", \"kind\": \"void\", \"box\": [[8.7, 0.0, 5.0], [19.7, 2.0, 9.4]], \"fraction\": 0.9}, {\"name\": \"ethernet opening\", \"kind\": \"void\", \"box\": [[89.0, 40.2, 5.0], [91.0, 57.3, 14.0]], \"fraction\": 0.9}, {\"name\": \"microsd opening\", \"kind\": \"void\", \"box\": [[0.0, 21.0, 2.2], [2.0, 35.0, 4.6]], \"fraction\": 0.9}, {\"name\": \"north snap rib\", \"kind\": \"material\", \"box\": [[20.0, 62.0, 10.2], [71.0, 62.5, 11.0]], \"fraction\": 0.85}]}, \"spec_error\": null, \"spec_check\": {\"ok\": true, \"bounds\": {\"ok\": true, \"expected\": [[0.0, -0.5, 0.0], [91.0, 62.5, 14.0]], \"actual\": [[0.0, -0.5, 0.0], [91.0, 62.5, 14.0]], \"tolerance_mm\": 0.2, \"deviations\": []}, \"bodies\": {\"ok\": true, \"expected\": 1, \"actual\": 1}, \"through_holes\": {\"ok\": true, \"expected\": 1, \"actual\": 1}, \"support_faces\": [{\"name\": \"bed\", \"direction\": \"-z\", \"ok\": true, \"min_area_mm2\": 5600, \"area_on_extreme_plane_mm2\": 5642.0, \"extreme_plane\": \"z = 0.000\", \"largest_flat_face\": {\"plane\": \"z = 0.000\", \"area_mm2\": 5642.0}}], \"details\": [{\"name\": \"base floor\", \"kind\": \"thickness\", \"ok\": true, \"expected_mm\": 2.0, \"measured_mm\": 2.0, \"enters_at\": [45.0, 31.0, 0.0], \"tolerance_mm\": 0.1}, {\"name\": \"front wall\", \"kind\": \"thickness\", \"ok\": true, \"expected_mm\": 2.0, \"measured_mm\": 2.0, \"enters_at\": [22.0, 0.0, 7.0], \"tolerance_mm\": 0.1}, {\"name\": \"standoff\", \"kind\": \"material\", \"box\": [[3.5, 3.5, 2.0], [9.5, 9.5, 4.4]], \"material_fraction\": 0.6764, \"min_fraction\": 0.55, \"ok\": true}, {\"name\": \"screw pilot\", \"kind\": \"hole\", \"ok\": true, \"mouth\": [6.5, 6.5, 4.4], \"mouth_from_point_mm\": 3.6, \"diameters\": [{\"depth_mm\": 0.0, \"expected_mm\": 2.2, \"measured_mm\": 2.194, \"ok\": true}, {\"depth_mm\": 2.0, \"expected_mm\": 2.2, \"measured_mm\": 2.194, \"ok\": true}, {\"depth_mm\": 3.0, \"expected_mm\": 2.2, \"measured_mm\": 2.194, \"ok\": true}], \"profile\": [[0.0, 2.194], [0.25, 2.194], [0.5, 2.194], [0.75, 2.194], [1.0, 2.194], [1.5, 2.194], [2.0, 2.194], [3.0, 2.194], [4.0, null], [5.0, null]], \"note\": \"Ø of the circle with the same area, at each depth from the mouth (the first closed section around the axis, coming from the point); 0 = 0.05 mm\"}, {\"name\": \"usb-c opening\", \"kind\": \"void\", \"box\": [[8.7, 0.0, 5.0], [19.7, 2.0, 9.4]], \"material_fraction\": 0.0, \"min_empty_fraction\": 0.9, \"ok\": true}, {\"name\": \"ethernet opening\", \"kind\": \"void\", \"box\": [[89.0, 40.2, 5.0], [91.0, 57.3, 14.0]], \"material_fraction\": 0.0, \"min_empty_fraction\": 0.9, \"ok\": true}, {\"name\": \"microsd opening\", \"kind\": \"void\", \"box\": [[0.0, 21.0, 2.2], [2.0, 35.0, 4.6]], \"material_fraction\": 0.0, \"min_empty_fraction\": 0.9, \"ok\": true}, {\"name\": \"north snap rib\", \"kind\": \"material\", \"box\": [[20.0, 62.0, 10.2], [71.0, 62.5, 11.0]], \"material_fraction\": 1.0, \"min_fraction\": 0.85, \"ok\": true}]}}"
+      },
+      {
+        "type": "function_call_output",
+        "call_id": "call_01a19f5e0ed175a6983ea9e481f56e93",
+        "output": [
+          {
+            "type": "input_text",
+            "text": "{\"ok\": true, \"path\": \"exports/model.assembly.8a16e71a.stl\", \"sha256\": \"d2e23be244cf3349e52ced1736bf6806e890ef2d1852b1744aa57a80872ebfb0\", \"part\": \"assembly\", \"empty\": false, \"warnings\": [], \"asserts_failed\": [], \"errors\": [], \"seconds\": 0.096, \"returncode\": 0, \"timed_out\": false, \"mesh\": {\"triangles\": 2694, \"watertight\": true, \"winding_consistent\": true, \"bad_edges\": 0, \"bad_edge_locations\": [], \"volume_mm3\": 57997.294, \"bounds\": [[-2.0, -2.0, 0.0], [93.0, 64.0, 24.6]], \"size\": [95.0, 66.0, 24.6], \"bodies\": 2, \"cavities\": 0, \"inverted_shells\": 0, \"through_holes\": 9}, \"spec\": {\"bounds\": [[-2.0, -2.0, 0.0], [93.0, 64.0, 24.6]], \"bodies\": null, \"through_holes\": null, \"support_faces\": [], \"overhangs_allowed\": [], \"allowed_interferences\": [], \"motions\": [], \"assembly_order\": [{\"instances\": [\"base\"], \"direction\": [0.0, 0.0, 0.0]}, {\"instances\": [\"board\"], \"direction\": [0.0, 0.0, -1.0]}, {\"instances\": [\"lid\"], \"direction\": [0.0, 0.0, -1.0], \"flex\": [{\"a\": \"lid\", \"b\": \"base\", \"max_mm\": 0.4, \"reason\": \"snap ribs ride over the lid skirt into their grooves\"}]}], \"print_in_place\": null, \"print_pose\": [], \"held\": [\"lid\"]}, \"spec_error\": null, \"spec_check\": {\"ok\": true, \"bounds\": {\"ok\": true, \"expected\": [[-2.0, -2.0, 0.0], [93.0, 64.0, 24.6]], \"actual\": [[-2.0, -2.0, 0.0], [93.0, 64.0, 24.6]], \"tolerance_mm\": 0.2, \"deviations\": []}, \"support_faces\": [], \"details\": []}, \"instances\": [{\"name\": \"base\", \"part\": \"base\", \"unit\": 1}, {\"name\": \"board\", \"part\": \"standard:pi4_board\", \"unit\": 1}, {\"name\": \"lid\", \"part\": \"lid\", \"unit\": 1}], \"sheet\": {\"png\": \"renders/sheet-030.png\", \"views\": [\"iso\", \"iso_back\", \"front\", \"side\", \"top\", \"bottom\"], \"note\": \"The sheet of this mesh is attached as an image: look at it before going on. It comes with the export's numbers, so it leaves nothing to confirm. An export of the same mesh does not repeat it: ask for it with render_sheet.\"}}"
+          },
+          {
+            "type": "input_image",
+            "image_url": "<inline image/png base64, 121312 chars, sha256:07ab98a360f218e6>"
+          }
+        ]
+      },
+      {
+        "role": "user",
+        "content": "About 7 requests of the session are left: 18 of 100 done, USD 2.86 of 4.00 and 24 of 60 min. Put closing first: finish what you are fixing, export each part with the default parameters and look at it, verify the assembly if there is one, and close. A big change now may stay unverified."
+      }
+    ]
+  },
+  "status_code": 200,
+  "response_headers": {
+    "content-type": "text/event-stream",
+    "x-ratelimit-limit-requests": "3000",
+    "x-ratelimit-remaining-requests": "2999",
+    "x-ratelimit-limit-tokens": "4000000",
+    "x-ratelimit-remaining-tokens": "3995098",
+    "x-request-id": "3ee6f067-8eef-4973-8420-7045b8e848e6",
+    "date": "Tue, 03 Nov 2026 03:05:42 GMT"
+  },
+  "response": {
+    "background": false,
+    "completed_at": 1793675143.0,
+    "created_at": 1793675141.0,
+    "error": null,
+    "id": "resp_6ae94f86c9834eaf1f0e462e",
+    "incomplete_details": null,
+    "instructions": "You are a design engineer for FDM 3D printing who works in OpenSCAD. You work in an isolated workspace and only through the tools. The main file is model.scad.\n\nVERIFIABLE SPEC (required)\nBefore modeling, turn the request into measurable specifications and declare them in model.scad, for each part, with this echo, computed from the parameters, in the coordinates of the exported part (oriented for printing, in mm):\necho(cadverify_spec = [\n    [\"bounds\", [[xmin, ymin, zmin], [xmax, ymax, zmax]]],\n    [\"bodies\", 1],\n    [\"through_holes\", N],\n    [\"support_faces\", [[\"name\", \"-x\", min_area_mm2]]],\n    [\"overhangs_allowed\", [[\"reason\", [[xmin, ymin, zmin], [xmax, ymax, zmax]]]]],\n    [\"copies\", 1],\n    [\"details\", [\n        [\"name\", \"material\", [[xmin, ymin, zmin], [xmax, ymax, zmax]], min_fraction],\n        [\"name\", \"void\", [[xmin, ymin, zmin], [xmax, ymax, zmax]], min_fraction],\n        [\"name\", \"hole\", [x, y, z], [dx, dy, dz], [[depth, diameter], ...]],\n        [\"name\", \"thickness\", [x, y, z], [dx, dy, dz], mm],\n        [\"name\", \"view\", [[xmin, ymin, zmin], [xmax, ymax, zmax]]]\n    ]]\n]);\n- bounds: the box the exported part must fill (tolerance 0.2 mm). Required.\n- bodies: separate bodies (1 by default). through_holes: through holes (optional).\n- support_faces: faces that must sit flush against another surface (a wall, a shelf, the bed). The direction is the part's outward normal: +x, -x, +y, -y, +z or -z. The check is that nothing sticks out beyond that face and that the face has at least the given area.\n- overhangs_allowed: zones where you accept overhangs of more than 45°, with the reason. Each box goes around the overhang it justifies: together they cannot cover more than half of the part's surface. The part of an overhang steeper than 60° (a ceiling, the underside of a ledge, the bottom of a round pin) rests on almost nothing of the layer under it and prints as a bridge, in the air from the material under its lowest edge: no point of it, seen from above, can be more than 5 mm from that material, so a bridge spans 10 mm at most. Declaring a longer one does not make it printable.\n- copies: how many of this part one unit of the product takes (1 by default).\n- details: every feature the request or your design announces (a rib, a flared mouth, an entry chamfer, a slot, a wall, a relief), with how it is measured on the mesh:\n  - material: a box that must be full to at least that fraction (0 to 1): a rib, a reinforcement, a medallion;\n  - void: a box that must be empty to at least that fraction: a slot, a channel;\n  - hole: a point outside the part on the hole's axis, the direction inward and the diameter at each depth from the mouth (0 is the mouth): a flare, a countersink, a chamfered entry, a step;\n  - thickness: a point outside the part, the direction inward and the material that ray crosses, in mm: a wall, a floor;\n  - view: a box with something no number describes (a texture, a relief, a shape). The box must touch the surface, and in the final version you have to look at it up close.\nA detail is in the code and not in the mesh more often than it seems: an offset that empties a profile, a cone sunk below the face it had to flare, a chamfer the wrong way round. That is why it is measured, and render_view draws it with its measurement (highlight details).\nThe spec is the design intent. If a measurement does not match, fix the geometry. Change the spec only if it was badly posed against the request, and say so in the close: the harness flags a spec that moves to what the mesh already measured while the part stays the same.\n\nORIENTATION\nEach part is exported in its print orientation: +Z is the print direction and the part rests on its minimum z. If you define a `part` selector in the Customizer, every option except \"assembly\" is verified; if not, the default output is verified.\n\nASSEMBLY\nWith two printable parts or more, the part selector has the option \"assembly\": the assembled product, each part where it goes in use. Copy these lines into model.scad and put each part of the assembly inside an instance:\ncadverify_only = \"\";\nmodule instance(name, part, unit = 1) {\n    echo(cadverify_instance = [name, part, unit]);\n    if (cadverify_only == \"\" || cadverify_only == name) children();\n}\n// for example: instance(\"pin_left\", \"pin\") translate([...]) rotate([...]) pin();\n- name: one per instance. part: the option of the selector that is printed (the instance has to be that part, moved: the same volume, area and inertia), or \"external\" for what is not printed (a wall, a screw, a rope), or \"standard:<module>\" for a standard part of cadverify_parts.scad, drawn from its datasheet: pi4_board() (a Raspberry Pi 4 Model B from the official drawing: board, holes and port bodies), bearing_608(), aa_cell(), m3_nut(). With use <cadverify_parts.scad>, place the module itself, moved (the harness checks it is): the design then fits the real part, not one of its own drawing. Their origins and axes are in $OPENSCADPATH/cadverify_parts.scad. unit: 1, or 2, 3... for the next units when the product chains.\n- Nothing of the assembly goes outside an instance, and unit 1 places each printable part as many times as its copies.\n- The assembly has its own cadverify_spec echo (when part = \"assembly\"), in assembly coordinates:\necho(cadverify_spec = [\n    [\"bounds\", [[xmin, ymin, zmin], [xmax, ymax, zmax]]],\n    [\"support_faces\", [[\"wall\", \"-y\", min_area_mm2]]],\n    [\"allowed_interferences\", [[\"instance_a\", \"instance_b\", \"reason\"]]],\n    [\"motions\", [\n        [\"name\", [\"instance\", ...], \"rotate\", [x, y, z], [ax, ay, az], [from, to]],\n        [\"name\", [\"instance\", ...], \"slide\", [dx, dy, dz], [from, to]],\n        [\"name\", [\"instance\", ...], \"rotate\", [x, y, z], [ax, ay, az], [from, to],\n            [\"flex\", [[\"moving_instance\", \"other_instance\", mm, \"reason\"]]], [\"stops\", [to]]],\n        [\"name\", [\"instance\", ...], \"rotate\", [x, y, z], [ax, ay, az], [from, to],\n            [\"flex\", [[\"moving_instance\", \"other_instance\", mm, \"reason\"]]],\n            [\"rests\", [value, ...]]],\n        [\"name\", [\"instance\", ...], \"screw\", [x, y, z], [ax, ay, az], pitch_mm, [from, to]],\n        [\"name\", [\"instance\", ...], \"rotate\", [x, y, z], [ax, ay, az], [from, to],\n            [\"drives\", [[[\"instance\", ...], \"rotate\", [x, y, z], [ax, ay, az], ratio],\n                        [[\"instance\", ...], \"slide\", [dx, dy, dz], ratio]]]]\n    ]],\n    [\"assembly_order\", [\n        [[\"instance\", ...], [0, 0, 0]],\n        [[\"instance\", ...], [dx, dy, dz]],\n        [[\"instance\", ...], [dx, dy, dz], [\"rotate\", [x, y, z], [ax, ay, az], degrees]],\n        [[\"instance\", ...], [dx, dy, dz], [\"screw\", [x, y, z], [ax, ay, az], pitch_mm, degrees]],\n        [[\"instance\", ...], [dx, dy, dz],\n            [\"flex\", [[\"moving_instance\", \"placed_instance\", mm, \"reason\"]]]]\n    ]],\n    [\"print_in_place\", clearance_mm],\n    [\"print_pose\", [[\"motion name\", value]]],\n    [\"overhangs_allowed\", [[\"reason\", [[xmin, ymin, zmin], [xmax, ymax, zmax]]]]],\n    [\"held\", [\"instance\", ...]]\n]);\n  - bounds and support_faces of the assembled product (optional), measured on all the instances.\n  - allowed_interferences: press fits up to 0.3 mm thick. Any other overlap between instances is an error. A press fit is still swept: along a motion it may stay pressed no thicker than a fit, and on its way in a part may push only into the overlap it has in place.\n  - motions: what moves in use (a hinge, a link, a lid), from the pose of the assembly (0) through its whole range, in degrees or in mm. It is swept looking for collisions, with rigid parts: the instances it names move against the rest, and one that names every instance checks nothing and is refused. A thread is a screw: it turns and advances pitch_mm along the axis for each turn of 360° (right hand rule; negative for a left-hand thread). Gears, or a rack and its pinion, are one motion that drives the others: each group it drives turns (or slides) ratio degrees (or mm) for each degree (or mm) of the motion, about its own axis, and is carried by the motion too when the motion also names it (a planet on its carrier). Where a part stops the motion at an end of its range (a drawer that does not come out, a hinge that opens to 110°, the way a ratchet does not turn), say it in its stops: past that end, before its fastest point moves 2 mm more, the harness wants a collision, deeper than any flex. An elastic feature that bends while it moves (a detent bump, a snap) goes in the motion's flex: the instance that moves, the one it presses on and how deep they may overlap, up to 1 mm. The harness measures how deep they go, they have to meet somewhere along it (a flex that never touches bends nothing) and be free at both ends of the range: a flex springs back. Where a detent holds the motion (a lid that clicks at each day, a knob with positions), list those values in its rests: there the flex is free, a bump in its notch, and between two rests it rides over what it presses on.\n  - print_in_place: only if the product is printed already assembled, all its parts in one print (+z up, the lowest faces on the bed): the smallest clearance between any two parts, from 0.2 to 1 mm. The harness checks the overhangs and bridges of all the parts together, with the assembly's own overhangs_allowed (only then does the assembly have them), the bed, the clearances, and that every part rests on the bed or starts over another part, 1 mm under it at most: a part that hangs (a lid standing on its hinge) starts printing in the air. It comes off the bed in one piece, so each part must be held by the others: none may come off moving straight in any direction (a pin capped at both ends or held by its knuckles, a pivot in a closed bore, not an open groove).\n  - print_pose: with print_in_place, the pose it prints in, if not the one the assembly shows: motions at a value of their range, applied in order (a box printed open: its lid's hinge at 180). The clearances and the print are checked in that pose, and the assembly's overhangs_allowed are in its coordinates.\n  - assembly_order: the order it is put together in, with every instance once. Each step comes in from far away moving along its direction (the first one, a single part, does not need it; printed in place, the first may hold every part) and, if it says \"rotate\", then turns those degrees to land in its place (with \"screw\", it screws in: a cap on its thread starts above the thread), without passing through what is already placed. What snaps in as it comes in (a lid with a lip, a clip) says so in the step's flex, as a motion's: it may ride over what it presses on that deep, and has to meet it and be free once in place. A closed ring does not go into another closed ring: if the product needs that, the design has to open somewhere.\n  - held: the instances that must not come off the assembled product moving straight in any direction (a lid that does not lift off, a pin capped at both ends); printed in place, every part is checked this way.\n- interference_check measures the assembly as the harness does: overlaps, contacts, units, motions and assembly order; it leaves each instance, each overlap and each colliding pose as an STL to look at with render_view.\n\nTOOLS TO EXPLORE\n- render_view: a view on demand, with a free camera, zoom, cuts along any plane with the profile and its numbers, several parts together and highlights (overhangs, support faces, the spec's box, through holes, details).\n- run_shell and run_python: your own code in the workspace, without network, with numpy, trimesh, manifold3d, shapely, matplotlib, openscad and cadcheck.\n- view_image: shows you a PNG or JPG image you made in the workspace.\n- interference_check: the assembly measured as in G3 and G4.\nThe harness verifies the .scad files of the workspace: changing one by shell is an edit, with the same rules. Your images and calculations do not replace the sheet G7 asks for.\n\nLOOK\nEvery scad_export of model.scad with the default parameters and a new mesh brings its sheet attached, the one render_sheet makes: look at it before going on. Look a lot. A view costs little and is the fastest way to understand the part and to find what is wrong: ask for dozens of views and cuts over the session, of every part and of the assembly. After each change, look closely at what you changed: zoomed in, from several sides, cut where it matters. In the assembly, look at every joint, every fit and every part that moves, also cut. If you doubt something, make the image that shows it: a render_view, or your own matplotlib plot and view_image. Old images leave the context to make room for new ones, and what they showed stays in their place: if you need to see one again, ask for it again.\n\nQUESTIONS\nIf you need to ask the user something, first look at what is there: compile model.scad, export each option of part (the assembly too) with the default parameters and look at it. Then, before your first edit, a message without calling tools reaches the user, and their answer comes back as the next message. After your first edit, a message without tools is the close.\n\nPROCESS\n1. scad_write with the full design and the spec.\n2. scad_compile, scad_export (it brings the sheet) and printability_report of each part; interference_check and render_view of the assembly.\n3. Look (LOOK). A visual finding is a hypothesis: before fixing it, confirm it with numbers (scad_export or mesh_report: bounds, bodies, holes, support faces, details; printability_report; interference_check; a cut or the holes of render_view; a calculation with run_python or run_shell). After an image (render_sheet, render_view or view_image), the harness refuses changes to the .scad files, by shell too, until you run one of those checks. Not after the sheet scad_export brings: it comes with its numbers.\n4. Fix with scad_patch and go back to step 2. Each request counts toward the session's limits: send in the same request all the edits of one change (several scad_patch, or scad_write if a good part of the file changes) and the checks that follow them (scad_export, interference_check). The tools of one request run in order.\n5. Before closing, understand the product as a physical object: look at it, cut it and measure it as you will use it, as you will assemble it and as you will print it.\n6. When everything passes, close with a message without calling tools (CLOSE).\n\nCLOSE\nThe close says what you designed and how it is printed and assembled, in two parts:\n- Verified: what the harness measured, with numbers. Each claim carries in double brackets the name of what backs it: a part ([[lid]]), a detail or a support face of its spec ([[lid/rib]], or [[rib]] if only one part has it), the assembly ([[assembly]]) or a support face of its spec ([[assembly/name]]), a motion by its name, the assembly order ([[assembly_order]]), the print in place ([[print_in_place]]) or a gate ([[G5]]). Each name has to exist in the final version and be green.\n- Not verified: what nobody measured (strength, looks, what depends on the printer or the material, whether a flex bends that far without breaking), and each adjustment of the spec you made so it matches what was measured, with the reason.\nAn auditor compares the close with what was verified and with the request: a claim presented as verified without backing, a spec adjustment you did not tell, or something the request asks for that the harness measures once the spec declares it (a stop, a detent's rests, a part that must not come off, a standard part) left unmeasured, leaves G8 red.\n\nGATES: the harness verifies them when you finish, on model.scad with the default parameters. You cannot close with a red gate.\n- G1: it compiles and exports without errors, without failed asserts and without OpenSCAD warnings (an unknown variable or module gives no error, but leaves the geometry wrong).\n- G2: every part watertight, 0 bad edges, as many bodies as bodies, 0 inverted shells and a positive volume.\n- G3: the assembly: each instance is its part moved, every part is there with its copies, nothing overlaps except the declared fits, everything forms one group (parts 1 mm apart or less), the units the request asks for are there, what is held does not come off straight, and so are its bounds and support faces, if it declares them.\n- G4: every motion runs its whole range without colliding (a declared flex no deeper than declared, and free at the ends) and stops where it declares stops and rests where it declares rests, and the assembly can be put together in its order.\n- G5: overhangs of more than 45° only inside overhangs_allowed zones, which cover at most half of the part's surface, the part of each steeper than 60° a bridge of 10 mm at most, no body that starts in the air (each one rests on the bed or starts 1 mm or less over another), and the part fits the bed (Bambu Lab A1, 256 × 256 × 256 mm). With print_in_place, also all the parts together as they print (in the print_pose, if there is one), and the clearances between them.\n- G7: the spec exists and the mesh meets it, details included; and you saw, of the final version, the sheet of each part (the one scad_export brings, or render_sheet), one render_view with all the instances of the assembly together (the STLs interference_check leaves) and each \"view\" detail up close.\n- G8: the close (CLOSE).\n\nNever claim a verification you did not run.",
+    "max_output_tokens": 64000,
+    "model": "muse-wonder-1.0",
+    "object": "response",
+    "output": [
+      {
+        "id": "rs_6ae94f86c9834eaf1f0e462e:rs_01a19f5ea34c726d83471edf0a88a914",
+        "status": "completed",
+        "summary": [],
+        "type": "reasoning"
+      },
+      {
+        "arguments": "{\"path\":\"model.scad\"}",
+        "call_id": "call_01a19f5ea5257737b10fac146a2e1dd8",
+        "id": "fc_01a19f5ea5257737b10fac146a2e1dd8",
+        "name": "interference_check",
+        "status": "completed",
+        "type": "function_call"
+      },
+      {
+        "arguments": "{\"stl\":\"exports/model.lid.6029fe16.stl\"}",
+        "call_id": "call_01a19f5ea5847326a03a4ccfc383c670",
+        "id": "fc_01a19f5ea5847326a03a4ccfc383c670",
+        "name": "printability_report",
+        "status": "completed",
+        "type": "function_call"
+      },
+      {
+        "arguments": "{\"stl\":[\"checks/assembly/model.assembly.6062a230.stl\",\"checks/assembly/model.assembly.2a8fb8f6.stl\",\"checks/assembly/model.assembly.07b3764e.stl\"],\"title\":\"assembled closed case with board\",\"cut\":{\"point\":[45,31,12],\"normal\":[0,1,0]}}",
+        "call_id": "call_01a19f5ea604779dada8d52ba50e3d68",
+        "id": "fc_01a19f5ea604779dada8d52ba50e3d68",
+        "name": "render_view",
+        "status": "completed",
+        "type": "function_call"
+      }
+    ],
+    "parallel_tool_calls": true,
+    "prompt_cache_key": "cadverify-agent-muse-wonder-1.0",
+    "reasoning": {
+      "effort": "high"
+    },
+    "service_tier": "auto",
+    "status": "completed",
+    "store": true,
+    "temperature": 1.0,
+    "tool_choice": "auto",
+    "tools": [
+      {
+        "description": "Creates or fully replaces a .scad file of the workspace.",
+        "name": "scad_write",
+        "parameters": {
+          "properties": {
+            "content": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "path",
+            "content"
+          ],
+          "type": "object"
+        },
+        "type": "function"
+      },
+      {
+        "description": "Replaces the text `old` with `new` in a .scad file. Fails unless `old` appears exactly once: copy the exact text, with its indentation.",
+        "name": "scad_patch",
+        "parameters": {
+          "properties": {
+            "new": {
+              "type": "string"
+            },
+            "old": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "path",
+            "old",
+            "new"
+          ],
+          "type": "object"
+        },
+        "type": "function"
+      },
+      {
+        "description": "Evaluates the program without building geometry: echo, warnings, failed asserts and errors.",
+        "name": "scad_compile",
+        "parameters": {
+          "properties": {
+            "overrides": {
+              "additionalProperties": {
+                "type": [
+                  "number",
+                  "string",
+                  "boolean",
+                  "array"
+                ]
+              },
+              "description": "Values that replace parameters of the file (-D name=value).",
+              "type": "object"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "path"
+          ],
+          "type": "object"
+        },
+        "type": "function"
+      },
+      {
+        "description": "Exports one part to STL (ASCII). Returns the path, the mesh_report and spec_check, the mesh compared with the file's cadverify_spec echo. From model.scad with the default parameters, if the mesh is new (you did not see its sheet or a view of it), it brings its sheet attached, the one render_sheet makes.",
+        "name": "scad_export",
+        "parameters": {
+          "properties": {
+            "overrides": {
+              "additionalProperties": {
+                "type": [
+                  "number",
+                  "string",
+                  "boolean",
+                  "array"
+                ]
+              },
+              "description": "Values that replace parameters of the file (-D name=value).",
+              "type": "object"
+            },
+            "part": {
+              "description": "Value of the `part` selector, if any.",
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "path"
+          ],
+          "type": "object"
+        },
+        "type": "function"
+      },
+      {
+        "description": "Watertightness, bad edges and where they are, volume, bounds, size, bodies, cavities, inverted shells and through holes of an STL.",
+        "name": "mesh_report",
+        "parameters": {
+          "properties": {
+            "stl": {
+              "description": "Path of the STL scad_export returned.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "stl"
+          ],
+          "type": "object"
+        },
+        "type": "function"
+      },
+      {
+        "description": "A sheet of orthographic views of the STL, which you get as an image: flat shading, sharp edges and outlines in black, open and non-manifold edges in red, faces seen from behind in magenta, axes and a scale in mm.",
+        "name": "render_sheet",
+        "parameters": {
+          "properties": {
+            "stl": {
+              "description": "Path of the STL scad_export returned.",
+              "type": "string"
+            },
+            "views": {
+              "description": "All six by default.",
+              "items": {
+                "enum": [
+                  "iso",
+                  "iso_back",
+                  "front",
+                  "side",
+                  "top",
+                  "bottom"
+                ],
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "stl"
+          ],
+          "type": "object"
+        },
+        "type": "function"
+      },
+      {
+        "description": "Overhangs of more than 45° (measured from the vertical) grouped by zone in the STL's orientation (+Z up, resting on the minimum z), whether each zone is declared in overhangs_allowed, the part of each zone steeper than 60° as a bridge (how far its farthest point is from the material under its lowest edge, seen from above), and whether the part fits the bed of the Bambu Lab A1 (256 × 256 × 256 mm).",
+        "name": "printability_report",
+        "parameters": {
+          "properties": {
+            "stl": {
+              "description": "Path of the STL scad_export returned.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "stl"
+          ],
+          "type": "object"
+        },
+        "type": "function"
+      },
+      {
+        "description": "Runs a bash command. Runs in /work, inside the sandbox: no network, 2 CPUs and 4 GB; only /work (1 GB) and /tmp (512 MB) are writable. There is python with numpy, scipy, trimesh, manifold3d, shapely and matplotlib, openscad and cadcheck (the tools' CLI). Returns stdout and stderr (if long, the start and the end with the count of bytes left out), the exit code, the time and the files created, modified or deleted. Processes still alive are ended when the call ends.",
+        "name": "run_shell",
+        "parameters": {
+          "properties": {
+            "cmd": {
+              "type": "string"
+            },
+            "timeout_s": {
+              "description": "Seconds; 60 by default, 300 at most.",
+              "type": "number"
+            }
+          },
+          "required": [
+            "cmd"
+          ],
+          "type": "object"
+        },
+        "type": "function"
+      },
+      {
+        "description": "Runs a Python program (python -c). Runs in /work, inside the sandbox: no network, 2 CPUs and 4 GB; only /work (1 GB) and /tmp (512 MB) are writable. There is python with numpy, scipy, trimesh, manifold3d, shapely and matplotlib, openscad and cadcheck (the tools' CLI). Returns stdout and stderr (if long, the start and the end with the count of bytes left out), the exit code, the time and the files created, modified or deleted. Processes still alive are ended when the call ends.",
+        "name": "run_python",
+        "parameters": {
+          "properties": {
+            "code": {
+              "type": "string"
+            },
+            "timeout_s": {
+              "description": "Seconds; 60 by default, 300 at most.",
+              "type": "number"
+            }
+          },
+          "required": [
+            "code"
+          ],
+          "type": "object"
+        },
+        "type": "function"
+      },
+      {
+        "description": "Shows you a PNG or JPG image of the workspace that you made (for example, a matplotlib plot), scaled down to 1568 px per side and 1.8 MP at most.",
+        "name": "view_image",
+        "parameters": {
+          "properties": {
+            "path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "path"
+          ],
+          "type": "object"
+        },
+        "type": "function"
+      },
+      {
+        "description": "A view on demand of one or more STLs, which you get as an image with its numbers. Free camera, orthographic or perspective; zoom to a box or to a point; a cut along any plane: the cut part with the cut face in salmon and, beside it, the 2D profile of the cut on a mm grid, with area, regions, holes and box; several parts together, apart with explode; highlights: overhangs, support faces and the spec's bounds box, through holes with their diameter at each end, and the spec's details (highlight details) with what each one measures, and for each declared detail whether it is in frame and up close (details_in_view). Coordinates in mm of the STL.",
+        "name": "render_view",
+        "parameters": {
+          "properties": {
+            "camera": {
+              "description": "One of: {\"view\": name}, {\"direction\": [x, y, z]} (from the part toward the camera) or {\"azimuth\": degrees, \"elevation\": degrees}. iso by default; with a cut, facing the cut face.",
+              "properties": {
+                "azimuth": {
+                  "type": "number"
+                },
+                "direction": {
+                  "items": {
+                    "type": "number"
+                  },
+                  "maxItems": 3,
+                  "minItems": 3,
+                  "type": "array"
+                },
+                "elevation": {
+                  "type": "number"
+                },
+                "view": {
+                  "enum": [
+                    "iso",
+                    "iso_back",
+                    "front",
+                    "side",
+                    "top",
+                    "bottom"
+                  ],
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            },
+            "cut": {
+              "description": "Cut plane; the side the normal points to is taken away.",
+              "properties": {
+                "normal": {
+                  "items": {
+                    "type": "number"
+                  },
+                  "maxItems": 3,
+                  "minItems": 3,
+                  "type": "array"
+                },
+                "point": {
+                  "items": {
+                    "type": "number"
+                  },
+                  "maxItems": 3,
+                  "minItems": 3,
+                  "type": "array"
+                }
+              },
+              "required": [
+                "point",
+                "normal"
+              ],
+              "type": "object"
+            },
+            "explode": {
+              "description": "mm to move several parts apart.",
+              "type": "number"
+            },
+            "highlight": {
+              "items": {
+                "enum": [
+                  "overhangs",
+                  "support_faces",
+                  "spec_bounds",
+                  "holes",
+                  "details"
+                ],
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "projection": {
+              "enum": [
+                "orthographic",
+                "perspective"
+              ],
+              "type": "string"
+            },
+            "stl": {
+              "description": "STLs from scad_export; several are shown together.",
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "title": {
+              "type": "string"
+            },
+            "zoom": {
+              "description": "{\"center\": [x, y, z], \"size_mm\": side} or {\"box\": [[xmin, ymin, zmin], [xmax, ymax, zmax]]}.",
+              "properties": {
+                "box": {
+                  "items": {
+                    "items": {
+                      "type": "number"
+                    },
+                    "maxItems": 3,
+                    "minItems": 3,
+                    "type": "array"
+                  },
+                  "maxItems": 2,
+                  "minItems": 2,
+                  "type": "array"
+                },
+                "center": {
+                  "items": {
+                    "type": "number"
+                  },
+                  "maxItems": 3,
+                  "minItems": 3,
+                  "type": "array"
+                },
+                "size_mm": {
+                  "type": "number"
+                }
+              },
+              "type": "object"
+            }
+          },
+          "required": [
+            "stl"
+          ],
+          "type": "object"
+        },
+        "type": "function"
+      },
+      {
+        "description": "Measures the assembly (part = \"assembly\") as G3 and G4 measure it: exports each instance in assembly coordinates and compares it with its part (volume, area, inertia); copies and units; overlaps between instances (volume, mean thickness and where) and the gap between the ones that touch; whether everything forms one group; what is held and the directions it comes off along; bounds and support faces of the assembly; each motion swept through its whole range, with how deep each declared flex goes, what stops it at each declared stop and whether it rests free at each declared rest, and the assembly order; with print_in_place, the clearances and the print of all the parts together, in the print_pose if there is one (G5). Leaves in checks/assembly/ the STL of each instance, each overlap, each pose that collides, the deepest overlap of each flex and the parts as they print in place, to look at with render_view.",
+        "name": "interference_check",
+        "parameters": {
+          "properties": {
+            "path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "path"
+          ],
+          "type": "object"
+        },
+        "type": "function"
+      }
+    ],
+    "top_logprobs": 0,
+    "top_p": 1.0,
+    "truncation": "disabled",
+    "usage": {
+      "input_tokens": 58871,
+      "input_tokens_details": {
+        "cached_tokens": 0
+      },
+      "output_tokens": 302,
+      "output_tokens_details": {
+        "reasoning_tokens": 42
+      },
+      "total_tokens": 59173
+    }
+  },
+  "latency_s": 7.071,
+  "total_with_retries_s": 7.071,
+  "attempts": [
+    {
+      "attempt": 1,
+      "status_code": 200,
+      "latency_s": 7.071,
+      "error": null,
+      "stream": {
+        "events": 19,
+        "terminal": "response.completed"
+      }
+    }
+  ],
+  "client_error": null
+}

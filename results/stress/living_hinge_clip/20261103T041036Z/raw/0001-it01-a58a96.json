@@ -1,0 +1,864 @@
+{
+  "label": "it01",
+  "endpoint": "POST /v1/responses",
+  "request": {
+    "model": "muse-spark-1.3-contributor",
+    "instructions": "You are a design engineer for FDM 3D printing who works in OpenSCAD. You work in an isolated workspace and only through the tools. The main file is model.scad.\n\nVERIFIABLE SPEC (required)\nBefore modeling, turn the request into measurable specifications and declare them in model.scad, for each part, with this echo, computed from the parameters, in the coordinates of the exported part (oriented for printing, in mm):\necho(cadverify_spec = [\n    [\"bounds\", [[xmin, ymin, zmin], [xmax, ymax, zmax]]],\n    [\"bodies\", 1],\n    [\"through_holes\", N],\n    [\"support_faces\", [[\"name\", \"-x\", min_area_mm2]]],\n    [\"overhangs_allowed\", [[\"reason\", [[xmin, ymin, zmin], [xmax, ymax, zmax]]]]],\n    [\"copies\", 1],\n    [\"details\", [\n        [\"name\", \"material\", [[xmin, ymin, zmin], [xmax, ymax, zmax]], min_fraction],\n        [\"name\", \"void\", [[xmin, ymin, zmin], [xmax, ymax, zmax]], min_fraction],\n        [\"name\", \"hole\", [x, y, z], [dx, dy, dz], [[depth, diameter], ...]],\n        [\"name\", \"thickness\", [x, y, z], [dx, dy, dz], mm],\n        [\"name\", \"view\", [[xmin, ymin, zmin], [xmax, ymax, zmax]]]\n    ]]\n]);\n- bounds: the box the exported part must fill (tolerance 0.2 mm). Required.\n- bodies: separate bodies (1 by default). through_holes: through holes (optional).\n- support_faces: faces that must sit flush against another surface (a wall, a shelf, the bed). The direction is the part's outward normal: +x, -x, +y, -y, +z or -z. The check is that nothing sticks out beyond that face and that the face has at least the given area.\n- overhangs_allowed: zones where you accept overhangs of more than 45°, with the reason. Each box goes around the overhang it justifies: together they cannot cover more than half of the part's surface. The part of an overhang steeper than 60° (a ceiling, the underside of a ledge, the bottom of a round pin) rests on almost nothing of the layer under it and prints as a bridge, in the air from the material under its lowest edge: no point of it, seen from above, can be more than 5 mm from that material, so a bridge spans 10 mm at most. Declaring a longer one does not make it printable.\n- copies: how many of this part one unit of the product takes (1 by default).\n- details: every feature the request or your design announces (a rib, a flared mouth, an entry chamfer, a slot, a wall, a relief), with how it is measured on the mesh:\n  - material: a box that must be full to at least that fraction (0 to 1): a rib, a reinforcement, a medallion;\n  - void: a box that must be empty to at least that fraction: a slot, a channel;\n  - hole: a point outside the part on the hole's axis, the direction inward and the diameter at each depth from the mouth (0 is the mouth): a flare, a countersink, a chamfered entry, a step;\n  - thickness: a point outside the part, the direction inward and the material that ray crosses, in mm: a wall, a floor;\n  - view: a box with something no number describes (a texture, a relief, a shape). The box must touch the surface, and in the final version you have to look at it up close.\nA detail is in the code and not in the mesh more often than it seems: an offset that empties a profile, a cone sunk below the face it had to flare, a chamfer the wrong way round. That is why it is measured, and render_view draws it with its measurement (highlight details).\nThe spec is the design intent. If a measurement does not match, fix the geometry. Change the spec only if it was badly posed against the request, and say so in the close: the harness flags a spec that moves to what the mesh already measured while the part stays the same.\n\nORIENTATION\nEach part is exported in its print orientation: +Z is the print direction and the part rests on its minimum z. If you define a `part` selector in the Customizer, every option except \"assembly\" is verified; if not, the default output is verified.\n\nASSEMBLY\nWith two printable parts or more, the part selector has the option \"assembly\": the assembled product, each part where it goes in use. Copy these lines into model.scad and put each part of the assembly inside an instance:\ncadverify_only = \"\";\nmodule instance(name, part, unit = 1) {\n    echo(cadverify_instance = [name, part, unit]);\n    if (cadverify_only == \"\" || cadverify_only == name) children();\n}\n// for example: instance(\"pin_left\", \"pin\") translate([...]) rotate([...]) pin();\n- name: one per instance. part: the option of the selector that is printed (the instance has to be that part, moved: the same volume, area and inertia), or \"external\" for what is not printed (a wall, a screw, a rope), or \"standard:<module>\" for a standard part of cadverify_parts.scad, drawn from its datasheet: pi4_board() (a Raspberry Pi 4 Model B from the official drawing: board, holes and port bodies), bearing_608(), aa_cell(), m3_nut(). With use <cadverify_parts.scad>, place the module itself, moved (the harness checks it is): the design then fits the real part, not one of its own drawing. Their origins and axes are in $OPENSCADPATH/cadverify_parts.scad. unit: 1, or 2, 3... for the next units when the product chains.\n- Nothing of the assembly goes outside an instance, and unit 1 places each printable part as many times as its copies.\n- The assembly has its own cadverify_spec echo (when part = \"assembly\"), in assembly coordinates:\necho(cadverify_spec = [\n    [\"bounds\", [[xmin, ymin, zmin], [xmax, ymax, zmax]]],\n    [\"support_faces\", [[\"wall\", \"-y\", min_area_mm2]]],\n    [\"allowed_interferences\", [[\"instance_a\", \"instance_b\", \"reason\"]]],\n    [\"motions\", [\n        [\"name\", [\"instance\", ...], \"rotate\", [x, y, z], [ax, ay, az], [from, to]],\n        [\"name\", [\"instance\", ...], \"slide\", [dx, dy, dz], [from, to]],\n        [\"name\", [\"instance\", ...], \"rotate\", [x, y, z], [ax, ay, az], [from, to],\n            [\"flex\", [[\"moving_instance\", \"other_instance\", mm, \"reason\"]]], [\"stops\", [to]]],\n        [\"name\", [\"instance\", ...], \"rotate\", [x, y, z], [ax, ay, az], [from, to],\n            [\"flex\", [[\"moving_instance\", \"other_instance\", mm, \"reason\"]]],\n            [\"rests\", [value, ...]]],\n        [\"name\", [\"instance\", ...], \"screw\", [x, y, z], [ax, ay, az], pitch_mm, [from, to]],\n        [\"name\", [\"instance\", ...], \"rotate\", [x, y, z], [ax, ay, az], [from, to],\n            [\"drives\", [[[\"instance\", ...], \"rotate\", [x, y, z], [ax, ay, az], ratio],\n                        [[\"instance\", ...], \"slide\", [dx, dy, dz], ratio]]]]\n    ]],\n    [\"assembly_order\", [\n        [[\"instance\", ...], [0, 0, 0]],\n        [[\"instance\", ...], [dx, dy, dz]],\n        [[\"instance\", ...], [dx, dy, dz], [\"rotate\", [x, y, z], [ax, ay, az], degrees]],\n        [[\"instance\", ...], [dx, dy, dz], [\"screw\", [x, y, z], [ax, ay, az], pitch_mm, degrees]],\n        [[\"instance\", ...], [dx, dy, dz],\n            [\"flex\", [[\"moving_instance\", \"placed_instance\", mm, \"reason\"]]]]\n    ]],\n    [\"print_in_place\", clearance_mm],\n    [\"print_pose\", [[\"motion name\", value]]],\n    [\"overhangs_allowed\", [[\"reason\", [[xmin, ymin, zmin], [xmax, ymax, zmax]]]]],\n    [\"held\", [\"instance\", ...]]\n]);\n  - bounds and support_faces of the assembled product (optional), measured on all the instances.\n  - allowed_interferences: press fits up to 0.3 mm thick. Any other overlap between instances is an error. A press fit is still swept: along a motion it may stay pressed no thicker than a fit, and on its way in a part may push only into the overlap it has in place.\n  - motions: what moves in use (a hinge, a link, a lid), from the pose of the assembly (0) through its whole range, in degrees or in mm. It is swept looking for collisions, with rigid parts: the instances it names move against the rest, and one that names every instance checks nothing and is refused. A thread is a screw: it turns and advances pitch_mm along the axis for each turn of 360° (right hand rule; negative for a left-hand thread). Gears, or a rack and its pinion, are one motion that drives the others: each group it drives turns (or slides) ratio degrees (or mm) for each degree (or mm) of the motion, about its own axis, and is carried by the motion too when the motion also names it (a planet on its carrier). Where a part stops the motion at an end of its range (a drawer that does not come out, a hinge that opens to 110°, the way a ratchet does not turn), say it in its stops: past that end, before its fastest point moves 2 mm more, the harness wants a collision, deeper than any flex. An elastic feature that bends while it moves (a detent bump, a snap) goes in the motion's flex: the instance that moves, the one it presses on and how deep they may overlap, up to 1 mm. The harness measures how deep they go, they have to meet somewhere along it (a flex that never touches bends nothing) and be free at both ends of the range: a flex springs back. Where a detent holds the motion (a lid that clicks at each day, a knob with positions), list those values in its rests: there the flex is free, a bump in its notch, and between two rests it rides over what it presses on.\n  - print_in_place: only if the product is printed already assembled, all its parts in one print (+z up, the lowest faces on the bed): the smallest clearance between any two parts, from 0.2 to 1 mm. The harness checks the overhangs and bridges of all the parts together, with the assembly's own overhangs_allowed (only then does the assembly have them), the bed, the clearances, and that every part rests on the bed or starts over another part, 1 mm under it at most: a part that hangs (a lid standing on its hinge) starts printing in the air. It comes off the bed in one piece, so each part must be held by the others: none may come off moving straight in any direction (a pin capped at both ends or held by its knuckles, a pivot in a closed bore, not an open groove).\n  - print_pose: with print_in_place, the pose it prints in, if not the one the assembly shows: motions at a value of their range, applied in order (a box printed open: its lid's hinge at 180). The clearances and the print are checked in that pose, and the assembly's overhangs_allowed are in its coordinates.\n  - assembly_order: the order it is put together in, with every instance once. Each step comes in from far away moving along its direction (the first one, a single part, does not need it; printed in place, the first may hold every part) and, if it says \"rotate\", then turns those degrees to land in its place (with \"screw\", it screws in: a cap on its thread starts above the thread), without passing through what is already placed. What snaps in as it comes in (a lid with a lip, a clip) says so in the step's flex, as a motion's: it may ride over what it presses on that deep, and has to meet it and be free once in place. A closed ring does not go into another closed ring: if the product needs that, the design has to open somewhere.\n  - held: the instances that must not come off the assembled product moving straight in any direction (a lid that does not lift off, a pin capped at both ends); printed in place, every part is checked this way.\n- interference_check measures the assembly as the harness does: overlaps, contacts, units, motions and assembly order; it leaves each instance, each overlap and each colliding pose as an STL to look at with render_view.\n\nTOOLS TO EXPLORE\n- render_view: a view on demand, with a free camera, zoom, cuts along any plane with the profile and its numbers, several parts together and highlights (overhangs, support faces, the spec's box, through holes, details).\n- run_shell and run_python: your own code in the workspace, without network, with numpy, trimesh, manifold3d, shapely, matplotlib, openscad and cadcheck.\n- view_image: shows you a PNG or JPG image you made in the workspace.\n- interference_check: the assembly measured as in G3 and G4.\nThe harness verifies the .scad files of the workspace: changing one by shell is an edit, with the same rules. Your images and calculations do not replace the sheet G7 asks for.\n\nLOOK\nEvery scad_export of model.scad with the default parameters and a new mesh brings its sheet attached, the one render_sheet makes: look at it before going on. Look a lot. A view costs little and is the fastest way to understand the part and to find what is wrong: ask for dozens of views and cuts over the session, of every part and of the assembly. After each change, look closely at what you changed: zoomed in, from several sides, cut where it matters. In the assembly, look at every joint, every fit and every part that moves, also cut. If you doubt something, make the image that shows it: a render_view, or your own matplotlib plot and view_image. Old images leave the context to make room for new ones, and what they showed stays in their place: if you need to see one again, ask for it again.\n\nQUESTIONS\nIf you need to ask the user something, first look at what is there: compile model.scad, export each option of part (the assembly too) with the default parameters and look at it. Then, before your first edit, a message without calling tools reaches the user, and their answer comes back as the next message. After your first edit, a message without tools is the close.\n\nPROCESS\n1. scad_write with the full design and the spec.\n2. scad_compile, scad_export (it brings the sheet) and printability_report of each part; interference_check and render_view of the assembly.\n3. Look (LOOK). A visual finding is a hypothesis: before fixing it, confirm it with numbers (scad_export or mesh_report: bounds, bodies, holes, support faces, details; printability_report; interference_check; a cut or the holes of render_view; a calculation with run_python or run_shell). After an image (render_sheet, render_view or view_image), the harness refuses changes to the .scad files, by shell too, until you run one of those checks. Not after the sheet scad_export brings: it comes with its numbers.\n4. Fix with scad_patch and go back to step 2. Each request counts toward the session's limits: send in the same request all the edits of one change (several scad_patch, or scad_write if a good part of the file changes) and the checks that follow them (scad_export, interference_check). The tools of one request run in order.\n5. Before closing, understand the product as a physical object: look at it, cut it and measure it as you will use it, as you will assemble it and as you will print it.\n6. When everything passes, close with a message without calling tools (CLOSE).\n\nCLOSE\nThe close says what you designed and how it is printed and assembled, in two parts:\n- Verified: what the harness measured, with numbers. Each claim carries in double brackets the name of what backs it: a part ([[lid]]), a detail or a support face of its spec ([[lid/rib]], or [[rib]] if only one part has it), the assembly ([[assembly]]) or a support face of its spec ([[assembly/name]]), a motion by its name, the assembly order ([[assembly_order]]), the print in place ([[print_in_place]]) or a gate ([[G5]]). Each name has to exist in the final version and be green.\n- Not verified: what nobody measured (strength, looks, what depends on the printer or the material, whether a flex bends that far without breaking), and each adjustment of the spec you made so it matches what was measured, with the reason.\nAn auditor compares the close with what was verified and with the request: a claim presented as verified without backing, a spec adjustment you did not tell, or something the request asks for that the harness measures once the spec declares it (a stop, a detent's rests, a part that must not come off, a standard part) left unmeasured, leaves G8 red.\n\nGATES: the harness verifies them when you finish, on model.scad with the default parameters. You cannot close with a red gate.\n- G1: it compiles and exports without errors, without failed asserts and without OpenSCAD warnings (an unknown variable or module gives no error, but leaves the geometry wrong).\n- G2: every part watertight, 0 bad edges, as many bodies as bodies, 0 inverted shells and a positive volume.\n- G3: the assembly: each instance is its part moved, every part is there with its copies, nothing overlaps except the declared fits, everything forms one group (parts 1 mm apart or less), the units the request asks for are there, what is held does not come off straight, and so are its bounds and support faces, if it declares them.\n- G4: every motion runs its whole range without colliding (a declared flex no deeper than declared, and free at the ends) and stops where it declares stops and rests where it declares rests, and the assembly can be put together in its order.\n- G5: overhangs of more than 45° only inside overhangs_allowed zones, which cover at most half of the part's surface, the part of each steeper than 60° a bridge of 10 mm at most, no body that starts in the air (each one rests on the bed or starts 1 mm or less over another), and the part fits the bed (Bambu Lab A1, 256 × 256 × 256 mm). With print_in_place, also all the parts together as they print (in the print_pose, if there is one), and the clearances between them.\n- G7: the spec exists and the mesh meets it, details included; and you saw, of the final version, the sheet of each part (the one scad_export brings, or render_sheet), one render_view with all the instances of the assembly together (the STLs interference_check leaves) and each \"view\" detail up close.\n- G8: the close (CLOSE).\n\nNever claim a verification you did not run.",
+    "tools": [
+      {
+        "type": "function",
+        "name": "scad_write",
+        "description": "Creates or fully replaces a .scad file of the workspace.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "content": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "path",
+            "content"
+          ]
+        }
+      },
+      {
+        "type": "function",
+        "name": "scad_patch",
+        "description": "Replaces the text `old` with `new` in a .scad file. Fails unless `old` appears exactly once: copy the exact text, with its indentation.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "old": {
+              "type": "string"
+            },
+            "new": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "path",
+            "old",
+            "new"
+          ]
+        }
+      },
+      {
+        "type": "function",
+        "name": "scad_compile",
+        "description": "Evaluates the program without building geometry: echo, warnings, failed asserts and errors.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "overrides": {
+              "type": "object",
+              "description": "Values that replace parameters of the file (-D name=value).",
+              "additionalProperties": {
+                "type": [
+                  "number",
+                  "string",
+                  "boolean",
+                  "array"
+                ]
+              }
+            }
+          },
+          "required": [
+            "path"
+          ]
+        }
+      },
+      {
+        "type": "function",
+        "name": "scad_export",
+        "description": "Exports one part to STL (ASCII). Returns the path, the mesh_report and spec_check, the mesh compared with the file's cadverify_spec echo. From model.scad with the default parameters, if the mesh is new (you did not see its sheet or a view of it), it brings its sheet attached, the one render_sheet makes.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "part": {
+              "type": "string",
+              "description": "Value of the `part` selector, if any."
+            },
+            "overrides": {
+              "type": "object",
+              "description": "Values that replace parameters of the file (-D name=value).",
+              "additionalProperties": {
+                "type": [
+                  "number",
+                  "string",
+                  "boolean",
+                  "array"
+                ]
+              }
+            }
+          },
+          "required": [
+            "path"
+          ]
+        }
+      },
+      {
+        "type": "function",
+        "name": "mesh_report",
+        "description": "Watertightness, bad edges and where they are, volume, bounds, size, bodies, cavities, inverted shells and through holes of an STL.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "stl": {
+              "type": "string",
+              "description": "Path of the STL scad_export returned."
+            }
+          },
+          "required": [
+            "stl"
+          ]
+        }
+      },
+      {
+        "type": "function",
+        "name": "render_sheet",
+        "description": "A sheet of orthographic views of the STL, which you get as an image: flat shading, sharp edges and outlines in black, open and non-manifold edges in red, faces seen from behind in magenta, axes and a scale in mm.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "stl": {
+              "type": "string",
+              "description": "Path of the STL scad_export returned."
+            },
+            "views": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "iso",
+                  "iso_back",
+                  "front",
+                  "side",
+                  "top",
+                  "bottom"
+                ]
+              },
+              "description": "All six by default."
+            }
+          },
+          "required": [
+            "stl"
+          ]
+        }
+      },
+      {
+        "type": "function",
+        "name": "printability_report",
+        "description": "Overhangs of more than 45° (measured from the vertical) grouped by zone in the STL's orientation (+Z up, resting on the minimum z), whether each zone is declared in overhangs_allowed, the part of each zone steeper than 60° as a bridge (how far its farthest point is from the material under its lowest edge, seen from above), and whether the part fits the bed of the Bambu Lab A1 (256 × 256 × 256 mm).",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "stl": {
+              "type": "string",
+              "description": "Path of the STL scad_export returned."
+            }
+          },
+          "required": [
+            "stl"
+          ]
+        }
+      },
+      {
+        "type": "function",
+        "name": "run_shell",
+        "description": "Runs a bash command. Runs in /work, inside the sandbox: no network, 2 CPUs and 4 GB; only /work (1 GB) and /tmp (512 MB) are writable. There is python with numpy, scipy, trimesh, manifold3d, shapely and matplotlib, openscad and cadcheck (the tools' CLI). Returns stdout and stderr (if long, the start and the end with the count of bytes left out), the exit code, the time and the files created, modified or deleted. Processes still alive are ended when the call ends.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "cmd": {
+              "type": "string"
+            },
+            "timeout_s": {
+              "type": "number",
+              "description": "Seconds; 60 by default, 300 at most."
+            }
+          },
+          "required": [
+            "cmd"
+          ]
+        }
+      },
+      {
+        "type": "function",
+        "name": "run_python",
+        "description": "Runs a Python program (python -c). Runs in /work, inside the sandbox: no network, 2 CPUs and 4 GB; only /work (1 GB) and /tmp (512 MB) are writable. There is python with numpy, scipy, trimesh, manifold3d, shapely and matplotlib, openscad and cadcheck (the tools' CLI). Returns stdout and stderr (if long, the start and the end with the count of bytes left out), the exit code, the time and the files created, modified or deleted. Processes still alive are ended when the call ends.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "code": {
+              "type": "string"
+            },
+            "timeout_s": {
+              "type": "number",
+              "description": "Seconds; 60 by default, 300 at most."
+            }
+          },
+          "required": [
+            "code"
+          ]
+        }
+      },
+      {
+        "type": "function",
+        "name": "view_image",
+        "description": "Shows you a PNG or JPG image of the workspace that you made (for example, a matplotlib plot), scaled down to 1568 px per side and 1.8 MP at most.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "path"
+          ]
+        }
+      },
+      {
+        "type": "function",
+        "name": "render_view",
+        "description": "A view on demand of one or more STLs, which you get as an image with its numbers. Free camera, orthographic or perspective; zoom to a box or to a point; a cut along any plane: the cut part with the cut face in salmon and, beside it, the 2D profile of the cut on a mm grid, with area, regions, holes and box; several parts together, apart with explode; highlights: overhangs, support faces and the spec's bounds box, through holes with their diameter at each end, and the spec's details (highlight details) with what each one measures, and for each declared detail whether it is in frame and up close (details_in_view). Coordinates in mm of the STL.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "stl": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "STLs from scad_export; several are shown together."
+            },
+            "camera": {
+              "type": "object",
+              "description": "One of: {\"view\": name}, {\"direction\": [x, y, z]} (from the part toward the camera) or {\"azimuth\": degrees, \"elevation\": degrees}. iso by default; with a cut, facing the cut face.",
+              "properties": {
+                "view": {
+                  "type": "string",
+                  "enum": [
+                    "iso",
+                    "iso_back",
+                    "front",
+                    "side",
+                    "top",
+                    "bottom"
+                  ]
+                },
+                "direction": {
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  },
+                  "minItems": 3,
+                  "maxItems": 3
+                },
+                "azimuth": {
+                  "type": "number"
+                },
+                "elevation": {
+                  "type": "number"
+                }
+              }
+            },
+            "projection": {
+              "type": "string",
+              "enum": [
+                "orthographic",
+                "perspective"
+              ]
+            },
+            "zoom": {
+              "type": "object",
+              "description": "{\"center\": [x, y, z], \"size_mm\": side} or {\"box\": [[xmin, ymin, zmin], [xmax, ymax, zmax]]}.",
+              "properties": {
+                "center": {
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  },
+                  "minItems": 3,
+                  "maxItems": 3
+                },
+                "size_mm": {
+                  "type": "number"
+                },
+                "box": {
+                  "type": "array",
+                  "items": {
+                    "type": "array",
+                    "items": {
+                      "type": "number"
+                    },
+                    "minItems": 3,
+                    "maxItems": 3
+                  },
+                  "minItems": 2,
+                  "maxItems": 2
+                }
+              }
+            },
+            "cut": {
+              "type": "object",
+              "description": "Cut plane; the side the normal points to is taken away.",
+              "properties": {
+                "point": {
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  },
+                  "minItems": 3,
+                  "maxItems": 3
+                },
+                "normal": {
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  },
+                  "minItems": 3,
+                  "maxItems": 3
+                }
+              },
+              "required": [
+                "point",
+                "normal"
+              ]
+            },
+            "explode": {
+              "type": "number",
+              "description": "mm to move several parts apart."
+            },
+            "highlight": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "overhangs",
+                  "support_faces",
+                  "spec_bounds",
+                  "holes",
+                  "details"
+                ]
+              }
+            },
+            "title": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "stl"
+          ]
+        }
+      },
+      {
+        "type": "function",
+        "name": "interference_check",
+        "description": "Measures the assembly (part = \"assembly\") as G3 and G4 measure it: exports each instance in assembly coordinates and compares it with its part (volume, area, inertia); copies and units; overlaps between instances (volume, mean thickness and where) and the gap between the ones that touch; whether everything forms one group; what is held and the directions it comes off along; bounds and support faces of the assembly; each motion swept through its whole range, with how deep each declared flex goes, what stops it at each declared stop and whether it rests free at each declared rest, and the assembly order; with print_in_place, the clearances and the print of all the parts together, in the print_pose if there is one (G5). Leaves in checks/assembly/ the STL of each instance, each overlap, each pose that collides, the deepest overlap of each flex and the parts as they print in place, to look at with render_view.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "path"
+          ]
+        }
+      }
+    ],
+    "reasoning": {
+      "effort": "high"
+    },
+    "max_output_tokens": 64000,
+    "stream": true,
+    "prompt_cache_key": "cadverify-agent-muse-spark-1.3-contributor",
+    "prompt_cache_retention": "24h",
+    "input": "# Bag clip with a living hinge\n\nA clip to close chip bags, in one piece: two arms joined at one end by a thin living hinge, and a\nlatch at the other end.\n\n- Arms about 100 mm long; the clip closes on a folded bag about 2 mm thick.\n- The living hinge is a thin flexible strip that lets the arms fold together; printed open, flat.\n- The latch at the free end hooks shut and opens with a thumb.\n- PETG on a Bambu Lab A1 with a 0.4 mm nozzle, no supports.\n\nShow me the clip as it prints, open, and it closing as its motion."
+  },
+  "status_code": 200,
+  "response_headers": {
+    "content-type": "text/event-stream",
+    "x-ratelimit-limit-requests": "150",
+    "x-ratelimit-remaining-requests": "145",
+    "x-ratelimit-limit-tokens": "3000000",
+    "x-ratelimit-remaining-tokens": "2989128",
+    "x-request-id": "4ae91496-5f01-4a4e-b25e-01ff2a570e1d",
+    "date": "Tue, 03 Nov 2026 04:10:39 GMT"
+  },
+  "response": {
+    "background": false,
+    "completed_at": 1793679485.0,
+    "created_at": 1793679038.0,
+    "error": null,
+    "id": "resp_6ae95ebe3beee03f582d400b",
+    "incomplete_details": null,
+    "instructions": "You are a design engineer for FDM 3D printing who works in OpenSCAD. You work in an isolated workspace and only through the tools. The main file is model.scad.\n\nVERIFIABLE SPEC (required)\nBefore modeling, turn the request into measurable specifications and declare them in model.scad, for each part, with this echo, computed from the parameters, in the coordinates of the exported part (oriented for printing, in mm):\necho(cadverify_spec = [\n    [\"bounds\", [[xmin, ymin, zmin], [xmax, ymax, zmax]]],\n    [\"bodies\", 1],\n    [\"through_holes\", N],\n    [\"support_faces\", [[\"name\", \"-x\", min_area_mm2]]],\n    [\"overhangs_allowed\", [[\"reason\", [[xmin, ymin, zmin], [xmax, ymax, zmax]]]]],\n    [\"copies\", 1],\n    [\"details\", [\n        [\"name\", \"material\", [[xmin, ymin, zmin], [xmax, ymax, zmax]], min_fraction],\n        [\"name\", \"void\", [[xmin, ymin, zmin], [xmax, ymax, zmax]], min_fraction],\n        [\"name\", \"hole\", [x, y, z], [dx, dy, dz], [[depth, diameter], ...]],\n        [\"name\", \"thickness\", [x, y, z], [dx, dy, dz], mm],\n        [\"name\", \"view\", [[xmin, ymin, zmin], [xmax, ymax, zmax]]]\n    ]]\n]);\n- bounds: the box the exported part must fill (tolerance 0.2 mm). Required.\n- bodies: separate bodies (1 by default). through_holes: through holes (optional).\n- support_faces: faces that must sit flush against another surface (a wall, a shelf, the bed). The direction is the part's outward normal: +x, -x, +y, -y, +z or -z. The check is that nothing sticks out beyond that face and that the face has at least the given area.\n- overhangs_allowed: zones where you accept overhangs of more than 45°, with the reason. Each box goes around the overhang it justifies: together they cannot cover more than half of the part's surface. The part of an overhang steeper than 60° (a ceiling, the underside of a ledge, the bottom of a round pin) rests on almost nothing of the layer under it and prints as a bridge, in the air from the material under its lowest edge: no point of it, seen from above, can be more than 5 mm from that material, so a bridge spans 10 mm at most. Declaring a longer one does not make it printable.\n- copies: how many of this part one unit of the product takes (1 by default).\n- details: every feature the request or your design announces (a rib, a flared mouth, an entry chamfer, a slot, a wall, a relief), with how it is measured on the mesh:\n  - material: a box that must be full to at least that fraction (0 to 1): a rib, a reinforcement, a medallion;\n  - void: a box that must be empty to at least that fraction: a slot, a channel;\n  - hole: a point outside the part on the hole's axis, the direction inward and the diameter at each depth from the mouth (0 is the mouth): a flare, a countersink, a chamfered entry, a step;\n  - thickness: a point outside the part, the direction inward and the material that ray crosses, in mm: a wall, a floor;\n  - view: a box with something no number describes (a texture, a relief, a shape). The box must touch the surface, and in the final version you have to look at it up close.\nA detail is in the code and not in the mesh more often than it seems: an offset that empties a profile, a cone sunk below the face it had to flare, a chamfer the wrong way round. That is why it is measured, and render_view draws it with its measurement (highlight details).\nThe spec is the design intent. If a measurement does not match, fix the geometry. Change the spec only if it was badly posed against the request, and say so in the close: the harness flags a spec that moves to what the mesh already measured while the part stays the same.\n\nORIENTATION\nEach part is exported in its print orientation: +Z is the print direction and the part rests on its minimum z. If you define a `part` selector in the Customizer, every option except \"assembly\" is verified; if not, the default output is verified.\n\nASSEMBLY\nWith two printable parts or more, the part selector has the option \"assembly\": the assembled product, each part where it goes in use. Copy these lines into model.scad and put each part of the assembly inside an instance:\ncadverify_only = \"\";\nmodule instance(name, part, unit = 1) {\n    echo(cadverify_instance = [name, part, unit]);\n    if (cadverify_only == \"\" || cadverify_only == name) children();\n}\n// for example: instance(\"pin_left\", \"pin\") translate([...]) rotate([...]) pin();\n- name: one per instance. part: the option of the selector that is printed (the instance has to be that part, moved: the same volume, area and inertia), or \"external\" for what is not printed (a wall, a screw, a rope), or \"standard:<module>\" for a standard part of cadverify_parts.scad, drawn from its datasheet: pi4_board() (a Raspberry Pi 4 Model B from the official drawing: board, holes and port bodies), bearing_608(), aa_cell(), m3_nut(). With use <cadverify_parts.scad>, place the module itself, moved (the harness checks it is): the design then fits the real part, not one of its own drawing. Their origins and axes are in $OPENSCADPATH/cadverify_parts.scad. unit: 1, or 2, 3... for the next units when the product chains.\n- Nothing of the assembly goes outside an instance, and unit 1 places each printable part as many times as its copies.\n- The assembly has its own cadverify_spec echo (when part = \"assembly\"), in assembly coordinates:\necho(cadverify_spec = [\n    [\"bounds\", [[xmin, ymin, zmin], [xmax, ymax, zmax]]],\n    [\"support_faces\", [[\"wall\", \"-y\", min_area_mm2]]],\n    [\"allowed_interferences\", [[\"instance_a\", \"instance_b\", \"reason\"]]],\n    [\"motions\", [\n        [\"name\", [\"instance\", ...], \"rotate\", [x, y, z], [ax, ay, az], [from, to]],\n        [\"name\", [\"instance\", ...], \"slide\", [dx, dy, dz], [from, to]],\n        [\"name\", [\"instance\", ...], \"rotate\", [x, y, z], [ax, ay, az], [from, to],\n            [\"flex\", [[\"moving_instance\", \"other_instance\", mm, \"reason\"]]], [\"stops\", [to]]],\n        [\"name\", [\"instance\", ...], \"rotate\", [x, y, z], [ax, ay, az], [from, to],\n            [\"flex\", [[\"moving_instance\", \"other_instance\", mm, \"reason\"]]],\n            [\"rests\", [value, ...]]],\n        [\"name\", [\"instance\", ...], \"screw\", [x, y, z], [ax, ay, az], pitch_mm, [from, to]],\n        [\"name\", [\"instance\", ...], \"rotate\", [x, y, z], [ax, ay, az], [from, to],\n            [\"drives\", [[[\"instance\", ...], \"rotate\", [x, y, z], [ax, ay, az], ratio],\n                        [[\"instance\", ...], \"slide\", [dx, dy, dz], ratio]]]]\n    ]],\n    [\"assembly_order\", [\n        [[\"instance\", ...], [0, 0, 0]],\n        [[\"instance\", ...], [dx, dy, dz]],\n        [[\"instance\", ...], [dx, dy, dz], [\"rotate\", [x, y, z], [ax, ay, az], degrees]],\n        [[\"instance\", ...], [dx, dy, dz], [\"screw\", [x, y, z], [ax, ay, az], pitch_mm, degrees]],\n        [[\"instance\", ...], [dx, dy, dz],\n            [\"flex\", [[\"moving_instance\", \"placed_instance\", mm, \"reason\"]]]]\n    ]],\n    [\"print_in_place\", clearance_mm],\n    [\"print_pose\", [[\"motion name\", value]]],\n    [\"overhangs_allowed\", [[\"reason\", [[xmin, ymin, zmin], [xmax, ymax, zmax]]]]],\n    [\"held\", [\"instance\", ...]]\n]);\n  - bounds and support_faces of the assembled product (optional), measured on all the instances.\n  - allowed_interferences: press fits up to 0.3 mm thick. Any other overlap between instances is an error. A press fit is still swept: along a motion it may stay pressed no thicker than a fit, and on its way in a part may push only into the overlap it has in place.\n  - motions: what moves in use (a hinge, a link, a lid), from the pose of the assembly (0) through its whole range, in degrees or in mm. It is swept looking for collisions, with rigid parts: the instances it names move against the rest, and one that names every instance checks nothing and is refused. A thread is a screw: it turns and advances pitch_mm along the axis for each turn of 360° (right hand rule; negative for a left-hand thread). Gears, or a rack and its pinion, are one motion that drives the others: each group it drives turns (or slides) ratio degrees (or mm) for each degree (or mm) of the motion, about its own axis, and is carried by the motion too when the motion also names it (a planet on its carrier). Where a part stops the motion at an end of its range (a drawer that does not come out, a hinge that opens to 110°, the way a ratchet does not turn), say it in its stops: past that end, before its fastest point moves 2 mm more, the harness wants a collision, deeper than any flex. An elastic feature that bends while it moves (a detent bump, a snap) goes in the motion's flex: the instance that moves, the one it presses on and how deep they may overlap, up to 1 mm. The harness measures how deep they go, they have to meet somewhere along it (a flex that never touches bends nothing) and be free at both ends of the range: a flex springs back. Where a detent holds the motion (a lid that clicks at each day, a knob with positions), list those values in its rests: there the flex is free, a bump in its notch, and between two rests it rides over what it presses on.\n  - print_in_place: only if the product is printed already assembled, all its parts in one print (+z up, the lowest faces on the bed): the smallest clearance between any two parts, from 0.2 to 1 mm. The harness checks the overhangs and bridges of all the parts together, with the assembly's own overhangs_allowed (only then does the assembly have them), the bed, the clearances, and that every part rests on the bed or starts over another part, 1 mm under it at most: a part that hangs (a lid standing on its hinge) starts printing in the air. It comes off the bed in one piece, so each part must be held by the others: none may come off moving straight in any direction (a pin capped at both ends or held by its knuckles, a pivot in a closed bore, not an open groove).\n  - print_pose: with print_in_place, the pose it prints in, if not the one the assembly shows: motions at a value of their range, applied in order (a box printed open: its lid's hinge at 180). The clearances and the print are checked in that pose, and the assembly's overhangs_allowed are in its coordinates.\n  - assembly_order: the order it is put together in, with every instance once. Each step comes in from far away moving along its direction (the first one, a single part, does not need it; printed in place, the first may hold every part) and, if it says \"rotate\", then turns those degrees to land in its place (with \"screw\", it screws in: a cap on its thread starts above the thread), without passing through what is already placed. What snaps in as it comes in (a lid with a lip, a clip) says so in the step's flex, as a motion's: it may ride over what it presses on that deep, and has to meet it and be free once in place. A closed ring does not go into another closed ring: if the product needs that, the design has to open somewhere.\n  - held: the instances that must not come off the assembled product moving straight in any direction (a lid that does not lift off, a pin capped at both ends); printed in place, every part is checked this way.\n- interference_check measures the assembly as the harness does: overlaps, contacts, units, motions and assembly order; it leaves each instance, each overlap and each colliding pose as an STL to look at with render_view.\n\nTOOLS TO EXPLORE\n- render_view: a view on demand, with a free camera, zoom, cuts along any plane with the profile and its numbers, several parts together and highlights (overhangs, support faces, the spec's box, through holes, details).\n- run_shell and run_python: your own code in the workspace, without network, with numpy, trimesh, manifold3d, shapely, matplotlib, openscad and cadcheck.\n- view_image: shows you a PNG or JPG image you made in the workspace.\n- interference_check: the assembly measured as in G3 and G4.\nThe harness verifies the .scad files of the workspace: changing one by shell is an edit, with the same rules. Your images and calculations do not replace the sheet G7 asks for.\n\nLOOK\nEvery scad_export of model.scad with the default parameters and a new mesh brings its sheet attached, the one render_sheet makes: look at it before going on. Look a lot. A view costs little and is the fastest way to understand the part and to find what is wrong: ask for dozens of views and cuts over the session, of every part and of the assembly. After each change, look closely at what you changed: zoomed in, from several sides, cut where it matters. In the assembly, look at every joint, every fit and every part that moves, also cut. If you doubt something, make the image that shows it: a render_view, or your own matplotlib plot and view_image. Old images leave the context to make room for new ones, and what they showed stays in their place: if you need to see one again, ask for it again.\n\nQUESTIONS\nIf you need to ask the user something, first look at what is there: compile model.scad, export each option of part (the assembly too) with the default parameters and look at it. Then, before your first edit, a message without calling tools reaches the user, and their answer comes back as the next message. After your first edit, a message without tools is the close.\n\nPROCESS\n1. scad_write with the full design and the spec.\n2. scad_compile, scad_export (it brings the sheet) and printability_report of each part; interference_check and render_view of the assembly.\n3. Look (LOOK). A visual finding is a hypothesis: before fixing it, confirm it with numbers (scad_export or mesh_report: bounds, bodies, holes, support faces, details; printability_report; interference_check; a cut or the holes of render_view; a calculation with run_python or run_shell). After an image (render_sheet, render_view or view_image), the harness refuses changes to the .scad files, by shell too, until you run one of those checks. Not after the sheet scad_export brings: it comes with its numbers.\n4. Fix with scad_patch and go back to step 2. Each request counts toward the session's limits: send in the same request all the edits of one change (several scad_patch, or scad_write if a good part of the file changes) and the checks that follow them (scad_export, interference_check). The tools of one request run in order.\n5. Before closing, understand the product as a physical object: look at it, cut it and measure it as you will use it, as you will assemble it and as you will print it.\n6. When everything passes, close with a message without calling tools (CLOSE).\n\nCLOSE\nThe close says what you designed and how it is printed and assembled, in two parts:\n- Verified: what the harness measured, with numbers. Each claim carries in double brackets the name of what backs it: a part ([[lid]]), a detail or a support face of its spec ([[lid/rib]], or [[rib]] if only one part has it), the assembly ([[assembly]]) or a support face of its spec ([[assembly/name]]), a motion by its name, the assembly order ([[assembly_order]]), the print in place ([[print_in_place]]) or a gate ([[G5]]). Each name has to exist in the final version and be green.\n- Not verified: what nobody measured (strength, looks, what depends on the printer or the material, whether a flex bends that far without breaking), and each adjustment of the spec you made so it matches what was measured, with the reason.\nAn auditor compares the close with what was verified and with the request: a claim presented as verified without backing, a spec adjustment you did not tell, or something the request asks for that the harness measures once the spec declares it (a stop, a detent's rests, a part that must not come off, a standard part) left unmeasured, leaves G8 red.\n\nGATES: the harness verifies them when you finish, on model.scad with the default parameters. You cannot close with a red gate.\n- G1: it compiles and exports without errors, without failed asserts and without OpenSCAD warnings (an unknown variable or module gives no error, but leaves the geometry wrong).\n- G2: every part watertight, 0 bad edges, as many bodies as bodies, 0 inverted shells and a positive volume.\n- G3: the assembly: each instance is its part moved, every part is there with its copies, nothing overlaps except the declared fits, everything forms one group (parts 1 mm apart or less), the units the request asks for are there, what is held does not come off straight, and so are its bounds and support faces, if it declares them.\n- G4: every motion runs its whole range without colliding (a declared flex no deeper than declared, and free at the ends) and stops where it declares stops and rests where it declares rests, and the assembly can be put together in its order.\n- G5: overhangs of more than 45° only inside overhangs_allowed zones, which cover at most half of the part's surface, the part of each steeper than 60° a bridge of 10 mm at most, no body that starts in the air (each one rests on the bed or starts 1 mm or less over another), and the part fits the bed (Bambu Lab A1, 256 × 256 × 256 mm). With print_in_place, also all the parts together as they print (in the print_pose, if there is one), and the clearances between them.\n- G7: the spec exists and the mesh meets it, details included; and you saw, of the final version, the sheet of each part (the one scad_export brings, or render_sheet), one render_view with all the instances of the assembly together (the STLs interference_check leaves) and each \"view\" detail up close.\n- G8: the close (CLOSE).\n\nNever claim a verification you did not run.",
+    "max_output_tokens": 64000,
+    "model": "muse-spark-1.3-contributor",
+    "object": "response",
+    "output": [
+      {
+        "id": "rs_6ae95ebe3beee03f582d400b:rs_01a19f9a193276cbb4d0740aebecd793",
+        "status": "completed",
+        "summary": [],
+        "type": "reasoning"
+      },
+      {
+        "content": [
+          {
+            "annotations": [],
+            "logprobs": [],
+            "text": "Your clip is a great fit for a living-hinge print — I'm building the open-flat version with its closing motion.",
+            "type": "output_text"
+          }
+        ],
+        "id": "rs_01a19fa0c72472eb8484300dc013fb3f",
+        "phase": "commentary",
+        "role": "assistant",
+        "status": "completed",
+        "type": "message"
+      },
+      {
+        "arguments": "{\"content\":\"/* Bag clip with living hinge - PETG, 0.4mm nozzle, no supports\\n   Printed open flat (single print, fuses into one piece), folds shut on 2mm folded bag.\\n   Two verification parts (lower + upper) that fuse at hinge when printed together.\\n   Assembly shows closed on bag, motion \\\"closing\\\" folds upper onto lower/bag.\\n*/\\n/* [Print] */\\npart = \\\"lower\\\"; // [lower, upper, assembly]\\n\\ncadverify_only = \\\"\\\";\\nmodule instance(name, part, unit = 1) {\\n    echo(cadverify_instance = [name, part, unit]);\\n    if (cadverify_only == \\\"\\\" || cadverify_only == name) children();\\n}\\n\\n// ---- parameters (mm) ----\\narm_len = 100;\\narm_w = 24;\\narm_t = 3;\\nhinge_len = 6;\\nhinge_t = 0.6;\\ntab_len = 12;\\nheel_len = 8;\\ncatch_w = 5;\\nlip = 0.8;\\nlip_t = 0.7;\\nbag_t = 2;\\n\\nlower_xmax = 106;      // 0..106\\nupper_len_print = 112; // 0..112\\nclosed_h = 8.2;\\npivot_x = 103.05;\\npivot_z = 4.1;\\n\\nmodule lower_geo() {\\n    // base\\n    cube([100, arm_w, arm_t]);\\n    // catch block at free end (x 0..5), overlap into base\\n    translate([0, 0, 2.98]) cube([5, arm_w, 2.02]);\\n    // catch lip protruding +x, overlap into block\\n    translate([4.98, 0, 4.3]) cube([0.82, arm_w, 0.7]);\\n    // living hinge leaf, overlap into base\\n    translate([99.98, 0, 0]) cube([6.02, arm_w, hinge_t]);\\n}\\n\\nmodule upper_geo() {\\n    // base 0..100\\n    cube([100, arm_w, arm_t]);\\n    // heel at hinge end on top\\n    translate([0, 0, 2.98]) cube([8, arm_w, 2.02]);\\n    // hook leg near free end on top\\n    translate([92.2, 0, 2.98]) cube([2, arm_w, 1.82]);\\n    // hook lip protruding +x from leg side\\n    translate([94.18, 0, 4.1]) cube([0.82, arm_w, 0.7]);\\n    // thumb tab extension beyond free end\\n    translate([99.98, 0, 0]) cube([12.02, arm_w, arm_t]);\\n}\\n\\nmodule bag_geo() {\\n    translate([8, 0, 3]) cube([84, arm_w, bag_t]);\\n}\\n\\nif (part == \\\"lower\\\") {\\n    echo(cadverify_spec = [\\n        [\\\"bounds\\\", [[0, 0, 0], [106, 24, 5]]],\\n        [\\\"bodies\\\", 1],\\n        [\\\"through_holes\\\", 0],\\n        [\\\"support_faces\\\", [[\\\"bed\\\", \\\"-z\\\", 500]]],\\n        [\\\"overhangs_allowed\\\", [[\\\"catch lip bridge\\\", [[4.5, 0, 4.0], [6.2, 24, 5.1]]]]],\\n        [\\\"copies\\\", 1],\\n        [\\\"details\\\", [\\n            [\\\"base\\\", \\\"material\\\", [[10, 0, 0], [90, 24, 3]], 1],\\n            [\\\"catch\\\", \\\"material\\\", [[0, 0, 3], [5, 24, 5]], 1],\\n            [\\\"catch_lip\\\", \\\"material\\\", [[4.98, 0, 4.3], [5.8, 24, 5]], 1],\\n            [\\\"hinge\\\", \\\"material\\\", [[99.98, 0, 0], [106, 24, 0.6]], 1],\\n            [\\\"hook_space\\\", \\\"void\\\", [[5.8, 0, 3], [8.6, 24, 5.4]], 1],\\n            [\\\"bag_space\\\", \\\"void\\\", [[8, 0, 5.1], [92, 24, 7]], 1],\\n            [\\\"wall\\\", \\\"thickness\\\", [50, 12, 6], [0, 0, -1], 3],\\n            [\\\"film\\\", \\\"thickness\\\", [103, 12, 2], [0, 0, -1], 0.6],\\n            [\\\"hinge_top\\\", \\\"view\\\", [[99, 0, 0], [107, 24, 1]]]\\n        ]]\\n    ]);\\n    lower_geo();\\n} else if (part == \\\"upper\\\") {\\n    echo(cadverify_spec = [\\n        [\\\"bounds\\\", [[0, 0, 0], [112, 24, 5]]],\\n        [\\\"bodies\\\", 1],\\n        [\\\"through_holes\\\", 0],\\n        [\\\"support_faces\\\", [[\\\"bed\\\", \\\"-z\\\", 500]]],\\n        [\\\"overhangs_allowed\\\", [[\\\"hook lip bridge\\\", [[91.5, 0, 2.8], [96, 24, 5]]]]],\\n        [\\\"copies\\\", 1],\\n        [\\\"details\\\", [\\n            [\\\"heel\\\", \\\"material\\\", [[0, 0, 3], [8, 24, 5]], 1],\\n            [\\\"arm\\\", \\\"material\\\", [[10, 0, 0], [80, 24, 3]], 1],\\n            [\\\"hook_leg\\\", \\\"material\\\", [[92.2, 0, 3], [94.2, 24, 4.8]], 1],\\n            [\\\"hook_lip\\\", \\\"material\\\", [[94.18, 0, 4.1], [95, 24, 4.8]], 1],\\n            [\\\"tab\\\", \\\"material\\\", [[100, 0, 0], [112, 24, 3]], 1],\\n            [\\\"catch_space\\\", \\\"void\\\", [[95, 0, 3], [99.9, 24, 5]], 1],\\n            [\\\"wall\\\", \\\"thickness\\\", [50, 12, 6], [0, 0, -1], 3],\\n            [\\\"heel_wall\\\", \\\"thickness\\\", [4, 12, 7], [0, 0, -1], 5],\\n            [\\\"thumb\\\", \\\"view\\\", [[99, 0, 0], [113, 24, 3.5]]]\\n        ]]\\n    ]);\\n    upper_geo();\\n} else if (part == \\\"assembly\\\") {\\n    echo(cadverify_spec = [\\n        [\\\"bounds\\\", [[-12, 0, 0], [106, 24, 8.2]]],\\n        [\\\"support_faces\\\", [[\\\"bed\\\", \\\"-z\\\", 1000]]],\\n        [\\\"motions\\\", [\\n            [\\\"closing\\\", [\\\"upper\\\"], \\\"rotate\\\", [103.05, 12, 4.1], [0, 1, 0], [0, 180],\\n                [\\\"flex\\\", [[\\\"upper\\\", \\\"lower\\\", 1, \\\"latch snap and heel clearance\\\"]]]]\\n        ]],\\n        [\\\"assembly_order\\\", [\\n            [[[\\\"lower\\\"], [0, 0, 0]]],\\n            [[[\\\"bag\\\"], [0, 0, -1]]],\\n            [[[\\\"upper\\\"], [0, 0, -1], [\\\"flex\\\", [[\\\"upper\\\", \\\"lower\\\", 1, \\\"latch snap\\\"]]]]]\\n        ]]\\n    ]);\\n    instance(\\\"lower\\\", \\\"lower\\\") lower_geo();\\n    instance(\\\"upper\\\", \\\"upper\\\") translate([100, 0, 8.2]) rotate([0, 180, 0]) upper_geo();\\n    instance(\\\"bag\\\", \\\"external\\\") bag_geo();\\n}\\n\",\"path\":\"model.scad\"}",
+        "call_id": "call_01a19fa0c8a276fbb174b1a55f953140",
+        "id": "fc_01a19fa0c8a276fbb174b1a55f953140",
+        "name": "scad_write",
+        "status": "completed",
+        "type": "function_call"
+      }
+    ],
+    "parallel_tool_calls": true,
+    "prompt_cache_key": "cadverify-agent-muse-spark-1.3-contributor",
+    "reasoning": {
+      "effort": "high"
+    },
+    "service_tier": "auto",
+    "status": "completed",
+    "store": true,
+    "temperature": 1.0,
+    "tool_choice": "auto",
+    "tools": [
+      {
+        "description": "Creates or fully replaces a .scad file of the workspace.",
+        "name": "scad_write",
+        "parameters": {
+          "properties": {
+            "content": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "path",
+            "content"
+          ],
+          "type": "object"
+        },
+        "type": "function"
+      },
+      {
+        "description": "Replaces the text `old` with `new` in a .scad file. Fails unless `old` appears exactly once: copy the exact text, with its indentation.",
+        "name": "scad_patch",
+        "parameters": {
+          "properties": {
+            "new": {
+              "type": "string"
+            },
+            "old": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "path",
+            "old",
+            "new"
+          ],
+          "type": "object"
+        },
+        "type": "function"
+      },
+      {
+        "description": "Evaluates the program without building geometry: echo, warnings, failed asserts and errors.",
+        "name": "scad_compile",
+        "parameters": {
+          "properties": {
+            "overrides": {
+              "additionalProperties": {
+                "type": [
+                  "number",
+                  "string",
+                  "boolean",
+                  "array"
+                ]
+              },
+              "description": "Values that replace parameters of the file (-D name=value).",
+              "type": "object"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "path"
+          ],
+          "type": "object"
+        },
+        "type": "function"
+      },
+      {
+        "description": "Exports one part to STL (ASCII). Returns the path, the mesh_report and spec_check, the mesh compared with the file's cadverify_spec echo. From model.scad with the default parameters, if the mesh is new (you did not see its sheet or a view of it), it brings its sheet attached, the one render_sheet makes.",
+        "name": "scad_export",
+        "parameters": {
+          "properties": {
+            "overrides": {
+              "additionalProperties": {
+                "type": [
+                  "number",
+                  "string",
+                  "boolean",
+                  "array"
+                ]
+              },
+              "description": "Values that replace parameters of the file (-D name=value).",
+              "type": "object"
+            },
+            "part": {
+              "description": "Value of the `part` selector, if any.",
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "path"
+          ],
+          "type": "object"
+        },
+        "type": "function"
+      },
+      {
+        "description": "Watertightness, bad edges and where they are, volume, bounds, size, bodies, cavities, inverted shells and through holes of an STL.",
+        "name": "mesh_report",
+        "parameters": {
+          "properties": {
+            "stl": {
+              "description": "Path of the STL scad_export returned.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "stl"
+          ],
+          "type": "object"
+        },
+        "type": "function"
+      },
+      {
+        "description": "A sheet of orthographic views of the STL, which you get as an image: flat shading, sharp edges and outlines in black, open and non-manifold edges in red, faces seen from behind in magenta, axes and a scale in mm.",
+        "name": "render_sheet",
+        "parameters": {
+          "properties": {
+            "stl": {
+              "description": "Path of the STL scad_export returned.",
+              "type": "string"
+            },
+            "views": {
+              "description": "All six by default.",
+              "items": {
+                "enum": [
+                  "iso",
+                  "iso_back",
+                  "front",
+                  "side",
+                  "top",
+                  "bottom"
+                ],
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "stl"
+          ],
+          "type": "object"
+        },
+        "type": "function"
+      },
+      {
+        "description": "Overhangs of more than 45° (measured from the vertical) grouped by zone in the STL's orientation (+Z up, resting on the minimum z), whether each zone is declared in overhangs_allowed, the part of each zone steeper than 60° as a bridge (how far its farthest point is from the material under its lowest edge, seen from above), and whether the part fits the bed of the Bambu Lab A1 (256 × 256 × 256 mm).",
+        "name": "printability_report",
+        "parameters": {
+          "properties": {
+            "stl": {
+              "description": "Path of the STL scad_export returned.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "stl"
+          ],
+          "type": "object"
+        },
+        "type": "function"
+      },
+      {
+        "description": "Runs a bash command. Runs in /work, inside the sandbox: no network, 2 CPUs and 4 GB; only /work (1 GB) and /tmp (512 MB) are writable. There is python with numpy, scipy, trimesh, manifold3d, shapely and matplotlib, openscad and cadcheck (the tools' CLI). Returns stdout and stderr (if long, the start and the end with the count of bytes left out), the exit code, the time and the files created, modified or deleted. Processes still alive are ended when the call ends.",
+        "name": "run_shell",
+        "parameters": {
+          "properties": {
+            "cmd": {
+              "type": "string"
+            },
+            "timeout_s": {
+              "description": "Seconds; 60 by default, 300 at most.",
+              "type": "number"
+            }
+          },
+          "required": [
+            "cmd"
+          ],
+          "type": "object"
+        },
+        "type": "function"
+      },
+      {
+        "description": "Runs a Python program (python -c). Runs in /work, inside the sandbox: no network, 2 CPUs and 4 GB; only /work (1 GB) and /tmp (512 MB) are writable. There is python with numpy, scipy, trimesh, manifold3d, shapely and matplotlib, openscad and cadcheck (the tools' CLI). Returns stdout and stderr (if long, the start and the end with the count of bytes left out), the exit code, the time and the files created, modified or deleted. Processes still alive are ended when the call ends.",
+        "name": "run_python",
+        "parameters": {
+          "properties": {
+            "code": {
+              "type": "string"
+            },
+            "timeout_s": {
+              "description": "Seconds; 60 by default, 300 at most.",
+              "type": "number"
+            }
+          },
+          "required": [
+            "code"
+          ],
+          "type": "object"
+        },
+        "type": "function"
+      },
+      {
+        "description": "Shows you a PNG or JPG image of the workspace that you made (for example, a matplotlib plot), scaled down to 1568 px per side and 1.8 MP at most.",
+        "name": "view_image",
+        "parameters": {
+          "properties": {
+            "path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "path"
+          ],
+          "type": "object"
+        },
+        "type": "function"
+      },
+      {
+        "description": "A view on demand of one or more STLs, which you get as an image with its numbers. Free camera, orthographic or perspective; zoom to a box or to a point; a cut along any plane: the cut part with the cut face in salmon and, beside it, the 2D profile of the cut on a mm grid, with area, regions, holes and box; several parts together, apart with explode; highlights: overhangs, support faces and the spec's bounds box, through holes with their diameter at each end, and the spec's details (highlight details) with what each one measures, and for each declared detail whether it is in frame and up close (details_in_view). Coordinates in mm of the STL.",
+        "name": "render_view",
+        "parameters": {
+          "properties": {
+            "camera": {
+              "description": "One of: {\"view\": name}, {\"direction\": [x, y, z]} (from the part toward the camera) or {\"azimuth\": degrees, \"elevation\": degrees}. iso by default; with a cut, facing the cut face.",
+              "properties": {
+                "azimuth": {
+                  "type": "number"
+                },
+                "direction": {
+                  "items": {
+                    "type": "number"
+                  },
+                  "maxItems": 3,
+                  "minItems": 3,
+                  "type": "array"
+                },
+                "elevation": {
+                  "type": "number"
+                },
+                "view": {
+                  "enum": [
+                    "iso",
+                    "iso_back",
+                    "front",
+                    "side",
+                    "top",
+                    "bottom"
+                  ],
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            },
+            "cut": {
+              "description": "Cut plane; the side the normal points to is taken away.",
+              "properties": {
+                "normal": {
+                  "items": {
+                    "type": "number"
+                  },
+                  "maxItems": 3,
+                  "minItems": 3,
+                  "type": "array"
+                },
+                "point": {
+                  "items": {
+                    "type": "number"
+                  },
+                  "maxItems": 3,
+                  "minItems": 3,
+                  "type": "array"
+                }
+              },
+              "required": [
+                "point",
+                "normal"
+              ],
+              "type": "object"
+            },
+            "explode": {
+              "description": "mm to move several parts apart.",
+              "type": "number"
+            },
+            "highlight": {
+              "items": {
+                "enum": [
+                  "overhangs",
+                  "support_faces",
+                  "spec_bounds",
+                  "holes",
+                  "details"
+                ],
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "projection": {
+              "enum": [
+                "orthographic",
+                "perspective"
+              ],
+              "type": "string"
+            },
+            "stl": {
+              "description": "STLs from scad_export; several are shown together.",
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "title": {
+              "type": "string"
+            },
+            "zoom": {
+              "description": "{\"center\": [x, y, z], \"size_mm\": side} or {\"box\": [[xmin, ymin, zmin], [xmax, ymax, zmax]]}.",
+              "properties": {
+                "box": {
+                  "items": {
+                    "items": {
+                      "type": "number"
+                    },
+                    "maxItems": 3,
+                    "minItems": 3,
+                    "type": "array"
+                  },
+                  "maxItems": 2,
+                  "minItems": 2,
+                  "type": "array"
+                },
+                "center": {
+                  "items": {
+                    "type": "number"
+                  },
+                  "maxItems": 3,
+                  "minItems": 3,
+                  "type": "array"
+                },
+                "size_mm": {
+                  "type": "number"
+                }
+              },
+              "type": "object"
+            }
+          },
+          "required": [
+            "stl"
+          ],
+          "type": "object"
+        },
+        "type": "function"
+      },
+      {
+        "description": "Measures the assembly (part = \"assembly\") as G3 and G4 measure it: exports each instance in assembly coordinates and compares it with its part (volume, area, inertia); copies and units; overlaps between instances (volume, mean thickness and where) and the gap between the ones that touch; whether everything forms one group; what is held and the directions it comes off along; bounds and support faces of the assembly; each motion swept through its whole range, with how deep each declared flex goes, what stops it at each declared stop and whether it rests free at each declared rest, and the assembly order; with print_in_place, the clearances and the print of all the parts together, in the print_pose if there is one (G5). Leaves in checks/assembly/ the STL of each instance, each overlap, each pose that collides, the deepest overlap of each flex and the parts as they print in place, to look at with render_view.",
+        "name": "interference_check",
+        "parameters": {
+          "properties": {
+            "path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "path"
+          ],
+          "type": "object"
+        },
+        "type": "function"
+      }
+    ],
+    "top_logprobs": 0,
+    "top_p": 1.0,
+    "truncation": "disabled",
+    "usage": {
+      "input_tokens": 7250,
+      "input_tokens_details": {
+        "cached_tokens": 7025
+      },
+      "output_tokens": 50758,
+      "output_tokens_details": {
+        "reasoning_tokens": 48976
+      },
+      "total_tokens": 58008
+    }
+  },
+  "latency_s": 448.357,
+  "total_with_retries_s": 448.357,
+  "attempts": [
+    {
+      "attempt": 1,
+      "status_code": 200,
+      "latency_s": 448.357,
+      "error": null,
+      "stream": {
+        "events": 30,
+        "terminal": "response.completed"
+      }
+    }
+  ],
+  "client_error": null
+}

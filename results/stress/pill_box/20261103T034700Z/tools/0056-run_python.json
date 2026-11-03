@@ -1,0 +1,36 @@
+{
+  "seq": 56,
+  "iteration": 35,
+  "name": "run_python",
+  "arguments": {
+    "code": "import trimesh, numpy as np\nm = trimesh.load('exports/model.base.87e59dfb.stl')\n# measure radial wall thickness at several heights: intersect ray from outside inward\nfor z in [6,10,12.2,14.6,17.5,20]:\n    o=np.array([48.,0.,z]); d=np.array([-1.,0.,0.])\n    locs,ray,tri = m.ray.intersects_location([o],[d],multiple_hits=True)\n    xs=sorted([float(l[0]) for l in locs])\n    print(f\"z={z}: intersections x={np.round(xs,2)} innermost_wall_thickness={xs[-1]-xs[-2] if len(xs)>=2 else None}\")\n"
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 1.118,
+    "stdout": "z=6: intersections x=[-42.5 -41.2   6.5  41.2  42.5] innermost_wall_thickness=1.2999999970197678\nz=10: intersections x=[-42.5 -41.2   6.5  41.2  42.5] innermost_wall_thickness=1.2999999970197678\nz=12.2: intersections x=[-42.5  -41.2    6.5   41.2   41.85] innermost_wall_thickness=0.6499999970197692\nz=14.6: intersections x=[-41.7 -41.2   6.5  41.2  41.7] innermost_wall_thickness=0.5\nz=17.5: intersections x=[-43.  -41.2   6.5  41.2  43. ] innermost_wall_thickness=1.7999999970197678\nz=20: intersections x=[-42.5 -41.2   6.5  41.2  42.5] innermost_wall_thickness=1.2999999970197678\n",
+    "stderr": "",
+    "stdout_bytes": 583,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 1.488,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "5613c1b93a7297ab"
+}

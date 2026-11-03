@@ -1,0 +1,35 @@
+{
+  "seq": 10,
+  "iteration": 5,
+  "name": "scad_patch",
+  "arguments": {
+    "new": "module base_geometry() {\n    // bottom disc + wall tube + flange + hub + dividers, then notch pits out\n    difference() {\n        union() {\n            // bottom disc\n            cylinder(r = base_wall_outer, h = base_bottom_t, $fn = 180);\n            // outer wall tube\n            difference() {\n                cylinder(r = base_wall_outer, h = base_h, $fn = 180);\n                translate([0,0,base_bottom_t - 0.5])\n                    cylinder(r = base_wall_inner, h = base_h, $fn = 180);\n            }\n            // flange ring with 45deg-chamfered underside\n            rotate_extrude($fn = 180)\n                polygon(points = [\n                    [base_wall_outer, flange_bot],\n                    [flange_outer, flange_mid],\n                    [flange_outer, flange_top],\n                    [base_wall_outer, flange_top]\n                ]);\n            // hub (kept solid: added after cavity so it survives)\n            cylinder(r = hub_r, h = base_h, $fn = 96);\n            // 7 dividers at k*360/7 (added after cavity so they survive)\n            for (k = [0:6]) {\n                rotate([0,0,k*360/7])\n                    translate([divider_r0, -divider_t/2, base_bottom_t])\n                        cube([divider_r1 - divider_r0, divider_t, base_h - base_bottom_t]);\n            }\n        }\n        // 7 notch pits (hemispherical) at compartment centres\n        for (k = [0:6]) {\n            ang = (k+0.5)*360/7;\n            translate([notch_r*cos(ang), notch_r*sin(ang), base_h])\n                sphere(r = notch_rad, $fn = 32);\n        }\n    }\n}",
+    "old": "module base_geometry() {\n    // bottom disc\n    cylinder(r = base_wall_outer, h = base_bottom_t, $fn = 180);\n    // outer wall tube\n    difference() {\n        cylinder(r = base_wall_outer, h = base_h, $fn = 180);\n        translate([0,0,base_bottom_t - 0.5])\n            cylinder(r = base_wall_inner, h = base_h, $fn = 180);\n    }\n    // flange ring with 45deg-chamfered underside\n    rotate_extrude($fn = 180)\n        polygon(points = [\n            [base_wall_outer, flange_bot],\n            [flange_outer, flange_mid],\n            [flange_outer, flange_top],\n            [base_wall_outer, flange_top]\n        ]);\n    // hub (kept solid: added after cavity so it survives)\n    cylinder(r = hub_r, h = base_h, $fn = 96);\n    // 7 dividers at k*360/7 (added after cavity so they survive)\n    for (k = [0:6]) {\n        rotate([0,0,k*360/7])\n            translate([divider_r0, -divider_t/2, base_bottom_t])\n                cube([divider_r1 - divider_r0, divider_t, base_h - base_bottom_t]);\n    }\n    // 7 notch pits (hemispherical) at compartment centres\n    for (k = [0:6]) {\n        ang = (k+0.5)*360/7;\n        translate([notch_r*cos(ang), notch_r*sin(ang), base_h])\n            sphere(r = notch_rad, $fn = 32);\n    }\n}",
+    "path": "model.scad"
+  },
+  "result": {
+    "ok": true,
+    "path": "model.scad",
+    "line": 41,
+    "lines_removed": 32,
+    "lines_added": 37,
+    "bytes": 6748,
+    "lines": 179,
+    "sha256": "947a6afdefe6615402bc3778268fe424a3319d7ae1341d5f277e70f72d14ef76"
+  },
+  "seconds": 0.309,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [
+      "model.scad"
+    ],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [
+    "model.scad"
+  ],
+  "rule": null,
+  "source": "25226ca66bea5d1c"
+}

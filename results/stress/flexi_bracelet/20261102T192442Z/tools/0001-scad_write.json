@@ -1,0 +1,32 @@
+{
+  "seq": 1,
+  "iteration": 1,
+  "name": "scad_write",
+  "arguments": {
+    "content": "// Bracelet of hinged links, printed in place\n// Print orientation: flat on bed, +Z up, min z = 0\n// Link: pitch 18 (X), width 12 (Y), thickness 5 (Z incl. snap stud)\n// Hinge: horizontal pin along Y, teardrop pin in round hole, 0.5mm clearance\n\npart = \"link\"; // [link, assembly]\ncadverify_only = \"\";\n\nmodule instance(name, part, unit = 1) {\n    echo(cadverify_instance = [name, part, unit]);\n    if (cadverify_only == \"\" || cadverify_only == name) children();\n}\n\n// ---- parameters ----\nP = 18;            // pitch (hinge to hinge)\nW = 12;            // width (Y)\nHb = 4;            // body thickness (Z 0-4)\nHs = 1;            // stud height (Z 4-5)\nZc = 2.0;          // hinge axis height\nRp = 1.5;          // pin radius (teardrop, tip dist 1.5)\nRh = 2.0;          // hole radius\nYtong = 3.5;       // tongue half width\nYin = 4.0;         // leaves inner face\nYout = 6.0;        // outer半 width\nXrear = -1.5;      // rear face (pin rear)\nXsr = 3.5;         // spine rear (overlap)\nXsf = 14.5;       // spine front (overlap)\nXlr = 13.5;        // leaves rear\nXfront = 20;       // front face\nXpinR = 0;         // rear pin x\nXpinF = 18;        // front hole x\nstudX = 7; studR = 1.75;\nholeX = 11; holeR = 1.6;\n\nmodule teardrop2D() {\n    RpL = 1.5; ZcL = 2.0;\n    pts = concat(\n        [for (a=[0:180/16:180]) [RpL*cos(a), ZcL+RpL*sin(a)]],\n        [[0, ZcL-RpL]]\n    );\n    polygon(pts);\n}\n\nmodule pin_stub(len) {\n    linear_extrude(height=len)\n        teardrop2D();\n}\n\nmodule stud_solid() {\n    // base shaft r1.75, 3.9-4.5 + 45deg chamfer frustum to r1.25, 4.5-5.0\n    translate([studX, 0, 3.9]) cylinder(r=studR, h=0.6, $fn=32);\n    translate([studX, 0, 4.5]) cylinder(r1=studR, r2=1.25, h=0.5, $fn=32);\n}\n\nmodule link() {\n    difference() {\n        union() {\n            // spine\n            translate([Xsr, -6, 0]) cube([Xsf-Xsr, 12, 4]);\n            // tongue (middle, thin in Y)\n            translate([Xrear, -Ytong, 0]) cube([(4.5-Xrear), 7, 4]);\n            // leaves (outer in Y)\n            translate([Xlr, -6, 0]) cube([Xfront-Xlr, 2, 4]);\n            translate([Xlr, 4, 0]) cube([Xfront-Xlr, 2, 4]);\n            // pin stubs (teardrop, axis Y)\n            translate([0, -3.0, 0]) rotate([90,0,0]) pin_stub(2.5);\n            translate([0, 5.5, 0]) rotate([90,0,0]) pin_stub(2.5);\n            // snap stud on top\n            stud_solid();\n        }\n        // leaf holes (round, axis Y)\n        translate([XpinF, -6.1, Zc]) rotate([-90,0,0]) cylinder(r=Rh, h=2.2, $fn=40);\n        translate([XpinF, 3.9, Zc]) rotate([-90,0,0]) cylinder(r=Rh, h=2.2, $fn=40);\n        // snap hole through (axis Z) + entry chamfers\n        translate([holeX, 0, -0.1]) cylinder(r=holeR, h=4.2, $fn=32);\n        translate([holeX, 0, 3.5]) cylinder(r1=holeR, r2=2.1, h=0.5, $fn=32);\n        translate([holeX, 0, 0]) cylinder(r1=2.1, r2=holeR, h=0.5, $fn=32);\n    }\n}\n\nif (part == \"assembly\") {\n    echo(cadverify_spec = [\n        [\"bounds\", [[-1.5, -6, 0], [56, 6, 5]]],\n        [\"support_faces\", [[\"bed\", \"-z\", 300]]],\n        [\"allowed_interferences\", []],\n        [\"motions\", [\n            [\"joint_bend\", [\"link3\"], \"rotate\", [36, 0, 2], [0, 1, 0], [-30, 30]]\n        ]],\n        [\"assembly_order\", [\n            [[\"link1\"], [0, 0, 0]],\n            [[\"link2\"], [0, 0, -1]],\n            [[\"link3\"], [0, 0, -1]]\n        ]],\n        [\"print_in_place\", 0.5],\n        [\"overhangs_allowed\", [\n            [\"hole top bridge span 2mm\", [[16, 4, 3.4], [20, 6, 4]]],\n            [\"hole top bridge span 2mm\", [[16, -6, 3.4], [20, -4, 4]]],\n            [\"hole top bridge span 2mm\", [[34, 4, 3.4], [38, 6, 4]]],\n            [\"hole top bridge span 2mm\", [[34, -6, 3.4], [38, -4, 4]]],\n            [\"hole top bridge span 2mm\", [[52, 4, 3.4], [56, 6, 4]]],\n            [\"hole top bridge span 2mm\", [[52, -6, 3.4], [56, -4, 4]]]\n        ]]\n    ]);\n    instance(\"link1\", \"link\", 1) translate([0, 0, 0]) link();\n    instance(\"link2\", \"link\", 1) translate([18, 0, 0]) link();\n    instance(\"link3\", \"link\", 1) translate([36, 0, 0]) link();\n} else {\n    echo(cadverify_spec = [\n        [\"bounds\", [[-1.5, -6, 0], [20, 6, 5]]],\n        [\"bodies\", 1],\n        [\"through_holes\", 3],\n        [\"support_faces\", [[\"bed\", \"-z\", 100]]],\n        [\"overhangs_allowed\", [\n            [\"hole top bridge span 2mm\", [[16, 4, 3.4], [20, 6, 4]]],\n            [\"hole top bridge span 2mm\", [[16, -6, 3.4], [20, -4, 4]]]\n        ]],\n        [\"copies\", 3],\n        [\"details\", [\n            [\"spine\", \"material\", [[5, -5, 0], [9, 5, 4]], 0.9],\n            [\"slot\", \"void\", [[14.5, -4, 0], [20, 4, 4]], 0.9],\n            [\"pin_hole\", \"hole\", [18, -8, 2], [0, 1, 0], [[0, 4], [2, 4]]],\n            [\"snap_hole\", \"hole\", [11, 0, 6], [0, 0, -1], [[0, 4.2], [0.5, 3.2], [3.5, 3.2], [4, 4.2]]],\n            [\"floor\", \"thickness\", [9, 3, -1], [0, 0, 1], 4],\n            [\"snap\", \"view\", [[5, -2, 4], [9, 2, 5]]]\n        ]]\n    ]);\n    link();\n}\n",
+    "path": "model.scad"
+  },
+  "result": {
+    "ok": true,
+    "path": "model.scad",
+    "replaced": false,
+    "bytes": 4894,
+    "lines": 128,
+    "sha256": "a39539fb0c3aa1ee9465751e41f3eef920994d83c14ea8eb6bb5656c7a42e9c7"
+  },
+  "seconds": 0.823,
+  "image": null,
+  "files": {
+    "new": [
+      "model.scad"
+    ],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [
+    "model.scad"
+  ],
+  "rule": null,
+  "source": "3c152007a79875a5"
+}

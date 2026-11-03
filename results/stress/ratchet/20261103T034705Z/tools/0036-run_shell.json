@@ -1,0 +1,37 @@
+{
+  "seq": 36,
+  "iteration": 26,
+  "name": "run_shell",
+  "arguments": {
+    "cmd": "python3 -c \"\nimport trimesh, numpy as np, math\nw=trimesh.load('checks/assembly/model.assembly.1d428528.stl')\nb=trimesh.load('checks/assembly/model.assembly.57cfb177.stl')\nprint('verts', len(w.vertices), len(b.vertices))\n# slice at z=7: which triangles cross; get 2D segments\ndef slice_polys(mesh, z):\n    T=mesh.triangles  # (n,3,3)\n    segs=[]\n    for t in T:\n        pts=[]\n        for i in range(3):\n            p0=t[i]; p1=t[(i+1)%3]\n            if (p0[2]-z)*(p1[2]-z)<0:\n                a=(z-p0[2])/(p1[2]-p0[2])\n                pts.append(p0+a*(p1-p0))\n        if len(pts)==2:\n            segs.append(pts)\n    return np.array(segs)\nsw=slice_polys(w,7); sb=slice_polys(b,7)\nprint('wheel segs', len(sw), 'base segs', len(sb))\nprint('wheel seg x range', sw[:,:,0].min(), sw[:,:,0].max())\nprint('base segs near pawl x>20:', (sb[:,:,0].max(axis=1)>20).sum())\nsel=sb[(sb[:,:,0].mean(axis=1)>20)]\nprint('count', len(sel))\nif len(sel): print(sel[:10])\n\"\n",
+    "timeout_s": 60.0
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.99,
+    "stdout": "verts 240 249\nwheel segs 240 base segs 217\nwheel seg x range -24.423036830419232 24.423036830419232\nbase segs near pawl x>20: 25\ncount 25\n[[[ 2.85000000e+01 -1.03750000e+01  7.00000000e+00]\n  [ 2.85000000e+01 -1.05381356e+01  7.00000000e+00]]\n\n [[ 2.70000000e+01 -7.50000000e-01  7.00000000e+00]\n  [ 2.70000000e+01 -1.05381356e+01  7.00000000e+00]]\n\n [[ 2.85000000e+01 -1.03750000e+01  7.00000000e+00]\n  [ 2.85000000e+01  0.00000000e+00  7.00000000e+00]]\n\n [[ 2.70000000e+01 -1.05381356e+01  7.00000000e+00]\n  [ 2.70000000e+01 -2.00000000e+01  7.00000000e+00]]\n\n [[ 2.85000000e+01 -2.00000000e+01  7.00000000e+00]\n  [ 2.85000000e+01 -1.05381356e+01  7.00000000e+00]]\n\n [[ 2.42000000e+01  0.00000000e+00  7.00000000e+00]\n  [ 2.42000000e+01 -1.27118644e-02  7.00000000e+00]]\n\n [[ 2.42000000e+01 -7.50000000e-01  7.00000000e+00]\n  [ 2.56237288e+01 -7.50000000e-01  7.00000000e+00]]\n\n [[ 2.42000000e+01 -1.27118644e-02  7.00000000e+00]\n  [ 2.42000000e+01 -7.50000000e-01  7.00000000e+00]]\n\n [[ 2.56237288e+01 -7.50000000e-01  7.00000000e+00]\n  [ 2.70000000e+01 -7.50000000e-01  7.00000000e+00]]\n\n [[ 2.42000000e+01  7.50000000e-01  7.00000000e+00]\n  [ 2.42000000e+01  0.00000000e+00  7.00000000e+00]]]\n",
+    "stderr": "",
+    "stdout_bytes": 1198,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 1.427,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "a1c3e6cd649abb7e"
+}

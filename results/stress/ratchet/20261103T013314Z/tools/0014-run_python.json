@@ -1,0 +1,37 @@
+{
+  "seq": 14,
+  "iteration": 10,
+  "name": "run_python",
+  "arguments": {
+    "code": "import trimesh, numpy as np\nfrom manifold3d import Manifold, Mesh\ndef load_manifold(path):\n    m = trimesh.load(path, process=True)\n    mesh = Mesh(vert_properties=np.ascontiguousarray(m.vertices, dtype=np.float32),\n                tri_verts=np.ascontiguousarray(m.faces, dtype=np.uint32))\n    return Manifold(mesh)\nw0 = load_manifold('checks/assembly/model.assembly.1d428528.stl')\nb0 = load_manifold('checks/assembly/model.assembly.57cfb177.stl')\nprint('w vol', w0.volume(), 'b vol', b0.volume())\nfrom trimesh.transformations import rotation_matrix\nfor deg in [0,-10,-21,-22,-23,-24,-25,-26,-27,-28,-29,-30,-40]:\n    M = rotation_matrix(np.radians(deg), [0,0,1], point=[-10,0,6.0])\n    wv = trimesh.load('checks/assembly/model.assembly.1d428528.stl')\n    wv.apply_transform(M)\n    wm = Manifold(Mesh(vert_properties=np.ascontiguousarray(wv.vertices,dtype=np.float32), tri_verts=np.ascontiguousarray(wv.faces,dtype=np.uint32)))\n    try:\n        iv = (wm ^ b0).volume()\n    except Exception as e:\n        iv = f'ERR {e}'\n    print(deg, iv)\n",
+    "timeout_s": 180.0
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 1.341,
+    "stdout": "w vol 13332.080955097865 b vol 40605.78589013832\n0 -8.002593813311032e-14\n-10 -9.989676186955565e-15\n-21 0.11338673127249196\n-22 0.6321678439533504\n-23 1.7356759918659979\n-24 2.7928416291328064\n-25 2.771929213644497\n-26 1.6516578200819654\n-27 0.41334345382770593\n-28 0.00039068632566532013\n-29 -7.807745064630084e-14\n-30 -8.594226675803784e-14\n-40 -9.782756202336707e-14\n",
+    "stderr": "",
+    "stdout_bytes": 371,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 1.76,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "076ebf94697f2642"
+}

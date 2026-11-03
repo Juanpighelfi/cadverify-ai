@@ -1,0 +1,36 @@
+{
+  "seq": 30,
+  "iteration": 32,
+  "name": "run_shell",
+  "arguments": {
+    "cmd": "grep -n \"_printed\\|def _units\\|def _permitted\" /opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/assembly.py | head\nsed -n 280,340p /opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/assembly.py"
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.007,
+    "stdout": "286:def _printed(inst: dict) -> bool:\n356:        if _printed(inst) and inst[\"part\"] not in parts:\n376:def _permitted(spec: dict[str, Any], names: set[str], problems: list[str]) -> dict:\n469:def _units(instances: list[dict], pairs: list[dict], required: int, problems: list[str]) -> dict:\n524:    printed = [i for i in instances if _printed(i) and i[\"unit\"] == 1]\n575:    printed = [i for i in instances if _printed(i) and i[\"unit\"] == 1]\n        return list(pool.map(one, listed))\n\n\n# ---- G3 -----------------------------------------------------------------------------------\n\n\ndef _printed(inst: dict) -> bool:\n    \"\"\"Whether an instance is a part that is printed: not external, not a standard part.\"\"\"\n    return inst[\"part\"] != EXTERNAL and not inst[\"part\"].startswith(STANDARD)\n\n\ndef _properties(mesh: trimesh.Trimesh) -> tuple[float, float, np.ndarray]:\n    inertia = np.linalg.eigvalsh(mesh.moment_inertia)\n    return float(mesh.volume), float(mesh.area), np.sort(inertia)\n\n\ndef _congruence(\n    instances: list[dict], parts: dict[str, dict], out_dir: Path, problems: list[str]\n) -> None:\n    cache: dict[str, tuple | None] = {}\n    for inst in instances:\n        part = inst[\"part\"]\n        if part.startswith(STANDARD) and part not in cache:\n            cache[part] = _standard(part.removeprefix(STANDARD), out_dir, problems)\n        elif part in parts and part not in cache:\n            cache[part] = _properties(load_exact(parts[part][\"path\"]))\n        if cache.get(part) is None:\n            inst[\"congruent\"] = None\n            continue\n        volume, area, inertia = cache[part]\n        v, a, i = _properties(inst[\"_mesh\"])\n        dv, da = abs(v - volume) / max(volume, 1e-9), abs(a - area) / max(area, 1e-9)\n        di = float(np.max(np.abs(i - inertia)) / max(float(inertia.max()), 1e-9))\n        ok = dv <= CONGRUENCE_REL and da <= CONGRUENCE_REL and di <= INERTIA_REL\n        inst[\"congruent\"] = ok\n        inst[\"congruence\"] = {\n            \"volume_mm3\": [round(v, 2), round(volume, 2)],\n            \"area_mm2\": [round(a, 2), round(area, 2)],\n            \"inertia_rel_diff\": round(di, 5),\n        }\n        if not ok and part.startswith(STANDARD):\n            problems.append(\n                f\"the instance {inst['name']} is not the standard part \"\n                f\"{part.removeprefix(STANDARD)}() of cadverify_parts.scad: volume {v:.1f} against \"\n                f\"{volume:.1f} mm³, area {a:.1f} against {area:.1f} mm² (place the module \"\n                \"itself, moved: the design has to fit the real part)\"\n            )\n        elif not ok:\n            problems.append(\n                f\"the instance {inst['name']} is not the part {part} that is printed: volume \"\n                f\"{v:.1f} against {volume:.1f} mm³, area {a:.1f} against {area:.1f} mm² (the \"\n                \"assembly must place the same part, moved)\"\n            )\n\n\ndef _standard(name: str, out_dir: Path, problems: list[str]) -> tuple | None:\n    \"\"\"The volume, area and principal moments of a module of cadverify_parts.scad.\"\"\"\n    modules = re.findall(\n        r\"^module (\\w+)\\(\\)\", (STANDARD_DIR / \"cadverify_parts.scad\").read_text(), re.M\n    )\n    if name not in modules:\n",
+    "stderr": "",
+    "stdout_bytes": 3180,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 0.421,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "045f3fe9d8039ab2"
+}

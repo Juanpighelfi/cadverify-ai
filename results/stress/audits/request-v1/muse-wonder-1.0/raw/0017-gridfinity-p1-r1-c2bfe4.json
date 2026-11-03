@@ -1,0 +1,92 @@
+{
+  "label": "gridfinity-p1-r1",
+  "endpoint": "POST /v1/responses",
+  "request": {
+    "model": "muse-wonder-1.0",
+    "instructions": "You audit the close of a design session for 3D printing in OpenSCAD. You get the user's REQUEST. The harness verified the final version of the design and gives you, in JSON, what it measured (VERIFIED) and the spec adjustments it detected: changes of the spec towards what the mesh already measured, without the part changing (ADJUSTMENTS). Read the designer's CLOSE and answer only with a JSON object, with no text before or after it:\n{\"unsupported\": [{\"claim\": \"...\", \"reason\": \"...\"}], \"untold_adjustments\": [{\"adjustment\": \"...\", \"reason\": \"...\"}], \"unmeasured\": [{\"requirement\": \"...\", \"how\": \"...\"}]}\n- unsupported: every claim the close presents as verified (measured, checked, that it meets, that it fits, that it does not collide, that it goes in, that it prints without supports) that VERIFIED does not back: it is not there, it says something else or the numbers do not match. Leave out: what the close states as not verified, an opinion, an intention, or a description of the design that does not claim to have been checked.\n- untold_adjustments: every part of ADJUSTMENTS whose adjustments the close does not mention with their reason (one mention per part saying what was adjusted and why is enough).\n- unmeasured: every requirement of the REQUEST about what the product does or fits that VERIFIED does not show measured (the close leaves it not verified, or leaves it out), when the harness measures it once the spec declares it; \"how\" names the declaration: stops (a part that stops a motion at an end of its range: a drawer that does not come out, the way a ratchet does not turn), rests (a detent that holds a motion at given positions: a lid that clicks at each step), flex (a snap or a detent that bends while it moves or as it goes in), held (a part that must not come off), screw (a thread), drives (gears, a rack), print_in_place (printed assembled), a standard part (the fit of a Raspberry Pi 4 board, a 608 bearing, an AA cell or an M3 nut), a motion (what turns or slides, through its range), details and bounds (a size, a wall, a hole, a slot, a feature). Leave out what no declaration measures (strength, stiffness, feel, friction, wear, looks, the material, the printer) and what the request leaves to the designer.\nEmpty lists if there is nothing to object to. Be precise: quote the claim as it is written.",
+    "input": "REQUEST\n# Gridfinity bin, 2 x 1\n\nA storage bin for my Gridfinity drawer system, 2 units by 1 unit and 3 units tall.\n\n- The Gridfinity grid is 42 mm per unit, so the bin's outside is 83.5 x 41.5 mm (0.25 mm of\n  clearance on each side); height units are 7 mm.\n- The standard Gridfinity foot under each unit, so it drops into a standard baseplate: the\n  stepped profile of 0.8 mm at 45 degrees, 1.8 mm vertical and 2.15 mm at 45 degrees.\n- The standard stacking lip on top, so another bin stacks on it.\n- A label shelf along one long side, and a scoop at the front so small parts slide out.\n- PLA on a Bambu Lab A1 with a 0.4 mm nozzle, no supports.\n\nShow me the bin.\n\nVERIFIED\n{\"gates\": {\"G1\": true, \"G2\": true, \"G3\": true, \"G4\": true, \"G5\": true, \"G7\": true}, \"green_means\": {\"G1\": \"the source compiles and every part exports with the default parameters, with no errors, failed asserts, timeouts or warnings\", \"G2\": \"every part is a closed mesh: watertight, 0 bad edges, no inverted shells, a positive volume and the declared number of bodies\", \"G3\": \"the assembly: each instance is its part moved (same volume, area and principal moments), every part placed as many times as its copies, no overlap between instances beyond the allowed_interferences, all of them one connected group, and the units the request chains (nothing to check for one part without an assembly)\", \"G4\": \"every declared motion swept through its whole range, and every assembly_order step brought in from far away along its direction (turning, when it turns), without a collision with what is already placed (a press fit only as a fit: no thicker than one along a motion, and pushed in only where it overlaps in place). The parts are swept as rigid bodies; a pair a motion declares as flex may overlap while it moves, no deeper than declared and never at an end of the range: how deep is measured, not whether the feature can bend that far\", \"G5\": \"each part alone, in the orientation it is exported in: no overhang steeper than 45° outside its declared overhangs_allowed boxes (which cover at most half of its surface), the part of every overhang steeper than 60° (where the A1's slicer adds supports by default) a bridge of 10 mm at most (no point of it more than 5 mm, seen from above, from the material under its lowest edge), every body resting on the bed or starting 1 mm or less over another, and it fits the bed (Bambu Lab A1, 256 mm cube). Only an assembly that declares print_in_place is checked as printed whole: the same checks on all its parts together as they print (as they stand, or in the declared print_pose), and every two of them at least the declared clearance apart in that pose. Whether a bridge sags, or how the print looks, is not measured\", \"G7\": \"every spec check holds (bounds, bodies, through holes, support faces, details), and the designer saw the final version: the multi-view sheet of every part, all the instances of the assembly together in one view, and a close view of every detail of kind view\"}, \"parts\": [{\"part\": null, \"ok\": true, \"mesh\": {\"watertight\": true, \"bad_edges\": 0, \"bodies\": 1, \"volume_mm3\": 25137.552, \"bounds\": [[-41.75, -20.75, 0.0], [41.75, 20.75, 21.0]], \"through_holes\": 0}, \"spec\": {\"bounds\": [[-41.75, -20.75, 0.0], [41.75, 20.75, 21.0]], \"bodies\": 1, \"through_holes\": 0, \"support_faces\": [{\"name\": \"bed\", \"direction\": \"-z\", \"min_area_mm2\": 2000}], \"overhangs_allowed\": [{\"name\": \"standard Gridfinity foot lower 45-degree chamfer left\", \"bounds\": [[-40.0, -19.0, -0.1], [-2.0, 19.0, 0.8]]}, {\"name\": \"standard Gridfinity foot lower 45-degree chamfer right\", \"bounds\": [[2.0, -19.0, -0.1], [40.0, 19.0, 0.8]]}, {\"name\": \"standard Gridfinity foot upper 45-degree taper\", \"bounds\": [[-42.0, -21.0, 2.5], [42.0, 21.0, 4.75]]}], \"copies\": 1, \"details\": [{\"name\": \"foot_left\", \"kind\": \"material\", \"box\": [[-30.0, -10.0, 0.1], [-12.0, 10.0, 0.7]], \"fraction\": 0.9}, {\"name\": \"foot_right\", \"kind\": \"material\", \"box\": [[12.0, -10.0, 0.1], [30.0, 10.0, 0.7]], \"fraction\": 0.9}, {\"name\": \"stack_lip\", \"kind\": \"material\", \"box\": [[-20.0, 19.3, 19.6], [20.0, 20.0, 20.9]], \"fraction\": 0.9}, {\"name\": \"label_shelf\", \"kind\": \"material\", \"box\": [[-30.0, 16.0, 6.5], [30.0, 18.5, 8.0]], \"fraction\": 0.9}, {\"name\": \"scoop_void\", \"kind\": \"void\", \"box\": [[40.5, -10.0, 14.0], [42.5, 10.0, 20.0]], \"fraction\": 0.9}, {\"name\": \"wall_side\", \"kind\": \"thickness\", \"point\": [38.0, 22.0, 16.0], \"direction\": [0.0, -1.0, 0.0], \"mm\": 1.6}, {\"name\": \"floor\", \"kind\": \"thickness\", \"point\": [-21.0, 0.0, -5.0], \"direction\": [0.0, 0.0, 1.0], \"mm\": 6.0}, {\"name\": \"foot_profile\", \"kind\": \"view\", \"box\": [[-39.0, -18.0, 0.0], [-3.0, 18.0, 5.0]]}, {\"name\": \"scoop_view\", \"kind\": \"view\", \"box\": [[35.0, -15.0, 10.0], [43.0, 15.0, 22.0]]}, {\"name\": \"label_view\", \"kind\": \"view\", \"box\": [[-10.0, 12.0, 6.0], [10.0, 20.0, 13.0]]}, {\"name\": \"lip_view\", \"kind\": \"view\", \"box\": [[-15.0, 18.5, 18.5], [15.0, 21.0, 21.5]]}]}, \"spec_check\": {\"ok\": true, \"bounds\": {\"ok\": true, \"expected\": [[-41.75, -20.75, 0.0], [41.75, 20.75, 21.0]], \"actual\": [[-41.75, -20.75, 0.0], [41.75, 20.75, 21.0]], \"tolerance_mm\": 0.2, \"deviations\": []}, \"bodies\": {\"ok\": true, \"expected\": 1, \"actual\": 1}, \"through_holes\": {\"ok\": true, \"expected\": 0, \"actual\": 0}, \"support_faces\": [{\"name\": \"bed\", \"direction\": \"-z\", \"ok\": true, \"min_area_mm2\": 2000, \"area_on_extreme_plane_mm2\": 2534.7, \"extreme_plane\": \"z = 0.000\", \"largest_flat_face\": {\"plane\": \"z = 0.000\", \"area_mm2\": 2534.7}}]}, \"details\": [{\"name\": \"foot_left\", \"kind\": \"material\", \"box\": [[-30.0, -10.0, 0.1], [-12.0, 10.0, 0.7]], \"material_fraction\": 1.0, \"min_fraction\": 0.9, \"ok\": true}, {\"name\": \"foot_right\", \"kind\": \"material\", \"box\": [[12.0, -10.0, 0.1], [30.0, 10.0, 0.7]], \"material_fraction\": 1.0, \"min_fraction\": 0.9, \"ok\": true}, {\"name\": \"stack_lip\", \"kind\": \"material\", \"box\": [[-20.0, 19.3, 19.6], [20.0, 20.0, 20.9]], \"material_fraction\": 1.0, \"min_fraction\": 0.9, \"ok\": true}, {\"name\": \"label_shelf\", \"kind\": \"material\", \"box\": [[-30.0, 16.0, 6.5], [30.0, 18.5, 8.0]], \"material_fraction\": 1.0, \"min_fraction\": 0.9, \"ok\": true}, {\"name\": \"scoop_void\", \"kind\": \"void\", \"box\": [[40.5, -10.0, 14.0], [42.5, 10.0, 20.0]], \"material_fraction\": 0.0, \"min_empty_fraction\": 0.9, \"ok\": true}, {\"name\": \"wall_side\", \"kind\": \"thickness\", \"ok\": true, \"expected_mm\": 1.6, \"measured_mm\": 1.6, \"enters_at\": [38.0, 20.75, 16.0], \"tolerance_mm\": 0.1}, {\"name\": \"floor\", \"kind\": \"thickness\", \"ok\": true, \"expected_mm\": 6.0, \"measured_mm\": 6.0, \"enters_at\": [-21.0, 0.0, 0.0], \"tolerance_mm\": 0.18}, {\"name\": \"foot_profile\", \"kind\": \"view\", \"box\": [[-39.0, -18.0, 0.0], [-3.0, 18.0, 5.0]], \"material_fraction\": 0.9996, \"ok\": true, \"needs\": \"a close view\"}, {\"name\": \"scoop_view\", \"kind\": \"view\", \"box\": [[35.0, -15.0, 10.0], [43.0, 15.0, 22.0]], \"material_fraction\": 0.0551, \"ok\": true, \"needs\": \"a close view\"}, {\"name\": \"label_view\", \"kind\": \"view\", \"box\": [[-10.0, 12.0, 6.0], [10.0, 20.0, 13.0]], \"material_fraction\": 0.5, \"ok\": true, \"needs\": \"a close view\"}, {\"name\": \"lip_view\", \"kind\": \"view\", \"box\": [[-15.0, 18.5, 18.5], [15.0, 21.0, 21.5]], \"material_fraction\": 0.4133, \"ok\": true, \"needs\": \"a close view\"}], \"printability\": {\"fits_bed\": true, \"bed_mm\": [256.0, 256.0, 256.0], \"size\": [83.5, 41.5, 21.0], \"bed_margin_mm\": [86.25, 107.25, 235.0], \"base_area_mm2\": 2534.7, \"overhang_area_mm2\": 1265.47, \"zones_total\": 3, \"zones_undeclared\": 0, \"undeclared_area_mm2\": 0, \"allowed_share_of_surface\": 0.2811, \"zones\": [{\"id\": \"v1\", \"area_mm2\": 955.92, \"max_angle_deg\": 90.0, \"declared_as\": \"standard Gridfinity foot upper 45-degree taper\"}, {\"id\": \"v2\", \"area_mm2\": 154.77, \"max_angle_deg\": 48.8, \"declared_as\": \"standard Gridfinity foot lower 45-degree chamfer left\"}, {\"id\": \"v3\", \"area_mm2\": 154.77, \"max_angle_deg\": 48.8, \"declared_as\": \"standard Gridfinity foot lower 45-degree chamfer right\"}]}}], \"assembly\": {\"ok\": true, \"not_needed\": true}}\n\nADJUSTMENTS\n- default output: detail wall_side from point [38.0, 22.0, 10.0] to point [38.0, 22.0, 16.0], the mesh measures 1.6 (the mesh is the same)\n\nCLOSE\nHere is the bin.\n\nVerified:\n- Outside 83.5 x 41.5 x 21.0 mm fills its box exactly [[default output]]; one watertight body, 0 bad edges, 0 inverted shells, volume 25137.6 mm3, 0 through holes [[G2]] — single-part bin so no assembly is required [[G3]] [[G4]].\n- Prints flat on its foot bottoms: bed support face 2534.7 mm2 at z=0 [[bed]], part rests on minimum z, no bodies starting in air, fits Bambu Lab A1 with 86.25 / 107.25 / 235.0 mm margins [[G5]].\n- Standard Gridfinity feet under each unit: left and right foot bottom boxes 100% material [[foot_left]] [[foot_right]], foot profile seen up close [[foot_profile]].\n- Only overhangs are inside declared zones, declared coverage 28.11%, no bridge over 10 mm [[G5]].\n- Top stacking lip, 100% material [[stack_lip]], seen up close [[lip_view]].\n- Label shelf along +Y, 100% material [[label_shelf]], seen up close [[label_view]].\n- Front scoop cut through +X wall, void box 100% empty [[scoop_void]], seen up close [[scoop_view]].\n- Walls 1.6 mm [[wall_side]] and 6.0 mm floor [[floor]] measured by thickness rays.\n- Compiles with no warnings or errors [[G1]] and mesh meets the full spec [[G7]].\n\nNot verified:\n- Fit in a real baseplate, stacking feel with another bin, label adhesion on the shelf slope, and how clean the scoop surface prints in PLA on a 0.4 mm nozzle — geometry only, depends on printer and material.\n- Exact foot segment heights and taper angles, lip inset dimension, shelf angle and scoop radius were not separately measured; only material presence, void emptiness and close views listed above were verified.\n- Spec adjustment: the side-wall thickness probe was moved from z=10 to z=16. At z=10 the inward ray crosses the label-shelf wedge, measuring about 4.5 mm instead of 1.6 mm; the wall itself was unchanged. The original probe point was badly posed against the requested shelf, so the spec was moved to measure clear wall above the shelf.\n",
+    "reasoning": {
+      "effort": "medium"
+    },
+    "max_output_tokens": 16000
+  },
+  "status_code": 200,
+  "response_headers": {
+    "content-type": "application/json",
+    "x-ratelimit-limit-requests": "3000",
+    "x-ratelimit-remaining-requests": "2989",
+    "x-ratelimit-limit-tokens": "4000000",
+    "x-ratelimit-remaining-tokens": "3922107",
+    "x-request-id": "f19f418c-af09-4be4-bcf4-a11302b9dc21",
+    "date": "Tue, 03 Nov 2026 02:28:23 GMT"
+  },
+  "response": {
+    "top_logprobs": 0,
+    "temperature": 1.0,
+    "top_p": 1.0,
+    "service_tier": "auto",
+    "model": "muse-wonder-1.0",
+    "reasoning": {
+      "effort": "medium"
+    },
+    "background": false,
+    "tools": [],
+    "tool_choice": "auto",
+    "truncation": "disabled",
+    "id": "resp_6ae946c7cfd13c2d2bd74766",
+    "object": "response",
+    "status": "completed",
+    "created_at": 1793672903.0,
+    "completed_at": 1793672903.0,
+    "error": null,
+    "incomplete_details": null,
+    "output": [
+      {
+        "type": "reasoning",
+        "id": "rs_6ae946c7cfd13c2d2bd74766:rs_e8698d70-9b3f-47b2-854f-39685382bb66",
+        "summary": [],
+        "status": "completed"
+      },
+      {
+        "type": "message",
+        "id": "msg_69d63704-4f07-42e5-ae4e-fb7dcd480802",
+        "role": "assistant",
+        "content": [
+          {
+            "type": "output_text",
+            "text": "{\"unsupported\": [], \"untold_adjustments\": [], \"unmeasured\": [{\"requirement\": \"The bin drops into a standard Gridfinity baseplate\", \"how\": \"a standard part\"}, {\"requirement\": \"Another bin stacks on the standard stacking lip\", \"how\": \"a standard part\"}, {\"requirement\": \"The foot has the stepped profile of 0.8 mm at 45 degrees, 1.8 mm vertical and 2.15 mm at 45 degrees\", \"how\": \"details and bounds\"}]}",
+            "annotations": [],
+            "logprobs": []
+          }
+        ],
+        "status": "completed"
+      }
+    ],
+    "instructions": "You audit the close of a design session for 3D printing in OpenSCAD. You get the user's REQUEST. The harness verified the final version of the design and gives you, in JSON, what it measured (VERIFIED) and the spec adjustments it detected: changes of the spec towards what the mesh already measured, without the part changing (ADJUSTMENTS). Read the designer's CLOSE and answer only with a JSON object, with no text before or after it:\n{\"unsupported\": [{\"claim\": \"...\", \"reason\": \"...\"}], \"untold_adjustments\": [{\"adjustment\": \"...\", \"reason\": \"...\"}], \"unmeasured\": [{\"requirement\": \"...\", \"how\": \"...\"}]}\n- unsupported: every claim the close presents as verified (measured, checked, that it meets, that it fits, that it does not collide, that it goes in, that it prints without supports) that VERIFIED does not back: it is not there, it says something else or the numbers do not match. Leave out: what the close states as not verified, an opinion, an intention, or a description of the design that does not claim to have been checked.\n- untold_adjustments: every part of ADJUSTMENTS whose adjustments the close does not mention with their reason (one mention per part saying what was adjusted and why is enough).\n- unmeasured: every requirement of the REQUEST about what the product does or fits that VERIFIED does not show measured (the close leaves it not verified, or leaves it out), when the harness measures it once the spec declares it; \"how\" names the declaration: stops (a part that stops a motion at an end of its range: a drawer that does not come out, the way a ratchet does not turn), rests (a detent that holds a motion at given positions: a lid that clicks at each step), flex (a snap or a detent that bends while it moves or as it goes in), held (a part that must not come off), screw (a thread), drives (gears, a rack), print_in_place (printed assembled), a standard part (the fit of a Raspberry Pi 4 board, a 608 bearing, an AA cell or an M3 nut), a motion (what turns or slides, through its range), details and bounds (a size, a wall, a hole, a slot, a feature). Leave out what no declaration measures (strength, stiffness, feel, friction, wear, looks, the material, the printer) and what the request leaves to the designer.\nEmpty lists if there is nothing to object to. Be precise: quote the claim as it is written.",
+    "usage": {
+      "input_tokens": 4075,
+      "input_tokens_details": {
+        "cached_tokens": 0
+      },
+      "output_tokens": 2071,
+      "output_tokens_details": {
+        "reasoning_tokens": 1953
+      },
+      "total_tokens": 6146
+    },
+    "parallel_tool_calls": true,
+    "store": true,
+    "max_output_tokens": 16000
+  },
+  "latency_s": 16.935,
+  "total_with_retries_s": 16.935,
+  "attempts": [
+    {
+      "attempt": 1,
+      "status_code": 200,
+      "latency_s": 16.935,
+      "error": null
+    }
+  ],
+  "client_error": null
+}

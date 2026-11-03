@@ -1,0 +1,37 @@
+{
+  "seq": 32,
+  "iteration": 26,
+  "name": "run_shell",
+  "arguments": {
+    "cmd": "sed -n 230,340p /opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/assembly.py",
+    "timeout_s": 30.0
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.007,
+    "stdout": "        solid = section.to_manifold(mesh)\n        inst.update(\n            volume_mm3=round(float(mesh.volume), 3),\n            bounds=_r(mesh.bounds),\n            _mesh=mesh,\n            _solid=solid,\n        )\n        if solid is None:\n            inst[\"problem\"] = f\"the instance {item['name']} is not a closed, oriented solid\"\n        return inst\n\n    with ThreadPoolExecutor(EXPORT_WORKERS) as pool:\n        return list(pool.map(one, listed))\n\n\n# ---- G3 -----------------------------------------------------------------------------------\n\n\ndef _properties(mesh: trimesh.Trimesh) -> tuple[float, float, np.ndarray]:\n    inertia = np.linalg.eigvalsh(mesh.moment_inertia)\n    return float(mesh.volume), float(mesh.area), np.sort(inertia)\n\n\ndef _congruence(instances: list[dict], parts: dict[str, dict], problems: list[str]) -> None:\n    cache: dict[str, tuple] = {}\n    for inst in instances:\n        part = inst[\"part\"]\n        if part == EXTERNAL or part not in parts:\n            inst[\"congruent\"] = None\n            continue\n        if part not in cache:\n            cache[part] = _properties(load_exact(parts[part][\"path\"]))\n        volume, area, inertia = cache[part]\n        v, a, i = _properties(inst[\"_mesh\"])\n        dv, da = abs(v - volume) / max(volume, 1e-9), abs(a - area) / max(area, 1e-9)\n        di = float(np.max(np.abs(i - inertia)) / max(float(inertia.max()), 1e-9))\n        ok = dv <= CONGRUENCE_REL and da <= CONGRUENCE_REL and di <= INERTIA_REL\n        inst[\"congruent\"] = ok\n        inst[\"congruence\"] = {\n            \"volume_mm3\": [round(v, 2), round(volume, 2)],\n            \"area_mm2\": [round(a, 2), round(area, 2)],\n            \"inertia_rel_diff\": round(di, 5),\n        }\n        if not ok:\n            problems.append(\n                f\"the instance {inst['name']} is not the part {part} that is printed: volume \"\n                f\"{v:.1f} against {volume:.1f} mm³, area {a:.1f} against {area:.1f} mm² (the \"\n                \"assembly must place the same part, moved)\"\n            )\n\n\ndef _copies(instances: list[dict], parts: dict[str, dict], problems: list[str]) -> list[dict]:\n    for inst in instances:\n        if inst[\"part\"] != EXTERNAL and inst[\"part\"] not in parts:\n            problems.append(\n                f\"the instance {inst['name']} says it is the part {inst['part']!r}, which is \"\n                f\"neither a printable option of the part selector ({sorted(parts)}) nor \"\n                f\"{EXTERNAL!r}\"\n            )\n    rows = []\n    for part, export in sorted(parts.items()):\n        expected = int(((export.get(\"spec\") or {}).get(\"copies\")) or 1)\n        placed = sum(1 for i in instances if i[\"part\"] == part and i[\"unit\"] == 1)\n        rows.append(\n            {\"part\": part, \"expected\": expected, \"placed\": placed, \"ok\": placed == expected}\n        )\n        if placed == 0:\n            problems.append(f\"the part {part} is not in the assembly (unit 1)\")\n        elif placed != expected:\n            problems.append(f\"unit 1 places {placed} {part} and its spec says copies = {expected}\")\n    return rows\n\n\ndef _permitted(spec: dict[str, Any], names: set[str], problems: list[str]) -> dict:\n    out = {}\n    for item in spec.get(\"allowed_interferences\", []):\n        unknown = [n for n in (item[\"a\"], item[\"b\"]) if n not in names]\n        if unknown:\n            problems.append(f\"allowed_interferences names instances that do not exist: {unknown}\")\n        out[frozenset((item[\"a\"], item[\"b\"]))] = item[\"reason\"]\n    return out\n\n\ndef overlap(a: manifold3d.Manifold, b: manifold3d.Manifold) -> dict[str, Any] | None:\n    \"\"\"The overlap of two solids when it counts (module docstring), else None.\"\"\"\n    inter = a ^ b\n    volume = inter.volume()\n    if volume <= OVERLAP_MM3:\n        return None\n    area = inter.surface_area()\n    thick = 2 * volume / area if area > 0 else 0.0\n    if thick <= OVERLAP_THICKNESS_MM:\n        return None\n    lo, hi = np.reshape(inter.bounding_box(), (2, 3))\n    return {\n        \"volume_mm3\": round(volume, 3),\n        \"thickness_mm\": round(thick, 3),\n        \"bounds\": _r([lo, hi]),\n        \"_solid\": inter,\n    }\n\n\ndef _pairs(instances: list[dict], permitted: dict, out_dir: Path, problems: list[str]) -> list:\n    rows = []\n    boxes = {i[\"name\"]: np.reshape(i[\"_solid\"].bounding_box(), (2, 3)) for i in instances}\n    for a, b in itertools.combinations(instances, 2):\n        if _box_gap(boxes[a[\"name\"]], boxes[b[\"name\"]]) > CONTACT_MM:\n            continue\n        key = frozenset((a[\"name\"], b[\"name\"]))\n        hit = overlap(a[\"_solid\"], b[\"_solid\"])\n        gap = 0.0 if hit else float(a[\"_solid\"].min_gap(b[\"_solid\"], CONTACT_MM * 1.01))\n",
+    "stderr": "",
+    "stdout_bytes": 4636,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 0.529,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "523cd575cf5938bc"
+}

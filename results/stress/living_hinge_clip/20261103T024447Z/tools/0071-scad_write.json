@@ -1,0 +1,32 @@
+{
+  "seq": 71,
+  "iteration": 41,
+  "name": "scad_write",
+  "arguments": {
+    "content": "// Bag clip living hinge, PETG, 0.4 nozzle, no supports.\n// Two halves contacting at hinge, open flat print pose.\n// Fold: rotate upper 180 about [108,10,5.2] -Y. F(x)=216-x, F(z)=10.4-z.\n\npart = \"arm_lower\"; // [arm_lower, arm_upper, assembly]\ncadverify_only = \"\";\n\nmodule instance(name, part, unit = 1) {\n    echo(cadverify_instance = [name, part, unit]);\n    if (cadverify_only == \"\" || cadverify_only == name) children();\n}\n\nmodule arm_lower() {\n    cube([100, 20, 3.2], false);\n    translate([99.9, 0, 0]) cube([8.1, 20, 0.6], false);\n    translate([10, 1, 3.1]) cube([80, 1.5, 2.1], false);\n    translate([10, 17.5, 3.1]) cube([80, 1.5, 2.1], false);\n    translate([2, 5, 3.1]) cube([6, 10, 2.1], false);\n    translate([7.9, 6, 4.7]) cube([2.1, 8, 0.5], false);\n}\n\nmodule arm_upper() {\n    cube([8.1, 20, 0.6], false);\n    translate([7.9, 0, 0]) cube([100.1, 20, 3.2], false);\n    translate([100, 5, 3.1]) cube([6, 10, 2.1], false);\n    translate([97.9, 6, 4.7]) cube([2.5, 8, 0.5], false);\n    translate([107.9, 6, 0]) cube([8.1, 8, 3.2], false);\n}\n\nif (part == \"arm_lower\") {\n    echo(cadverify_spec = [\n        [\"bounds\", [[0, 0, 0], [108, 20, 5.2]]],\n        [\"bodies\", 1],\n        [\"through_holes\", 0],\n        [\"support_faces\", [[\"bed\", \"-z\", 1500]]],\n        [\"overhangs_allowed\", [[\"latch lip\", [[7.5, 5.5, 4.5], [10.5, 14.5, 5.5]]]]],\n        [\"copies\", 1],\n        [\"details\", [\n            [\"arm\", \"material\", [[30, 8, 1.2], [70, 12, 2.0]], 1],\n            [\"arm_wall\", \"thickness\", [50, 10, 10], [0, 0, -1], 3.2],\n            [\"hinge\", \"thickness\", [104, 10, 5], [0, 0, -1], 0.6],\n            [\"rib\", \"material\", [[30, 1.3, 3.8], [70, 2.2, 4.8]], 1],\n            [\"rib2\", \"material\", [[30, 17.8, 3.8], [70, 18.7, 4.8]], 1],\n            [\"latch_tower\", \"material\", [[3, 7, 3.8], [7, 13, 5.0]], 1],\n            [\"latch_lip\", \"material\", [[8.3, 7, 4.8], [9.6, 13, 5.1]], 1],\n            [\"bag_slot\", \"void\", [[30, 4, 3.8], [70, 16, 5.0]], 1]\n        ]]\n    ]);\n    arm_lower();\n} else if (part == \"arm_upper\") {\n    echo(cadverify_spec = [\n        [\"bounds\", [[0, 0, 0], [116, 20, 5.2]]],\n        [\"bodies\", 1],\n        [\"through_holes\", 0],\n        [\"support_faces\", [[\"bed\", \"-z\", 1500]]],\n        [\"overhangs_allowed\", [[\"latch lip\", [[97.5, 5.5, 4.5], [100.8, 14.5, 5.5]]]]],\n        [\"copies\", 1],\n        [\"details\", [\n            [\"arm\", \"material\", [[30, 8, 1.2], [70, 12, 2.0]], 1],\n            [\"arm_wall\", \"thickness\", [50, 10, 10], [0, 0, -1], 3.2],\n            [\"hinge\", \"thickness\", [4, 10, 5], [0, 0, -1], 0.6],\n            [\"latch_tower\", \"material\", [[100.5, 7, 3.8], [105.5, 13, 5.0]], 1],\n            [\"latch_lip\", \"material\", [[98.3, 7, 4.8], [100.0, 13, 5.1]], 1],\n            [\"thumb_tab\", \"material\", [[109, 7, 1.2], [114, 13, 2.0]], 1],\n            [\"field\", \"void\", [[30, 4, 3.8], [70, 16, 5.0]], 1]\n        ]]\n    ]);\n    arm_upper();\n} else if (part == \"assembly\") {\n    echo(cadverify_spec = [\n        [\"bounds\", [[0, 0, 0], [224, 20, 5.2]]],\n        [\"support_faces\", [[\"bed\", \"-z\", 3000]]],\n        [\"motions\", [\n            [\"close\", [\"upper\"], \"rotate\", [108, 10, 5.2], [0, -1, 0], [0, 180],\n                [\"flex\", [[\"upper\", \"lower\", 1.0, \"latch snap\"]]],\n                [\"stops\", [180]],\n                [\"rests\", [0, 180]]\n            ]\n        ]],\n        [\"assembly_order\", [\n            [[\"lower\"], [0, 0, 0]],\n            [[\"upper\"], [0, 0, -1]]\n        ]]\n    ]);\n    instance(\"lower\", \"arm_lower\") arm_lower();\n    instance(\"upper\", \"arm_upper\") translate([108, 0, 0]) arm_upper();\n}\n",
+    "path": "model.scad"
+  },
+  "result": {
+    "ok": true,
+    "path": "model.scad",
+    "replaced": true,
+    "bytes": 3543,
+    "lines": 87,
+    "sha256": "aefaeaa9460f02d70f0ae4fb8411e1c561cfa7c5d45ebadbe54c3b6c83f66753"
+  },
+  "seconds": 0.379,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [
+      "model.scad"
+    ],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [
+    "model.scad"
+  ],
+  "rule": null,
+  "source": "c3d6666ca7d135c4"
+}

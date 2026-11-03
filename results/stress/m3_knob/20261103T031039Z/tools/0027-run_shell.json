@@ -1,0 +1,36 @@
+{
+  "seq": 27,
+  "iteration": 29,
+  "name": "run_shell",
+  "arguments": {
+    "cmd": "sed -n 513,560p /opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/assembly.py"
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.007,
+    "stdout": "def _held(\n    instances: list[dict], listed: list[str], in_place: bool, problems: list[str]\n) -> list[dict]:\n    \"\"\"The directions each instance `held` lists, and each printed part of an assembly printed in\n    place, comes off the others along, straight from where it is assembled (module docstring).\n    The axes are checked first: a part that comes off along one is not checked along the\n    diagonals. Printed in place, a part is held by the other printed parts only.\"\"\"\n    names = {i[\"name\"]: i for i in instances}\n    missing = [n for n in listed if n not in names]\n    if missing:\n        problems.append(f\"held: there are no instances {missing}\")\n    printed = [i for i in instances if _printed(i) and i[\"unit\"] == 1]\n    if not in_place or len(printed) < 2:\n        printed = []\n    checked = printed + [names[n] for n in listed if n in names and names[n] not in printed]\n    if not checked:\n        return []\n    import moderngl\n\n    ctx = moderngl.create_context(standalone=True, backend=\"egl\")\n    rows = []\n    try:\n        for inst in checked:\n            pool = printed if inst in printed else instances\n            others = [(o[\"name\"], o[\"_mesh\"]) for o in pool if o is not inst]\n            free: list[str] = []\n            for names in (list(AXES), [n for n in DIRECTIONS if n not in AXES]):\n                # Coming off along a direction sweeps what arriving along its opposite does.\n                free += [\n                    n for n in names if blocked(ctx, [inst[\"_mesh\"]], others, -DIRECTIONS[n])[\"ok\"]\n                ]\n                if free:\n                    break\n            rows.append({\"instance\": inst[\"name\"], \"free\": free})\n            if free and inst in printed:\n                problems.append(\n                    f\"{inst['name']} is not held: printed in place, it comes off the others \"\n                    f\"moving along {', '.join(free)}. An assembly printed in place comes off the \"\n                    \"bed in one piece, each part held by the others (a pin capped at both ends, \"\n                    \"a pivot in a closed bore)\"\n                )\n            elif free:\n                problems.append(\n                    f\"{inst['name']} is not held: assembled, it comes off the others moving along \"\n                    f\"{', '.join(free)}, and held says it stays on (a lip that catches, a cap at \"\n                    \"each end, a bore that closes around it)\"\n                )\n    finally:\n",
+    "stderr": "",
+    "stdout_bytes": 2446,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 0.438,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "045f3fe9d8039ab2"
+}

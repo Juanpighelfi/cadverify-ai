@@ -1,0 +1,37 @@
+{
+  "seq": 76,
+  "iteration": 44,
+  "name": "run_python",
+  "arguments": {
+    "code": "import trimesh, numpy as np\nm=trimesh.load(\"exports/model.arm_upper.6773311f.stl\")\nprint(m.bounds)\nfor name,box in [\n (\"latch_lip\",[[99.5,5.5,5.9],[101.5,6.5,6.3]]),\n (\"thumb_tab\",[[109.0,7.0,1.2],[114.0,13.0,2.0]]),\n (\"latch_tower\",[[102.5,10.0,3.8],[105.5,14.0,5.0]]),\n]:\n    lo=np.array(box[0],float); hi=np.array(box[1],float)\n    xs=np.linspace(lo[0],hi[0],10); ys=np.linspace(lo[1],hi[1],8); zs=np.linspace(lo[2],hi[2],5)\n    pts=np.array(np.meshgrid(xs,ys,zs)).reshape(3,-1).T\n    print(name, m.contains(pts).mean())\n# check exact geometry extents\nprint(\"vol\",m.volume)\n",
+    "timeout_s": 60.0
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 1.027,
+    "stdout": "[[  0.    0.    0. ]\n [116.   20.    6.4]]\nlatch_lip 1.0\nthumb_tab 1.0\nlatch_tower 1.0\nvol 6778.660000000001\n",
+    "stderr": "",
+    "stdout_bytes": 109,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 1.537,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "c531e317727b1341"
+}

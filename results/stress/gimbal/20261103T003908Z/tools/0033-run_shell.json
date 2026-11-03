@@ -1,0 +1,36 @@
+{
+  "seq": 33,
+  "iteration": 21,
+  "name": "run_shell",
+  "arguments": {
+    "cmd": "grep -n \"def printable_parts\" -A 40 /opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/verify.py | head -n 60"
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.01,
+    "stdout": "20:def printable_parts(source: str) -> list[str | None]:\n21-    \"\"\"The options of the `part` selector except the assembly, or [None] without a selector.\"\"\"\n22-    return [p for p in customizer_options(source, PART) if p != ASSEMBLY] or [None]\n23-\n24-\n25-def verify(\n26-    path: str | Path,\n27-    out_dir: str | Path | None = None,\n28-    assembly: bool = False,\n29-    requirements: dict[str, Any] | None = None,\n30-) -> dict[str, Any]:\n31-    path = Path(path).resolve()\n32-    out_dir = Path(out_dir) if out_dir else path.parent / \"checks\" / \"exports\"\n33-    compiled = scad_compile(path)\n34-    source = path.read_text(encoding=\"utf-8\")\n35-    parts = []\n36-    for part in printable_parts(source):\n37-        export = scad_export(path, part, out_dir=out_dir)\n38-        printability = None\n39-        if export[\"ok\"] and export[\"mesh\"] and export[\"mesh\"][\"triangles\"]:\n40-            allowed = (export[\"spec\"] or {}).get(\"overhangs_allowed\", [])\n41-            printability = printability_report(export[\"path\"], allowed)\n42-        parts.append({\"part\": part, \"export\": export, \"printability\": printability})\n43-    result: dict[str, Any] = {\"compile\": compiled, \"parts\": parts}\n44-    if not assembly:\n45-        return result\n46-    printable = [p for p in parts if p[\"part\"] is not None]\n47-    has_assembly = ASSEMBLY in customizer_options(source, PART)\n48-    if not has_assembly and len(printable) < 2:\n49-        result[\"assembly\"] = {\"ok\": True, \"not_needed\": True}\n50-        return result\n51-    if not has_assembly:\n52-        result[\"assembly\"] = {\"ok\": False, \"missing\": True}\n53-        return result\n54-    from cadverify.cadcheck.assembly import assembly_report\n55-\n56-    exported = {\n57-        p[\"part\"]: {\"path\": p[\"export\"][\"path\"], \"spec\": p[\"export\"][\"spec\"]}\n58-        for p in printable\n59-        if p[\"export\"][\"ok\"]\n60-    }\n",
+    "stderr": "",
+    "stdout_bytes": 1860,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 0.51,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "823f8e614ef39527"
+}

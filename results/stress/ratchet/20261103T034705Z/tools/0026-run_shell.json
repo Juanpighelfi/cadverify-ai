@@ -1,0 +1,37 @@
+{
+  "seq": 26,
+  "iteration": 16,
+  "name": "run_shell",
+  "arguments": {
+    "cmd": "python3 -c \"\nimport trimesh, numpy as np, math\nw=trimesh.load('exports/model.wheel.675d7f4a.stl')\nb=trimesh.load('exports/model.base.87e59dfb.stl')\ndef xform(mesh, rot_deg, z=4):\n    a=math.radians(rot_deg); c,s=math.cos(a),math.sin(a)\n    T=np.eye(4); T[:2,:2]=[[c,-s],[s,c]]; T[2,3]=z\n    m=mesh.copy(); m.apply_transform(T); return m\n# assembly rot\ngap=37.3333333\nfor m in [0,-10,-13,-17,-20,10,12,14]:\n    w2=xform(w, -gap+m)\n    # quick proximity: use trimesh boolean via manifold? try voxel? Instead check 2D slice via intersection with plane?\n    # Use bounding: sample triangles\n    # Simple: check AABB overlap of finger region vs wheel\n    # Finger box mesh\n    print(m, w2.bounds)\nprint('base finger region present?', b.bounds)\n# try manifold boolean overlap volume\ntry:\n  from manifold3d import Manifold, CrossSection\n  def to_manifold(tm):\n      import manifold3d as m3d\n      # triangulate to manifold via vertices/faces\n      v=np.asarray(tm.vertices); f=np.asarray(tm.faces)\n      return Manifold(v.tolist(), f.tolist())\n  bm=to_manifold(b)\n  print('base manifold vol', bm.volume(), 'status', bm.status())\n  wm=to_manifold(w)\n  print('wheel manifold vol', wm.volume(), 'status', wm.status())\n  # transform wheel to -gap-17\n  a=math.radians(-gap-17); c,s=math.cos(a),math.sin(a)\n  # manifold transform: translate+rotate - use warp? Manifold has rotate/translate\n  wm2=wm.rotate([0,0,a]).translate([0,0,4])\n  print('wm2 bounds', wm2.bounding_box)\n  inter=bm-wm2  # not needed\n  inter2=wm2^b.swapaxes if False else None\n  # intersection via boolean: use overlap operator ^\n  try:\n      ov = bm ^ wm2\n      print('overlap vol at -17', ov.volume(), 'status', ov.status())\n  except Exception as e:\n      print('bool fail', e)\n  wm0=wm.rotate([0,0,math.radians(-gap)]).translate([0,0,4])\n  ov0=bm ^ wm0\n  print('overlap vol at 0', ov0.volume())\nexcept Exception as e:\n  import traceback; traceback.print_exc()\n\"\n",
+    "timeout_s": 120.0
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.859,
+    "stdout": "0 [[-24.42303683 -24.42303683   4.        ]\n [ 24.42303683  24.42303683  10.        ]]\n-10 [[-24.77652455 -24.77652455   4.        ]\n [ 24.77652455  24.77652455  10.        ]]\n-13 [[-24.9171222 -24.9171222   4.       ]\n [ 24.9171222  24.9171222  10.       ]]\n-17 [[-24.9983077 -24.9983077   4.       ]\n [ 24.9983077  24.9983077  10.       ]]\n-20 [[-24.97927196 -24.97927196   4.        ]\n [ 24.97927196  24.97927196  10.        ]]\n10 [[-24.97927196 -24.97927196   4.        ]\n [ 24.97927196  24.97927196  10.        ]]\n12 [[-24.99957692 -24.99957692   4.        ]\n [ 24.99957692  24.99957692  10.        ]]\n14 [[-24.98942375 -24.98942375   4.        ]\n [ 24.98942375  24.98942375  10.        ]]\nbase finger region present? [[-40. -30.   0.]\n [ 40.  30.  14.]]\n",
+    "stderr": "Traceback (most recent call last):\n  File \"<string>\", line 27, in <module>\n  File \"<string>\", line 26, in to_manifold\nTypeError: __init__(): incompatible function arguments. The following argument types are supported:\n    1. __init__(self) -> None\n    2. __init__(self, mesh: manifold3d.Mesh) -> None\n    3. __init__(self, mesh: manifold3d.Mesh64) -> None\n\nInvoked with types: manifold3d.Manifold, list, list\n",
+    "stdout_bytes": 760,
+    "stderr_bytes": 409,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 1.225,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "a1c3e6cd649abb7e"
+}

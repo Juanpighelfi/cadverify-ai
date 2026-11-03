@@ -1,0 +1,37 @@
+{
+  "seq": 33,
+  "iteration": 23,
+  "name": "run_shell",
+  "arguments": {
+    "cmd": "ls -la checks/assembly/ && python3 -c \"\nimport numpy as np, math, trimesh\nfrom manifold3d import Manifold, Mesh\ndef to_manifold(path):\n    tm=trimesh.load(path)\n    v=np.ascontiguousarray(tm.vertices, dtype=np.float32); f=np.ascontiguousarray(tm.faces, dtype=np.uint32)\n    return Manifold(Mesh(vert_properties=v, tri_verts=f)), tm\nbm, bt = to_manifold('checks/assembly/model.assembly.57cfb177.stl')\nwm, wt = to_manifold('checks/assembly/model.assembly.1d428528.stl')\nprint('base vol', bm.volume(), 'wheel inst vol', wm.volume())\nprint('wheel inst bounds trimesh', wt.bounds)\n# rotate wheel instance about [0,0,4] by m degrees (manifold rotate=degrees) then boolean\ndef overlap(m):\n    wm2 = wm.translate([0,0,-4]).rotate([0,0,m]).translate([0,0,4])\n    ov = bm ^ wm2\n    return ov.volume()\nfor m in [0,-5,-10,-13,-15,-17,-20,-25,-30,2,4,6,8,10,12,14]:\n    print(m, round(overlap(m),4))\n\"\n",
+    "timeout_s": 120.0
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.915,
+    "stdout": "total 412\ndrwxr-xr-x 2 23764 23764    120 Nov  3 04:00 .\ndrwxr-xr-x 3 23764 23764     60 Nov  3 03:53 ..\n-rw-r--r-- 1 23764 23764 113827 Nov  3 04:00 model.assembly.1d428528.stl\n-rw-r--r-- 1 23764 23764 101715 Nov  3 04:00 model.assembly.57cfb177.stl\n-rw-r--r-- 1 23764 23764 101715 Nov  3 04:00 model.base.87e59dfb.stl\n-rw-r--r-- 1 23764 23764 101880 Nov  3 04:00 model.wheel.675d7f4a.stl\nbase vol 20354.387543504377 wheel inst vol 9564.418953704406\nwheel inst bounds trimesh [[-24.42303683 -24.42303683   4.        ]\n [ 24.42303683  24.42303683  10.        ]]\n0 -0.0\n-5 0.0\n-10 -0.0\n-13 0.1489\n-15 2.0244\n-17 4.4202\n-20 0.3027\n-25 0.0\n-30 -0.0\n2 -0.0\n4 -0.0\n6 0.0\n8 0.0\n10 0.3027\n12 3.5033\n14 3.782\n",
+    "stderr": "",
+    "stdout_bytes": 701,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 1.267,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "a1c3e6cd649abb7e"
+}

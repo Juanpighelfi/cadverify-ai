@@ -1,0 +1,32 @@
+{
+  "seq": 1,
+  "iteration": 1,
+  "name": "scad_write",
+  "arguments": {
+    "content": "// Phone stand on a ball joint — PLA, no supports, Bambu Lab A1 0.4mm\n/* [Parts] */\npart = \"assembly\"; // [assembly:Assembly, base:Base, holder:Holder]\ncadverify_only = \"\";\nmodule instance(name, part, unit = 1) {\n    echo(cadverify_instance = [name, part, unit]);\n    if (cadverify_only == \"\" || cadverify_only == name) children();\n}\n\n// ---------- parameters ----------\nbase_d = 90; base_r = 45; base_t = 6;\nball_d = 20; ball_r = 10; ball_cz = 38;\npost_r_base = 12;\npost_r_neck = 4.0;\npost_r_top = 5.5;\npost_top_z = ball_cz - sqrt(ball_r*ball_r - post_r_top*post_r_top); // 29.648\npost_neck_z = post_top_z - 2; // collar 2mm\n\nholder_W = 88; holder_x0 = -44; holder_x1 = 44;\nholder_y0 = -11; holder_y1 = 12;\nholder_back_y0 = -11; holder_back_y1 = -5;\nholder_front_y0 = 7; holder_front_y1 = 12;\nshelf_t = 20;\nback_h = 65;\nholder_H = shelf_t + back_h; // 85\nsocket_R = 10;\nsocket_ro = 9.5;\nsocket_cz = sqrt(socket_R*socket_R - socket_ro*socket_ro); // 3.122\nslot_w = 4; slot_h = 12;\n\nassembly_top = ball_cz - socket_cz + holder_H;\n\nmodule base_part() {\n    union() {\n        cylinder(r = base_r, h = base_t, $fn = 128);\n        translate([0,0,base_t-1])\n            cylinder(r1 = post_r_base, r2 = post_r_neck, h = (post_neck_z+1)-(base_t-1), $fn = 64);\n        translate([0,0,post_neck_z])\n            cylinder(r = post_r_top, h = (post_top_z+2)-post_neck_z, $fn = 64);\n        translate([0,0,ball_cz])\n            sphere(r = ball_r, $fn = 96);\n    }\n}\n\nmodule holder_part() {\n    difference() {\n        union() {\n            // shelf block\n            translate([holder_x0, holder_y0, 0])\n                cube([holder_W, holder_y1-holder_y0, shelf_t]);\n            // back plate\n            translate([holder_x0, holder_back_y0, 0])\n                cube([holder_W, holder_back_y1-holder_back_y0, holder_H]);\n            // front lip (overlap 1mm)\n            translate([holder_x0, holder_front_y0, shelf_t-1])\n                cube([holder_W, holder_front_y1-holder_front_y0, 16]);\n            // side walls (overlap 1mm)\n            translate([holder_x0, holder_y0, shelf_t-1])\n                cube([3, holder_y1-holder_y0, 16]);\n            translate([holder_x1-3, holder_y0, shelf_t-1])\n                cube([3, holder_y1-holder_y0, 16]);\n        }\n        // socket sphere\n        translate([0, 0, socket_cz])\n            sphere(r = socket_R, $fn = 96);\n        // X slot (full width, open bottom+sides)\n        translate([-45, -slot_w/2, -1])\n            cube([90, slot_w, slot_h+1]);\n        // Y slot (full depth, open bottom+sides)\n        translate([-slot_w/2, -12, -1])\n            cube([slot_w, 25, slot_h+1]);\n    }\n}\n\n// ---------- specs ----------\nif (part == \"base\") {\n    echo(cadverify_spec = [\n        [\"bounds\", [[-45, -45, 0], [45, 45, 48]]],\n        [\"bodies\", 1],\n        [\"through_holes\", 0],\n        [\"support_faces\", [[\"base\", \"-z\", 5000]]],\n        [\"overhangs_allowed\", [[\"ball underside short lip\", [[-11, -11, 28], [11, 11, 39]]]]],\n        [\"copies\", 1],\n        [\"details\", [\n            [\"base_plate\", \"material\", [[-45, -45, 0], [45, 45, 6]], 0.7],\n            [\"ball\", \"material\", [[-10, -10, 28], [10, 10, 48]], 0.4],\n            [\"post_core\", \"material\", [[-2, -2, 10], [2, 2, 20]], 0.9],\n            [\"base_thickness\", \"thickness\", [30, 0, -1], [0, 0, 1], 6],\n            [\"ball_dia\", \"thickness\", [20, 0, 38], [-1, 0, 0], 20]\n        ]]\n    ]);\n    base_part();\n} else if (part == \"holder\") {\n    echo(cadverify_spec = [\n        [\"bounds\", [[-44, -11, 0], [44, 12, 85]]],\n        [\"bodies\", 1],\n        [\"through_holes\", 0],\n        [\"support_faces\", [[\"bottom\", \"-z\", 500]]],\n        [\"overhangs_allowed\", [[\"socket and slots short bridges\", [[-45, -12, -1], [45, 13, 14]]]]],\n        [\"copies\", 1],\n        [\"details\", [\n            [\"phone_slot\", \"void\", [[-41, -5, 20], [41, 7, 35]], 0.9],\n            [\"socket_cavity\", \"void\", [[-3, -3, 2], [3, 3, 8]], 0.9],\n            [\"snap_slot\", \"void\", [[-30, -1, 1], [30, 1, 9]], 0.9],\n            [\"side_wall\", \"material\", [[-43.5, -5, 25], [-41.5, 5, 30]], 0.9],\n            [\"back_wall\", \"thickness\", [0, -12, 50], [0, 1, 0], 6],\n            [\"shelf_floor\", \"thickness\", [30, 5, -1], [0, 0, 1], 20]\n        ]]\n    ]);\n    holder_part();\n} else if (part == \"assembly\") {\n    echo(cadverify_spec = [\n        [\"bounds\", [[-45, -45, 0], [45, 45, 119.88]]],\n        [\"support_faces\", [[\"desk\", \"-z\", 5000]]],\n        [\"motions\", [\n            [\"tilt\", [\"holder\"], \"rotate\", [0, 0, 38], [0, 1, 0], [-30, 30]],\n            [\"turn\", [\"holder\"], \"rotate\", [0, 0, 38], [0, 0, 1], [0, 360]]\n        ]],\n        [\"assembly_order\", [\n            [[\"base\"], [0, 0, 0]],\n            [[\"holder\"], [0, 0, -1], [\"flex\", [[\"holder\", \"base\", 1.0, \"snap over ball\"]]]]\n        ]],\n        [\"held\", [\"holder\"]]\n    ]);\n    instance(\"base\", \"base\") base_part();\n    instance(\"holder\", \"holder\") translate([0, 0, ball_cz - socket_cz]) holder_part();\n}\n",
+    "path": "model.scad"
+  },
+  "result": {
+    "ok": true,
+    "path": "model.scad",
+    "replaced": false,
+    "bytes": 4916,
+    "lines": 127,
+    "sha256": "77342b33780ff707854a64da44f451c04a4d01ec477b8eaba160df5129824dba"
+  },
+  "seconds": 0.38,
+  "image": null,
+  "files": {
+    "new": [
+      "model.scad"
+    ],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [
+    "model.scad"
+  ],
+  "rule": null,
+  "source": "d6198fc221a4005c"
+}

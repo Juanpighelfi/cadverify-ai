@@ -1,0 +1,32 @@
+{
+  "seq": 35,
+  "iteration": 23,
+  "name": "scad_write",
+  "arguments": {
+    "content": "/* Wall-mounted spool holder on 608 bearing\n   Print orientation: +Z up, parts rest on min z.\n   Assembly: wall at y=0 (normal -y), arm along +y, up +z.\n*/\n\npart = \"assembly\"; // [bracket, hub, assembly]\ncadverify_only = \"\";\n\nmodule instance(name, part, unit = 1) {\n    echo(cadverify_instance = [name, part, unit]);\n    if (cadverify_only == \"\" || cadverify_only == name) children();\n}\n\n// ---------- parameters ----------\nplate_x = 80;\nplate_y = 60;\nplate_t = 9;\nhole_dx = 25;\nscrew_d = 4.5;\ncsk_d = 9;\ncsk_h = (csk_d - screw_d)/2; // 2.25, 90 deg cone\npost_h = 75;\npost_d1 = 30;\npost_d2 = 20;\naxle_d = 7.9;\naxle_h = 9;\naxle_cham_h = 1;\naxle_cham_d2 = 5.9;\nshoulder_z = plate_t + post_h; // 84\ntip_z = shoulder_z + axle_h + axle_cham_h; // 94\n\nflange_d = 72;\nflange_t = 5;\nbarrel_d = 52.8;\nbarrel_h = 18; // z5-23\nlead_h = 2;\nlead_d2 = 48.8;\nhub_top = flange_t + barrel_h + lead_h; // 25\npocket_d = 21.7;\npocket_bottom = 17.45;\npocket_cham_h = 1;\npocket_cham_d = 23.7;\nbore_d = 9;\n\n// ---------- bracket (print orientation) ----------\nmodule rib_plus_y() {\n    hull() {\n        translate([-3, -1, 7]) cube([6, 2, 2]);\n        translate([-3, 22, 7]) cube([6, 2, 2]);\n        translate([-3, -1, 43]) cube([6, 2, 2]);\n    }\n}\n\nmodule bracket() {\n    difference() {\n        union() {\n            translate([-plate_x/2, -plate_y/2, 0]) cube([plate_x, plate_y, plate_t]);\n            translate([0, 0, plate_t]) cylinder(h = post_h, d1 = post_d1, d2 = post_d2, $fn = 96);\n            for (a = [45, 135, 225, 315]) rotate([0, 0, a]) rib_plus_y();\n            translate([0, 0, shoulder_z]) cylinder(h = axle_h, d = axle_d, $fn = 64);\n            translate([0, 0, shoulder_z + axle_h]) cylinder(h = axle_cham_h, d1 = axle_d, d2 = axle_cham_d2, $fn = 64);\n        }\n        for (sx = [-hole_dx, hole_dx]) {\n            translate([sx, 0, -0.1]) cylinder(h = plate_t + 0.2, d = screw_d, $fn = 32);\n            translate([sx, 0, plate_t - csk_h]) cylinder(h = csk_h + 0.01, d1 = screw_d, d2 = csk_d, $fn = 32);\n        }\n    }\n}\n\n// ---------- hub (print orientation) ----------\nmodule hub() {\n    difference() {\n        union() {\n            cylinder(h = flange_t, d = flange_d, $fn = 128);\n            translate([0, 0, flange_t]) cylinder(h = barrel_h, d = barrel_d, $fn = 128);\n            translate([0, 0, flange_t + barrel_h]) cylinder(h = lead_h, d1 = barrel_d, d2 = lead_d2, $fn = 128);\n        }\n        // bearing pocket mouth chamfer (top, opening up)\n        translate([0, 0, hub_top - pocket_cham_h]) cylinder(h = pocket_cham_h + 0.01, d1 = pocket_d, d2 = pocket_cham_d, $fn = 64);\n        // bearing pocket\n        translate([0, 0, pocket_bottom]) cylinder(h = (hub_top - pocket_cham_h) - pocket_bottom + 0.01, d = pocket_d, $fn = 64);\n        // axle clearance bore through\n        translate([0, 0, -0.1]) cylinder(h = pocket_bottom + 0.2, d = bore_d, $fn = 48);\n    }\n}\n\n// ---------- 608 bearing visual (external) ----------\nmodule bearing_608() {\n    difference() {\n        cylinder(h = 7, d = 22, center = true, $fn = 96);\n        cylinder(h = 7.4, d = 8, center = true, $fn = 48);\n    }\n}\n\n// ---------- assembly ----------\nmodule assembly_model() {\n    // bracket: print (x,y,z) -> assembly (x, z, -y)  (rotate -90 about X)\n    instance(\"bracket\", \"bracket\") rotate([-90, 0, 0]) bracket();\n    // bearing: axis Y, y 84..91, center 87.5\n    instance(\"bearing\", \"external\") translate([0, 87.5, 0]) rotate([-90, 0, 0]) bearing_608();\n    // hub: print +Z -> assembly -Y, opening faces wall; top (25) at y=83.5, flange outer at 108.5\n    instance(\"hub\", \"hub\") translate([0, 108.5, 0]) rotate([90, 0, 0]) hub();\n}\n\nif (part == \"bracket\") {\n    echo(cadverify_spec = [\n        [\"bounds\", [[-40, -30, 0], [40, 30, 94]]],\n        [\"bodies\", 1],\n        [\"through_holes\", 2],\n        [\"support_faces\", [[\"wall\", \"-z\", 4000]]],\n        [\"overhangs_allowed\", []],\n        [\"copies\", 1],\n        [\"details\", [\n            [\"rib\", \"material\", [[6, 6, 9], [12, 12, 15]], 0.8],\n            [\"screw_hole_left\", \"hole\", [-25, 0, 10], [0, 0, -1], [[0, 9], [2.25, 4.5], [8, 4.5]]],\n            [\"screw_hole_right\", \"hole\", [25, 0, 10], [0, 0, -1], [[0, 9], [2.25, 4.5], [8, 4.5]]],\n            [\"plate\", \"thickness\", [0, 20, -1], [0, 0, 1], 9]\n        ]]\n    ]);\n    bracket();\n} else if (part == \"hub\") {\n    echo(cadverify_spec = [\n        [\"bounds\", [[-36, -36, 0], [36, 36, 25]]],\n        [\"bodies\", 1],\n        [\"through_holes\", 1],\n        [\"support_faces\", [[\"bed\", \"-z\", 3000]]],\n        [\"overhangs_allowed\", []],\n        [\"copies\", 1],\n        [\"details\", [\n            [\"barrel\", \"material\", [[15, 0, 5], [22, 6, 15]], 0.9],\n            [\"bearing_pocket\", \"hole\", [0, 0, 27], [0, 0, -1], [[0, 23.7], [1, 21.7], [7.5, 21.7], [7.6, 9], [24, 9]]],\n            [\"flange\", \"thickness\", [30, 0, -1], [0, 0, 1], 5],\n            [\"barrel_wall\", \"thickness\", [30, 0, 20], [-1, 0, 0], 15.5]\n        ]]\n    ]);\n    hub();\n} else if (part == \"assembly\") {\n    echo(cadverify_spec = [\n        [\"bounds\", [[-40, 0, -36], [40, 108.5, 36]]],\n        [\"support_faces\", [[\"wall\", \"-y\", 4000]]],\n        [\"allowed_interferences\", [[\"hub\", \"bearing\", \"press fit 0.3mm diametral\"]]],\n        [\"motions\", [\n            [\"spin\", [\"hub\", \"bearing\"], \"rotate\", [0, 87.5, 0], [0, 1, 0], [0, 360]]\n        ]],\n        [\"assembly_order\", [\n            [[\"bracket\"], [0, 0, 0]],\n            [[\"bearing\"], [0, -1, 0]],\n            [[\"hub\"], [0, -1, 0]]\n        ]]\n    ]);\n    assembly_model();\n}\n",
+    "path": "model.scad"
+  },
+  "result": {
+    "ok": true,
+    "path": "model.scad",
+    "replaced": true,
+    "bytes": 5467,
+    "lines": 152,
+    "sha256": "dcde2e0f4aaba0c926df98f5b9c8a2130c580633b2b0ddcc1c6e6283d1fcb22b"
+  },
+  "seconds": 0.316,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [
+      "model.scad"
+    ],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [
+    "model.scad"
+  ],
+  "rule": null,
+  "source": "ccde41f34cd66e3b"
+}

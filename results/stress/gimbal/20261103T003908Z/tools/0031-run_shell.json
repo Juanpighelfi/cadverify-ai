@@ -1,0 +1,36 @@
+{
+  "seq": 31,
+  "iteration": 19,
+  "name": "run_shell",
+  "arguments": {
+    "cmd": "grep -n \"_export_parts\\|def scad_export\" /opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/*.py | head\nsed -n 1,150p /opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/files.py"
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.011,
+    "stdout": "/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/assembly.py:191:        parts = _export_parts(path, out_dir, timeout_s)\n/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/assembly.py:236:def _export_parts(path: Path, out_dir: Path, timeout_s: float) -> dict[str, dict[str, Any]]:\n/opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/scad.py:95:def scad_export(\n\"\"\"scad_write and scad_patch: the only way the agent changes its source.\n\nBoth are confined to .scad files under the workspace root. A patch replaces one exact, unique\noccurrence of `old`: an edit that matches nowhere, or in two places, fails instead of guessing.\n\"\"\"\n\nfrom __future__ import annotations\n\nimport hashlib\nimport re\nfrom pathlib import Path\nfrom typing import Any\n\nMAX_BYTES = 1_000_000\n\n\ndef scad_write(path: str, content: str, root: str | Path = \".\") -> dict[str, Any]:\n    target = _target(path, root)\n    if isinstance(target, dict):\n        return target\n    data = content.encode(\"utf-8\")\n    if len(data) > MAX_BYTES:\n        return {\"ok\": False, \"error\": f\"The file is over {MAX_BYTES} bytes\"}\n    existed = target.exists()\n    target.parent.mkdir(parents=True, exist_ok=True)\n    target.write_bytes(data)\n    return {\"ok\": True, \"path\": path, \"replaced\": existed, **_facts(content)}\n\n\ndef scad_patch(path: str, old: str, new: str, root: str | Path = \".\") -> dict[str, Any]:\n    target = _target(path, root)\n    if isinstance(target, dict):\n        return target\n    if not target.exists():\n        return {\"ok\": False, \"error\": f\"{path} does not exist; create it with scad_write\"}\n    if not old:\n        return {\"ok\": False, \"error\": \"old is empty\"}\n    content = target.read_text(encoding=\"utf-8\")\n    count = content.count(old)\n    if count != 1:\n        result = {\n            \"ok\": False,\n            \"occurrences\": count,\n            \"error\": f\"old appears {count} times in {path}; it must appear exactly once. \"\n            + (\n                \"Add neighboring lines to make it unique.\"\n                if count\n                else \"Copy the exact text of the file, with its indentation.\"\n            ),\n        }\n        if count == 0 and _squash(old) in _squash(content):\n            result[\"hint\"] = (\n                \"It appears if whitespace is ignored: check indentation and line breaks.\"\n            )\n        return result\n    start = content.index(old)\n    patched = content[:start] + new + content[start + len(old) :]\n    if len(patched.encode(\"utf-8\")) > MAX_BYTES:\n        return {\"ok\": False, \"error\": f\"The file is over {MAX_BYTES} bytes\"}\n    target.write_text(patched, encoding=\"utf-8\")\n    return {\n        \"ok\": True,\n        \"path\": path,\n        \"line\": content.count(\"\\n\", 0, start) + 1,\n        \"lines_removed\": old.count(\"\\n\") + 1,\n        \"lines_added\": new.count(\"\\n\") + 1,\n        **_facts(patched),\n    }\n\n\ndef _target(path: str, root: str | Path) -> Path | dict[str, Any]:\n    base = Path(root).resolve()\n    target = (base / path).resolve()\n    if not target.is_relative_to(base) or target == base:\n        return {\"ok\": False, \"error\": f\"{path} is outside the workspace\"}\n    if target.suffix != \".scad\":\n        return {\"ok\": False, \"error\": \"Only .scad files can be written\"}\n    return target\n\n\ndef _facts(content: str) -> dict[str, Any]:\n    return {\n        \"bytes\": len(content.encode(\"utf-8\")),\n        \"lines\": len(content.splitlines()),\n        \"sha256\": hashlib.sha256(content.encode(\"utf-8\")).hexdigest(),\n    }\n\n\ndef _squash(text: str) -> str:\n    return re.sub(r\"\\s+\", \"\", text)\n",
+    "stderr": "",
+    "stdout_bytes": 3536,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 0.455,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "823f8e614ef39527"
+}

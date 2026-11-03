@@ -1,0 +1,32 @@
+{
+  "seq": 1,
+  "iteration": 1,
+  "name": "scad_write",
+  "arguments": {
+    "content": "/* Ratchet wheel with spring pawl - PLA, 0.4 nozzle, no supports */\n// Wheel ~50mm dia, 12 teeth. Free clockwise (from above), locks CCW.\n// Print orientation: both parts flat, +Z up, bottom on bed.\n\n/* [Part] */\npart = \"assembly\"; // [wheel, base, assembly]\ncadverify_only = \"\";\nmodule instance(name, part, unit = 1) {\n    echo(cadverify_instance = [name, part, unit]);\n    if (cadverify_only == \"\" || cadverify_only == name) children();\n}\n\n// ---- parameters (mm) ----\nRo = 25;            // wheel tip radius (dia 50)\nRr = 23.5;          // wheel root radius (tooth height 1.5)\nNteeth = 12;\npitch = 360/Nteeth; // 30\ngentle_span = 26;   // valley->tip CCW (gentle ramp)\nwheel_t = 8;        // wheel thickness\nbore_d = 12.6;      // wheel bore\npost_d = 12;        // post diameter\npost_h = 10;        // post height above base top\nbase_x = 90;\nbase_y = 70;\nbase_t = 6;\nwheel_cx = -10;     // post/wheel centre in base coords\nwheel_cy = 0;\nbase_top = base_t;  // 6\n// pawl / arm\nbeam_x0 = 15.5; beam_x1 = 17.5;   // beam 2mm thick in X\nbeam_y0 = -30; beam_y1 = 3;       // beam length\nbeam_z0 = 6; beam_z1 = 14;        // beam height 8\ntip_x = 14.2;       // pawl tip westmost (0.8 inside tip circle: 15-14.2=0.8)\n\n$fn = 128;\n\n// ---- wheel: centred at (0,0), bottom z=0 ----\nmodule wheel() {\n    difference() {\n        linear_extrude(height = wheel_t, convexity = 4)\n            polygon(points = [ for (i = [0:Nteeth-1]) each [\n                [Rr*cos(i*pitch), Rr*sin(i*pitch)],\n                [Ro*cos(i*pitch+gentle_span), Ro*sin(i*pitch+gentle_span)]\n            ]]);\n        translate([0,0,-1]) cylinder(d = bore_d, h = wheel_t+2);\n    }\n}\n\n// ---- base: plate centred at origin, bottom z=0, post at (wheel_cx,wheel_cy) ----\nmodule base() {\n    union() {\n        // plate\n        translate([-base_x/2, -base_y/2, 0]) cube([base_x, base_y, base_t]);\n        // post\n        translate([wheel_cx, wheel_cy, base_top]) cylinder(d = post_d, h = post_h);\n        // anchor block\n        translate([10, -35, 6]) cube([14, 11, 8]);\n        // flexible beam (2mm thick, ~33mm long, 8mm tall)\n        translate([beam_x0, beam_y0, beam_z0]) cube([beam_x1-beam_x0, beam_y1-beam_y0, beam_z1-beam_z0]);\n        // pawl tip wedge: tip (tip_x,0), overlap 0.5 into beam; north ramp, south flat\n        linear_extrude(height = 8, convexity = 2)\n            polygon(points = [[tip_x,0],[16,0],[16,3]]);\n        // shift pawl wedge up to beam height (extrude from 0 -> translate)\n    }\n}\n\n// pawl wedge is extruded 0..8, need to lift to 6..14: wrap\nmodule base_fixed() {\n    union() {\n        translate([-base_x/2, -base_y/2, 0]) cube([base_x, base_y, base_t]);\n        translate([wheel_cx, wheel_cy, base_top]) cylinder(d = post_d, h = post_h);\n        translate([10, -35, 6]) cube([14, 11, 8]);\n        translate([beam_x0, beam_y0, beam_z0]) cube([beam_x1-beam_x0, beam_y1-beam_y0, beam_z1-beam_z0]);\n        translate([0,0,6]) linear_extrude(height = 8, convexity = 2)\n            polygon(points = [[tip_x,0],[16,0],[16,3]]);\n    }\n}\n\n// ---- specs ----\nif (part == \"wheel\") echo(cadverify_spec = [\n    [\"bounds\", [[-Ro, -Ro, 0], [Ro, Ro, wheel_t]]],\n    [\"bodies\", 1],\n    [\"through_holes\", 1],\n    [\"support_faces\", [[\"bed\", \"-z\", 1000]]],\n    [\"overhangs_allowed\", []],\n    [\"copies\", 1],\n    [\"details\", [\n        [\"bore\", \"hole\", [0, 0, 10], [0, 0, -1], [[0, bore_d], [wheel_t, bore_d]]],\n        [\"rim\", \"thickness\", [0, 15, 10], [0, 0, -1], wheel_t],\n        [\"tooth\", \"material\", [[11, -1, 0], [14, 2, wheel_t]], 0.5],\n        [\"teeth\", \"view\", [[20, -25, 0], [Ro, 25, wheel_t]]]\n    ]]\n]);\n\nif (part == \"base\") echo(cadverify_spec = [\n    [\"bounds\", [[-base_x/2, -base_y/2, 0], [base_x/2, base_y/2, base_top+post_h]]],\n    [\"bodies\", 1],\n    [\"support_faces\", [[\"bed\", \"-z\", 4000]]],\n    [\"overhangs_allowed\", []],\n    [\"copies\", 1],\n    [\"details\", [\n        [\"plate\", \"thickness\", [-30, 20, 10], [0, 0, -1], base_t],\n        [\"post\", \"material\", [[wheel_cx-6, wheel_cy-6, base_top], [wheel_cx+6, wheel_cy+6, base_top+post_h]], 0.5],\n        [\"arm\", \"material\", [[beam_x0, beam_y0, beam_z0], [beam_x1, beam_y1, beam_z1]], 0.9],\n        [\"pawl_tip\", \"view\", [[14.0, -1, 6], [16, 3.5, 14]]]\n    ]]\n]);\n\nif (part == \"assembly\") echo(cadverify_spec = [\n    [\"bounds\", [[-base_x/2, -base_y/2, 0], [base_x/2, base_y/2, base_top+post_h]]],\n    [\"motions\", [\n        [\"click\", [\"wheel1\"], \"rotate\", [wheel_cx, wheel_cy, base_top], [0, 0, 1], [0, -360],\n            [\"flex\", [[\"wheel1\", \"base1\", 1.0, \"pawl flexes over teeth\"]]]]\n    ]],\n    [\"assembly_order\", [\n        [[\"base1\"], [0, 0, 0]],\n        [[\"wheel1\"], [0, 0, -30]]\n    ]]\n]);\n\n// ---- geometry dispatch ----\nif (part == \"wheel\") wheel();\nelse if (part == \"base\") base_fixed();\nelse if (part == \"assembly\") {\n    instance(\"base1\", \"base\") base_fixed();\n    instance(\"wheel1\", \"wheel\") translate([wheel_cx, wheel_cy, base_top]) wheel();\n}\n",
+    "path": "model.scad"
+  },
+  "result": {
+    "ok": true,
+    "path": "model.scad",
+    "replaced": false,
+    "bytes": 4891,
+    "lines": 127,
+    "sha256": "03af43c40b8e8a12028945604e082d1671309a2d19d0675efd22fce13134c6b3"
+  },
+  "seconds": 0.353,
+  "image": null,
+  "files": {
+    "new": [
+      "model.scad"
+    ],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [
+    "model.scad"
+  ],
+  "rule": null,
+  "source": "076ebf94697f2642"
+}

@@ -1,0 +1,37 @@
+{
+  "seq": 43,
+  "iteration": 33,
+  "name": "run_shell",
+  "arguments": {
+    "cmd": "grep -n \"def overlap\" -A 40 /opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/assembly.py | head -60; grep -n \"^from\\|^import\" /opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/assembly.py | head -20",
+    "timeout_s": 60.0
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.018,
+    "stdout": "386:def overlap(a: manifold3d.Manifold, b: manifold3d.Manifold) -> dict[str, Any] | None:\n387-    \"\"\"The overlap of two solids when it counts (module docstring), else None.\"\"\"\n388-    inter = a ^ b\n389-    volume = inter.volume()\n390-    if volume <= OVERLAP_MM3:\n391-        return None\n392-    area = inter.surface_area()\n393-    thick = 2 * volume / area if area > 0 else 0.0\n394-    if thick <= OVERLAP_THICKNESS_MM:\n395-        return None\n396-    lo, hi = np.reshape(inter.bounding_box(), (2, 3))\n397-    return {\n398-        \"volume_mm3\": round(volume, 3),\n399-        \"thickness_mm\": round(thick, 3),\n400-        \"bounds\": _r([lo, hi]),\n401-        \"_solid\": inter,\n402-    }\n403-\n404-\n405-def _pairs(instances: list[dict], permitted: dict, out_dir: Path, problems: list[str]) -> list:\n406-    rows = []\n407-    boxes = {i[\"name\"]: np.reshape(i[\"_solid\"].bounding_box(), (2, 3)) for i in instances}\n408-    for a, b in itertools.combinations(instances, 2):\n409-        if _box_gap(boxes[a[\"name\"]], boxes[b[\"name\"]]) > CONTACT_MM:\n410-            continue\n411-        key = frozenset((a[\"name\"], b[\"name\"]))\n412-        hit = overlap(a[\"_solid\"], b[\"_solid\"])\n413-        gap = 0.0 if hit else float(a[\"_solid\"].min_gap(b[\"_solid\"], CONTACT_MM * 1.01))\n414-        row: dict[str, Any] = {\n415-            \"a\": a[\"name\"],\n416-            \"b\": b[\"name\"],\n417-            \"gap_mm\": round(gap, 3),\n418-            \"contact\": gap <= CONTACT_MM,\n419-        }\n420-        if hit:\n421-            row.update({k: v for k, v in hit.items() if not k.startswith(\"_\")})\n422-            stl = out_dir / f\"overlap-{_slug(a['name'])}-{_slug(b['name'])}.stl\"\n423-            _write_stl(hit[\"_solid\"], stl)\n424-            row[\"stl\"] = str(stl)\n425-            reason = permitted.get(key)\n426-            if reason is not None and hit[\"thickness_mm\"] <= PERMITTED_THICKNESS_MM:\n79:from __future__ import annotations\n81:import hashlib\n82:import itertools\n83:import math\n84:import re\n85:import time\n86:from concurrent.futures import ThreadPoolExecutor\n87:from pathlib import Path\n88:from typing import Any\n90:import manifold3d\n91:import numpy as np\n92:import trimesh\n93:from scipy.ndimage import binary_erosion\n94:from scipy.spatial import cKDTree\n96:from cadverify.cadcheck import section\n97:from cadverify.cadcheck.mesh import load_exact\n98:from cadverify.cadcheck.printability import mesh_printability\n99:from cadverify.cadcheck.scad import ASSEMBLY, STANDARD_DIR, scad_export\n",
+    "stderr": "",
+    "stdout_bytes": 2469,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 0.489,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "a1c3e6cd649abb7e"
+}

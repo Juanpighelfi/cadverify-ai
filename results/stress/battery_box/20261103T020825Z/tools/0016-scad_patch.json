@@ -1,0 +1,35 @@
+{
+  "seq": 16,
+  "iteration": 16,
+  "name": "scad_patch",
+  "arguments": {
+    "new": "module groove_void_left() {\n    x_in = -W_in/2;\n    x_out = -W_in/2 - groove_d;\n    y0 = groove_y0;\n    y1 = L_out + 0.1;\n    polyhedron(\n        points = [\n            [x_in, y0, gb], [x_out, y0, gb],\n            [x_out, y0, ce_out], [x_in, y0, ce_in],\n            [x_in, y1, gb], [x_out, y1, gb],\n            [x_out, y1, ce_out], [x_in, y1, ce_in]\n        ],\n        faces = [[0,1,5,4],[1,2,6,5],[2,3,7,6],[3,0,4,7],[0,3,2,1],[4,5,6,7]]\n    );\n}",
+    "old": "module groove_void_left() {\n    x_in = -W_in/2;\n    x_out = -W_in/2 - groove_d;\n    y0 = groove_y0;\n    y1 = L_out + 0.1;\n    hull() {\n        translate([x_out, y0, gb]) cube([x_in - x_out, y1 - y0, 0.01]);\n        translate([x_in - 0.01, y0, ce_in]) cube([0.01, y1 - y0, 0.01]);\n        translate([x_out, y0, ce_out]) cube([0.01, y1 - y0, 0.01]);\n    }\n}",
+    "path": "model.scad"
+  },
+  "result": {
+    "ok": true,
+    "path": "model.scad",
+    "line": 69,
+    "lines_removed": 11,
+    "lines_added": 15,
+    "bytes": 9487,
+    "lines": 214,
+    "sha256": "f8ee4f2017a946a18c00f497f86ea74b9b022dce318aa85ccc01d6b7eca40518"
+  },
+  "seconds": 0.302,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [
+      "model.scad"
+    ],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [
+    "model.scad"
+  ],
+  "rule": null,
+  "source": "84d9b99cf854836a"
+}

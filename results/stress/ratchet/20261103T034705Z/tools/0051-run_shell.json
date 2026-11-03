@@ -1,0 +1,37 @@
+{
+  "seq": 51,
+  "iteration": 41,
+  "name": "run_shell",
+  "arguments": {
+    "cmd": "python3 -c \"\nimport numpy as np, trimesh\nfrom cadverify.cadcheck.mesh import load_exact\nfrom cadverify.cadcheck import section\nfrom cadverify.cadcheck.assembly import _poses, _box_gap, overlap\nw = load_exact('checks/assembly/model.assembly.1d428528.stl')\nb = load_exact('checks/assembly/model.assembly.57cfb177.stl')\nsw = section.to_manifold(w); sb = section.to_manifold(b)\nm = _poses({'name':'free','kind':'rotate','point':[0,0,4],'axis':[0,0,1],'range':[0,-30],'instances':['wheel1']}, -17.0)['wheel1']\nprint('matrix:'); print(m)\nsw2 = sw.transform(m[:3])\nprint('moved bounds', np.reshape(sw2.bounding_box(),(2,3)))\nprint('base bounds', np.reshape(sb.bounding_box(),(2,3)))\nprint('box gap', _box_gap(np.reshape(sw2.bounding_box(),(2,3)), np.reshape(sb.bounding_box(),(2,3))))\nprint('overlap vol', (sb ^ sw2).volume())\n\"\n",
+    "timeout_s": 120.0
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.993,
+    "stdout": "matrix:\n[[ 0.95630476  0.2923717   0.          0.        ]\n [-0.2923717   0.95630476  0.          0.        ]\n [ 0.          0.          1.          0.        ]\n [ 0.          0.          0.          1.        ]]\nmoved bounds [[-24.9983077 -24.9983077   4.       ]\n [ 24.9983077  24.9983077  10.       ]]\nbase bounds [[-40. -30.   0.]\n [ 40.  30.  14.]]\nbox gap 0.0\noverlap vol 4.420251830610022\n",
+    "stderr": "",
+    "stdout_bytes": 396,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 1.452,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "a1c3e6cd649abb7e"
+}

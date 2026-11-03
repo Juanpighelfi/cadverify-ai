@@ -1,0 +1,35 @@
+{
+  "seq": 33,
+  "iteration": 28,
+  "name": "scad_patch",
+  "arguments": {
+    "new": "module helical_thread(R_low, w_low, R_high, w_high, pitch, phi_start_deg, phi_end_deg, z_at_start, steps, handed=1) {\n    // OpenSCAD sin()/cos() take degrees; right-hand: z rises pitch per 360 deg\n    N = steps;\n    pts = [ for(i=[0:N])\n        let(\n            phi = phi_start_deg + (phi_end_deg-phi_start_deg)*i/N,\n            zc = z_at_start + handed*pitch*(phi-phi_start_deg)/360,\n            c = cos(phi), s = sin(phi)\n        )",
+    "old": "module helical_thread(R_low, w_low, R_high, w_high, pitch, phi_start_deg, phi_end_deg, z_at_start, steps) {\n    // OpenSCAD sin()/cos() take degrees; helix rises pitch per 360 deg (right-hand)\n    N = steps;\n    pts = [ for(i=[0:N])\n        let(\n            phi = phi_start_deg + (phi_end_deg-phi_start_deg)*i/N,\n            zc = z_at_start + pitch*(phi-phi_start_deg)/360,\n            c = cos(phi), s = sin(phi)\n        )",
+    "path": "model.scad"
+  },
+  "result": {
+    "ok": true,
+    "path": "model.scad",
+    "line": 36,
+    "lines_removed": 9,
+    "lines_added": 9,
+    "bytes": 4552,
+    "lines": 138,
+    "sha256": "78c023fd4144fdb6e9665ea48f71c2b5062924ad3abe6af70ac43bb1fbfe091d"
+  },
+  "seconds": 0.337,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [
+      "model.scad"
+    ],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [
+    "model.scad"
+  ],
+  "rule": null,
+  "source": "c2b86ccc461e802e"
+}

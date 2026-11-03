@@ -1,0 +1,35 @@
+{
+  "seq": 24,
+  "iteration": 9,
+  "name": "scad_patch",
+  "arguments": {
+    "path": "model.scad",
+    "old": "module cyl_y(r, h) rotate([90,0,0]) cylinder(r=r, h=h, center=true);",
+    "new": "// Diamond-profile ring/disc: ridge (half-thickness 0) at bore & rim,\n// full 6mm thickness at mid-radius. Radial faces slope 47deg in Y,\n// so arch undersides are 47deg (declared, no >60deg bridge span).\nmodule ring_diamond(r_in, r_out) {\n    r_mid = (r_in + r_out) / 2;\n    rotate([90,0,0]) rotate_extrude() polygon(points=[\n        [r_in,0],[r_mid,3],[r_out,0],[r_mid,-3]]);\n}\nmodule disc_diamond(r_out) {\n    rotate([90,0,0]) rotate_extrude() polygon(points=[\n        [0,-3],[r_out-3.25,-3],[r_out,0],[r_out-3.25,3],[0,3]]);\n}\nmodule cyl_y(r, h) rotate([90,0,0]) cylinder(r=r, h=h, center=true);"
+  },
+  "result": {
+    "ok": true,
+    "path": "model.scad",
+    "line": 29,
+    "lines_removed": 1,
+    "lines_added": 13,
+    "bytes": 7097,
+    "lines": 170,
+    "sha256": "012471b35dc59dd0fcd66a7fa983a7009beffa73150fa3c8b998055dc719d7d8"
+  },
+  "seconds": 0.302,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [
+      "model.scad"
+    ],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [
+    "model.scad"
+  ],
+  "rule": null,
+  "source": "d750e062dfad0ceb"
+}

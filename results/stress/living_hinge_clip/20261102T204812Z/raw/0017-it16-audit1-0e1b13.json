@@ -1,0 +1,92 @@
+{
+  "label": "it16-audit1",
+  "endpoint": "POST /v1/responses",
+  "request": {
+    "model": "muse-wonder-1.0",
+    "instructions": "You audit the close of a design session for 3D printing in OpenSCAD. The harness verified the final version of the design and gives you, in JSON, what it measured (VERIFIED) and the spec adjustments it detected: changes of the spec towards what the mesh already measured, without the part changing (ADJUSTMENTS). Read the designer's CLOSE and answer only with a JSON object, with no text before or after it:\n{\"unsupported\": [{\"claim\": \"...\", \"reason\": \"...\"}], \"untold_adjustments\": [{\"adjustment\": \"...\", \"reason\": \"...\"}]}\n- unsupported: every claim the close presents as verified (measured, checked, that it meets, that it fits, that it does not collide, that it goes in, that it prints without supports) that VERIFIED does not back: it is not there, it says something else or the numbers do not match. Leave out: what the close states as not verified, an opinion, an intention, or a description of the design that does not claim to have been checked.\n- untold_adjustments: every part of ADJUSTMENTS whose adjustments the close does not mention with their reason (one mention per part saying what was adjusted and why is enough).\nEmpty lists if there is nothing to object to. Be precise: quote the claim as it is written.",
+    "input": "VERIFIED\n{\"gates\": {\"G1\": true, \"G2\": true, \"G3\": true, \"G4\": true, \"G5\": true, \"G7\": true}, \"green_means\": {\"G1\": \"the source compiles and every part exports with the default parameters, with no errors, failed asserts, timeouts or warnings\", \"G2\": \"every part is a closed mesh: watertight, 0 bad edges, no inverted shells, a positive volume and the declared number of bodies\", \"G3\": \"the assembly: each instance is its part moved (same volume, area and principal moments), every part placed as many times as its copies, no overlap between instances beyond the allowed_interferences, all of them one connected group, and the units the request chains (nothing to check for one part without an assembly)\", \"G4\": \"every declared motion swept through its whole range, and every assembly_order step brought in from far away along its direction (turning, when it turns), without a collision with what is already placed (a press fit only as a fit: no thicker than one along a motion, and pushed in only where it overlaps in place). The parts are swept as rigid bodies; a pair a motion declares as flex may overlap while it moves, no deeper than declared and never at an end of the range: how deep is measured, not whether the feature can bend that far\", \"G5\": \"each part alone, in the orientation it is exported in: no overhang steeper than 45° outside its declared overhangs_allowed boxes (which cover at most half of its surface), the part of every overhang steeper than 60° (where the A1's slicer adds supports by default) a bridge of 10 mm at most (no point of it more than 5 mm, seen from above, from the material under its lowest edge), every body resting on the bed or starting 1 mm or less over another, and it fits the bed (Bambu Lab A1, 256 mm cube). Only an assembly that declares print_in_place is checked as printed whole: the same checks on all its parts together as they print (as they stand, or in the declared print_pose), and every two of them at least the declared clearance apart in that pose. Whether a bridge sags, or how the print looks, is not measured\", \"G7\": \"every spec check holds (bounds, bodies, through holes, support faces, details), and the designer saw the final version: the multi-view sheet of every part, all the instances of the assembly together in one view, and a close view of every detail of kind view\"}, \"parts\": [{\"part\": \"clip\", \"ok\": true, \"mesh\": {\"watertight\": true, \"bad_edges\": 0, \"bodies\": 1, \"volume_mm3\": 17657.91, \"bounds\": [[-116.0, 0.0, 0.0], [106.0, 20.0, 6.0]], \"through_holes\": 0}, \"spec\": {\"bounds\": [[-116.0, 0.0, 0.0], [106.0, 20.0, 6.0]], \"bodies\": 1, \"through_holes\": null, \"support_faces\": [{\"name\": \"bed\", \"direction\": \"-z\", \"min_area_mm2\": 4000}], \"overhangs_allowed\": [{\"name\": \"latch_chamfer_45deg\", \"bounds\": [[-103.0, 10.0, 4.0], [-95.0, 13.0, 6.0]]}], \"copies\": 1, \"details\": [{\"name\": \"bottom_arm\", \"kind\": \"material\", \"box\": [[6.0, 0.0, 0.0], [106.0, 20.0, 4.0]], \"fraction\": 0.9}, {\"name\": \"top_arm\", \"kind\": \"material\", \"box\": [[-106.0, 0.0, 0.0], [-6.0, 20.0, 4.0]], \"fraction\": 0.9}, {\"name\": \"thumb_tab\", \"kind\": \"material\", \"box\": [[-116.0, 0.0, 0.0], [-106.0, 20.0, 4.0]], \"fraction\": 0.9}, {\"name\": \"latch_bottom\", \"kind\": \"material\", \"box\": [[96.0, 7.0, 4.0], [102.0, 12.0, 6.0]], \"fraction\": 0.8}, {\"name\": \"latch_top\", \"kind\": \"material\", \"box\": [[-102.0, 11.0, 4.0], [-96.0, 16.0, 6.0]], \"fraction\": 0.8}, {\"name\": \"hinge_gap\", \"kind\": \"void\", \"box\": [[-6.0, 0.0, 0.8], [6.0, 20.0, 4.0]], \"fraction\": 0.9}, {\"name\": \"hinge_thin\", \"kind\": \"thickness\", \"point\": [0.0, 10.0, 5.0], \"direction\": [0.0, 0.0, -1.0], \"mm\": 0.8}, {\"name\": \"arm_thickness\", \"kind\": \"thickness\", \"point\": [60.0, 10.0, 10.0], \"direction\": [0.0, 0.0, -1.0], \"mm\": 4.0}, {\"name\": \"teeth\", \"kind\": \"view\", \"box\": [[14.0, 0.0, 4.0], [92.0, 20.0, 4.8]]}, {\"name\": \"latch_detail\", \"kind\": \"view\", \"box\": [[94.0, 5.0, 4.0], [104.0, 18.0, 6.0]]}]}, \"spec_check\": {\"ok\": true, \"bounds\": {\"ok\": true, \"expected\": [[-116.0, 0.0, 0.0], [106.0, 20.0, 6.0]], \"actual\": [[-116.0, 0.0, 0.0], [106.0, 20.0, 6.0]], \"tolerance_mm\": 0.2, \"deviations\": []}, \"bodies\": {\"ok\": true, \"expected\": 1, \"actual\": 1}, \"support_faces\": [{\"name\": \"bed\", \"direction\": \"-z\", \"ok\": true, \"min_area_mm2\": 4000, \"area_on_extreme_plane_mm2\": 4440.0, \"extreme_plane\": \"z = 0.000\", \"largest_flat_face\": {\"plane\": \"z = 0.000\", \"area_mm2\": 4440.0}}]}, \"details\": [{\"name\": \"bottom_arm\", \"kind\": \"material\", \"box\": [[6.0, 0.0, 0.0], [106.0, 20.0, 4.0]], \"material_fraction\": 1.0, \"min_fraction\": 0.9, \"ok\": true}, {\"name\": \"top_arm\", \"kind\": \"material\", \"box\": [[-106.0, 0.0, 0.0], [-6.0, 20.0, 4.0]], \"material_fraction\": 1.0, \"min_fraction\": 0.9, \"ok\": true}, {\"name\": \"thumb_tab\", \"kind\": \"material\", \"box\": [[-116.0, 0.0, 0.0], [-106.0, 20.0, 4.0]], \"material_fraction\": 1.0, \"min_fraction\": 0.9, \"ok\": true}, {\"name\": \"latch_bottom\", \"kind\": \"material\", \"box\": [[96.0, 7.0, 4.0], [102.0, 12.0, 6.0]], \"material_fraction\": 0.9495, \"min_fraction\": 0.8, \"ok\": true}, {\"name\": \"latch_top\", \"kind\": \"material\", \"box\": [[-102.0, 11.0, 4.0], [-96.0, 16.0, 6.0]], \"material_fraction\": 0.949, \"min_fraction\": 0.8, \"ok\": true}, {\"name\": \"hinge_gap\", \"kind\": \"void\", \"box\": [[-6.0, 0.0, 0.8], [6.0, 20.0, 4.0]], \"material_fraction\": 0.0, \"min_empty_fraction\": 0.9, \"ok\": true}, {\"name\": \"hinge_thin\", \"kind\": \"thickness\", \"ok\": true, \"expected_mm\": 0.8, \"measured_mm\": 0.8, \"enters_at\": [0.0, 10.0, 0.8], \"tolerance_mm\": 0.1}, {\"name\": \"arm_thickness\", \"kind\": \"thickness\", \"ok\": true, \"expected_mm\": 4.0, \"measured_mm\": 4.0, \"enters_at\": [60.0, 10.0, 4.0], \"tolerance_mm\": 0.12}, {\"name\": \"teeth\", \"kind\": \"view\", \"box\": [[14.0, 0.0, 4.0], [92.0, 20.0, 4.8]], \"material_fraction\": 0.1923, \"ok\": true, \"needs\": \"a close view\"}, {\"name\": \"latch_detail\", \"kind\": \"view\", \"box\": [[94.0, 5.0, 4.0], [104.0, 18.0, 6.0]], \"material_fraction\": 0.2191, \"ok\": true, \"needs\": \"a close view\"}], \"printability\": {\"fits_bed\": true, \"bed_mm\": [256.0, 256.0, 256.0], \"size\": [222.0, 20.0, 6.0], \"bed_margin_mm\": [17.0, 118.0, 250.0], \"base_area_mm2\": 4440.0, \"overhang_area_mm2\": 6.06, \"zones_total\": 1, \"zones_undeclared\": 0, \"undeclared_area_mm2\": 0, \"allowed_share_of_surface\": 0.0038, \"zones\": [{\"id\": \"v1\", \"area_mm2\": 6.06, \"max_angle_deg\": 90.0, \"declared_as\": \"latch_chamfer_45deg\"}]}}], \"assembly\": {\"instances\": [{\"name\": \"clip_inst\", \"part\": \"clip\", \"unit\": 1, \"bounds\": [[-116.0, 0.0, 0.0], [106.0, 20.0, 6.0]], \"congruent\": true}], \"pairs\": [], \"components\": [[\"clip_inst\"]], \"units\": {\"required\": 1, \"present\": [1], \"links\": []}, \"copies\": [{\"part\": \"clip\", \"expected\": 1, \"placed\": 1, \"ok\": true}], \"spec_check\": {\"measured_bounds\": [[-116.0, 0.0, 0.0], [106.0, 20.0, 6.0]], \"bounds\": {\"ok\": true, \"expected\": [[-116.0, 0.0, 0.0], [106.0, 20.0, 6.0]], \"actual\": [[-116.0, 0.0, 0.0], [106.0, 20.0, 6.0]], \"tolerance_mm\": 0.2, \"deviations\": []}, \"support_faces\": [{\"name\": \"bed\", \"direction\": \"-z\", \"ok\": true, \"min_area_mm2\": 4000, \"area_on_extreme_plane_mm2\": 4440.0, \"extreme_plane\": \"z = 0.000\", \"largest_flat_face\": {\"plane\": \"z = 0.000\", \"area_mm2\": 4440.0}}]}, \"motions\": [{\"name\": \"closing\", \"kind\": \"slide\", \"range\": [0.0, 20.0], \"ok\": true, \"steps\": 81, \"step\": 0.25}], \"assembly_steps\": [], \"print_in_place\": null, \"problems\": {\"G3\": [], \"G4\": [], \"G5\": []}}}\n\nADJUSTMENTS\n- clip: detail arm_thickness from point [56.0, 10.0, 10.0] to point [60.0, 10.0, 10.0], the mesh measures 4.0 (the mesh is the same)\n\nCLOSE\nOne-piece bag clip, printed open flat.\n\nDesign: two 100x20x4 mm arms [[clip/bottom_arm]] [[clip/top_arm]] joined by a 12 mm wide x 0.8 mm thick living-hinge strip (2x 0.4 mm lines) [[clip/hinge_thin]], full 20 mm width. 10 mm thumb tab [[clip/thumb_tab]] with grip ridges. Inner grip teeth [[clip/teeth]] on both arms. Hook latch blocks at free ends [[clip/latch_bottom]] [[clip/latch_top]] with 45 deg chamfers [[clip/latch_detail]]. Hinge gap empty above strip [[clip/hinge_gap]]. Arm wall 4.0 mm [[clip/arm_thickness]]. Shown as it prints open [[clip]] in [[assembly]].\n\nPrint: PETG, 0.4 mm nozzle, no supports. Part rests on bed face 4440 mm2 [[clip/bed]] in print orientation +Z up, size 222x20x6 mm [[clip]] fits Bambu Lab A1 with 17 mm margin [[G5]]. One 6.06 mm2 overhang at latch chamfer declared in overhangs_allowed, 0 undeclared, 0.38% coverage, bridge 0.0 mm [[G5]], nothing starts in air [[G5]]. Watertight, 0 bad edges, 1 body, 17657.9 mm3 [[clip]].\n\nMotion: closing slide 0-20 mm [[closing]] sweeps free [[assembly]], single instance congruent [[assembly]], put together in [[assembly_order]].\n\nVerified: bounds [[-116,0,0],[106,20,6]] [[clip]] [[assembly]]; spec all green [[clip]]; sheets/views seen: clip sheet, assembly all-instances view, teeth close-up, latch close-up.\n\nNot verified: hinge fatigue life, latch holding force on 2 mm folded bag, thumb opening force, PETG layer adhesion. Strength and looks depend on printer/material.\n\nSpec adjustments to match measured mesh, geometry unchanged: arm_thickness probe moved x=56 to x=60 because x=56 sits on a 0.6 mm tooth and measured 4.6 mm instead of 4 mm arm wall; overhangs_allowed added latch chamfer zone to declare the measured 6.06 mm2 chamfer zone that printability reported undeclared.\n",
+    "reasoning": {
+      "effort": "medium"
+    },
+    "max_output_tokens": 16000
+  },
+  "status_code": 200,
+  "response_headers": {
+    "content-type": "application/json",
+    "x-ratelimit-limit-requests": "3000",
+    "x-ratelimit-remaining-requests": "2998",
+    "x-ratelimit-limit-tokens": "4000000",
+    "x-ratelimit-remaining-tokens": "3991938",
+    "x-request-id": "7459cbf7-c618-4077-82f0-55a3355322ba",
+    "date": "Mon, 02 Nov 2026 21:03:59 GMT"
+  },
+  "response": {
+    "top_logprobs": 0,
+    "temperature": 1.0,
+    "top_p": 1.0,
+    "service_tier": "auto",
+    "model": "muse-wonder-1.0",
+    "reasoning": {
+      "effort": "medium"
+    },
+    "background": false,
+    "tools": [],
+    "tool_choice": "auto",
+    "truncation": "disabled",
+    "id": "resp_6ae8fabf90e7ea7b3ef04ebd",
+    "object": "response",
+    "status": "completed",
+    "created_at": 1793653439.0,
+    "completed_at": 1793653439.0,
+    "error": null,
+    "incomplete_details": null,
+    "output": [
+      {
+        "type": "reasoning",
+        "id": "rs_6ae8fabf90e7ea7b3ef04ebd:rs_7f83cbfd-3a15-43cb-af34-8b6dc11459c5",
+        "summary": [],
+        "status": "completed"
+      },
+      {
+        "type": "message",
+        "id": "msg_c0da633c-99e8-480d-a814-227c1358671b",
+        "role": "assistant",
+        "content": [
+          {
+            "type": "output_text",
+            "text": "{\"unsupported\": [{\"claim\": \"bridge 0.0 mm\", \"reason\": \"VERIFIED gives no bridge length or distance; G5/printability only reports the 6.06 mm2 declared overhang zone and that the gate holds, not a 0.0 mm bridge\"}, {\"claim\": \"put together in [[assembly_order]]\", \"reason\": \"VERIFIED assembly_steps is empty; there is no assembly_order step that was checked\"}], \"untold_adjustments\": []}",
+            "annotations": [],
+            "logprobs": []
+          }
+        ],
+        "status": "completed"
+      }
+    ],
+    "instructions": "You audit the close of a design session for 3D printing in OpenSCAD. The harness verified the final version of the design and gives you, in JSON, what it measured (VERIFIED) and the spec adjustments it detected: changes of the spec towards what the mesh already measured, without the part changing (ADJUSTMENTS). Read the designer's CLOSE and answer only with a JSON object, with no text before or after it:\n{\"unsupported\": [{\"claim\": \"...\", \"reason\": \"...\"}], \"untold_adjustments\": [{\"adjustment\": \"...\", \"reason\": \"...\"}]}\n- unsupported: every claim the close presents as verified (measured, checked, that it meets, that it fits, that it does not collide, that it goes in, that it prints without supports) that VERIFIED does not back: it is not there, it says something else or the numbers do not match. Leave out: what the close states as not verified, an opinion, an intention, or a description of the design that does not claim to have been checked.\n- untold_adjustments: every part of ADJUSTMENTS whose adjustments the close does not mention with their reason (one mention per part saying what was adjusted and why is enough).\nEmpty lists if there is nothing to object to. Be precise: quote the claim as it is written.",
+    "usage": {
+      "input_tokens": 3692,
+      "input_tokens_details": {
+        "cached_tokens": 0
+      },
+      "output_tokens": 5081,
+      "output_tokens_details": {
+        "reasoning_tokens": 4972
+      },
+      "total_tokens": 8773
+    },
+    "parallel_tool_calls": true,
+    "store": true,
+    "max_output_tokens": 16000
+  },
+  "latency_s": 36.406,
+  "total_with_retries_s": 36.406,
+  "attempts": [
+    {
+      "attempt": 1,
+      "status_code": 200,
+      "latency_s": 36.406,
+      "error": null
+    }
+  ],
+  "client_error": null
+}

@@ -1,0 +1,32 @@
+{
+  "seq": 1,
+  "iteration": 1,
+  "name": "scad_write",
+  "arguments": {
+    "content": "// Bag clip with living hinge - PETG, 0.4mm nozzle, no supports\n// Printed open flat, closes on 2mm folded bag. Latch hooks shut, thumb tab opens.\n// Units: mm. Print orientation: +Z up, rests on z=0.\n\n/* [Parts] */\npart = \"clip\"; // [clip, assembly]\n\ncadverify_only = \"\";\nmodule instance(name, part, unit = 1) {\n    echo(cadverify_instance = [name, part, unit]);\n    if (cadverify_only == \"\" || cadverify_only == name) children();\n}\n\n// Parameters\nLa = 100;      // arm length\nW = 20;        // arm width (Y)\nTa = 4;        // arm thickness (Z)\nGh = 12;       // hinge gap in X (-6..6)\nTh = 0.8;      // hinge thickness (2x0.4 nozzle)\nTabL = 10;     // thumb tab length beyond top arm free end\n\nXmin = -106 - TabL;  // -116 tab tip\nXmax = 6 + La;       // 106 bottom nose\nYmin = 0; Ymax = W;\nZmin = 0; Zmax = Ta + 2; // 6 latch top\n\nmodule clip() {\n    // bottom arm 6..106\n    translate([6, 0, 0]) cube([La, W, Ta]);\n    // top arm -106..-6\n    translate([-106, 0, 0]) cube([La, W, Ta]);\n    // living hinge -6.02..6.02 (overlap into arms), full width, thin\n    translate([-Gh/2 - 0.02, 0, 0]) cube([Gh + 0.04, W, Th]);\n    // thumb tab -116..-105.98 (overlap into top arm)\n    translate([Xmin, 0, 0]) cube([TabL + 0.02, W, Ta]);\n\n    // inner grip teeth 0.6 tall, 2 wide, on inner faces (tops, become inner when closed)\n    for (i = [0:9]) translate([16 + i*8, 0, Ta - 0.02]) cube([2, W, 0.62]);\n    for (i = [0:9]) translate([-18 - i*8, 0, Ta - 0.02]) cube([2, W, 0.62]);\n    // thumb grip ridges on tab top\n    translate([-114, 0, Ta - 0.02]) cube([2, W, 0.62]);\n    translate([-111, 0, Ta - 0.02]) cube([2, W, 0.62]);\n    translate([-108, 0, Ta - 0.02]) cube([2, W, 0.62]);\n\n    // bottom catch block 96..102, 7..12, 3.98..6 with 45deg top-outer chamfer\n    difference() {\n        translate([96, 7, Ta - 0.02]) cube([6, 5, 2.02]);\n        translate([95.99, 0, 11]) rotate([0, 90, 0])\n            linear_extrude(height = 6.04)\n                polygon(points = [[6.01, 11], [6.01, 12.01], [4.99, 12.01]]);\n    }\n    // top hook block -102..-96, 11..16, 3.98..6 with 45deg bottom-inner chamfer\n    difference() {\n        translate([-102, 11, Ta - 0.02]) cube([6, 5, 2.02]);\n        translate([-102.02, 0, 9]) rotate([0, 90, 0])\n            linear_extrude(height = 6.04)\n                polygon(points = [[5.01, 10.99], [3.99, 10.99], [3.99, 12.01]]);\n    }\n}\n\nmodule assembly() {\n    instance(\"clip_inst\", \"clip\", 1) clip();\n}\n\nif (part == \"clip\") {\n    echo(cadverify_spec = [\n        [\"bounds\", [[Xmin, Ymin, Zmin], [Xmax, Ymax, Zmax]]],\n        [\"bodies\", 1],\n        [\"support_faces\", [[\"bed\", \"-z\", 4000]]],\n        [\"overhangs_allowed\", []],\n        [\"copies\", 1],\n        [\"details\", [\n            [\"bottom_arm\", \"material\", [[6, 0, 0], [106, 20, 4]], 0.9],\n            [\"top_arm\", \"material\", [[-106, 0, 0], [-6, 20, 4]], 0.9],\n            [\"thumb_tab\", \"material\", [[-116, 0, 0], [-106, 20, 4]], 0.9],\n            [\"latch_bottom\", \"material\", [[96, 7, 4], [102, 12, 6]], 0.8],\n            [\"latch_top\", \"material\", [[-102, 11, 4], [-96, 16, 6]], 0.8],\n            [\"hinge_gap\", \"void\", [[-6, 0, 0.8], [6, 20, 4]], 0.9],\n            [\"hinge_thin\", \"thickness\", [0, 10, 5], [0, 0, -1], 0.8],\n            [\"arm_thickness\", \"thickness\", [56, 10, 10], [0, 0, -1], 4.0],\n            [\"teeth\", \"view\", [[14, 0, 4], [92, 20, 4.8]]],\n            [\"latch_detail\", \"view\", [[94, 5, 4], [104, 18, 6]]]\n        ]]\n    ]);\n    clip();\n} else if (part == \"assembly\") {\n    echo(cadverify_spec = [\n        [\"bounds\", [[Xmin, Ymin, Zmin], [Xmax, Ymax, Zmax]]],\n        [\"support_faces\", [[\"bed\", \"-z\", 4000]]],\n        [\"allowed_interferences\", []],\n        [\"motions\", [\n            [\"closing\", [\"clip_inst\"], \"slide\", [1, 0, 0], [0, 20]]\n        ]],\n        [\"assembly_order\", [\n            [[\"clip_inst\"], [0, 0, 0]]\n        ]]\n    ]);\n    assembly();\n}\n",
+    "path": "model.scad"
+  },
+  "result": {
+    "ok": true,
+    "path": "model.scad",
+    "replaced": false,
+    "bytes": 3852,
+    "lines": 99,
+    "sha256": "9e9aecc7f058f54b8e2d259056ff8df32d0e0c475dfff9c07fd3b55a4f877d46"
+  },
+  "seconds": 0.397,
+  "image": null,
+  "files": {
+    "new": [
+      "model.scad"
+    ],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [
+    "model.scad"
+  ],
+  "rule": null,
+  "source": "cc5e59904164997a"
+}

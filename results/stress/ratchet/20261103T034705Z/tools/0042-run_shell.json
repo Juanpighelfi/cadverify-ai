@@ -1,0 +1,37 @@
+{
+  "seq": 42,
+  "iteration": 32,
+  "name": "run_shell",
+  "arguments": {
+    "cmd": "grep -n \"_sweep\\|def _poses\\|def _step\\|SWEEP\" /opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/assembly.py | head -20; sed -n 600,700p /opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/assembly.py",
+    "timeout_s": 60.0
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.012,
+    "stdout": "111:SWEEP_STEP_MM = 0.25\n112:SWEEP_STEP_DEG = 2.0\n113:SWEEP_MAX_STEPS = 360\n651:def _sweep(\n725:    count = min(SWEEP_MAX_STEPS, max(1, math.ceil((hi - lo) / step)))\n728:    hits = _fits_left_out(_sweep(pairs, poses), pressed)\n1074:def _poses(motion: dict, value: float) -> dict[str, np.ndarray]:\n1086:def _step(motion: dict, names: dict) -> float:\n1087:    \"\"\"The step of a motion's sweep: no point of what it moves travels more than SWEEP_STEP_MM\n1088:    or turns more than SWEEP_STEP_DEG in one, moved by the motion and by its drives.\"\"\"\n1091:        SWEEP_STEP_DEG / turn if turn else math.inf, SWEEP_STEP_MM / travel if travel else math.inf\n1134:            _fits_left_out(_sweep(pairs, poses), pressed), key=lambda h: abs(h[\"pose\"] - at)\n1164:    held = _sweep(flexing, [(r, _poses(motion, r)) for r in rests])\n1182:                clicks = bool(_sweep(flexing, [(v, _poses(motion, v)) for v in values]))\n1302:                    count = min(SWEEP_MAX_STEPS, max(1, math.ceil(span / SWEEP_STEP_MM)))\n1308:                        _sweep([(m, p) for m in moving for p in swept], poses), pressed\n1368:                    count = min(SWEEP_MAX_STEPS, max(1, math.ceil(abs(span) / step_deg)))\n1374:                    hits = _fits_left_out(_sweep(pairs, poses), pressed)\n1428:    return max(ahead - behind + 1.0, SWEEP_STEP_MM)\n                f\"they fuse (print_in_place asks for {need} mm or more)\"\n            )\n        gaps.append(row)\n    whole = trimesh.util.concatenate([i[\"_mesh\"] for i in printed]) if printed else None\n    report = mesh_printability(whole, spec[\"overhangs_allowed\"]) if whole else None\n    stl = None\n    if whole:\n        stl = out_dir / \"print-in-place.stl\"\n        _write_mesh(whole, stl)\n    return {\n        \"min_gap_mm\": need,\n        \"pose\": pose,\n        \"instances\": sorted(names),\n        \"gaps\": gaps,\n        \"printability\": report,\n        \"stl\": str(stl) if stl else None,\n    }\n\n\ndef _in_print_pose(printed: list[dict], pose: list[dict], motions: list[dict]) -> list[dict]:\n    \"\"\"The printed instances moved by each motion of the print pose, in order.\"\"\"\n    by_name = {m[\"name\"]: m for m in motions}\n    matrix = {i[\"name\"]: np.eye(4) for i in printed}\n    for step in pose:\n        for name, moved in _poses(by_name[step[\"motion\"]], step[\"value\"]).items():\n            if name in matrix:\n                matrix[name] = moved @ matrix[name]\n    return [\n        {\n            **i,\n            \"_mesh\": _transformed(i[\"_mesh\"], matrix[i[\"name\"]]),\n            \"_solid\": i[\"_solid\"].transform(matrix[i[\"name\"]][:3, :]),\n        }\n        for i in printed\n    ]\n\n\n# ---- G4 -----------------------------------------------------------------------------------\n\n\ndef rotation(point, axis, degrees: float) -> np.ndarray:\n    \"\"\"4 × 4 rotation by `degrees` about the axis through `point` (right hand rule).\"\"\"\n    return trimesh.transformations.rotation_matrix(math.radians(degrees), axis, point)\n\n\ndef translation(direction, mm: float) -> np.ndarray:\n    matrix = np.eye(4)\n    matrix[:3, 3] = np.asarray(direction, float) * mm\n    return matrix\n\n\ndef _sweep(\n    pairs: list[tuple[dict, dict]],\n    poses: list[tuple[float, dict[str, np.ndarray]]],\n) -> list[dict[str, Any]]:\n    \"\"\"The collisions of each pair of instances (the first one moves) at each pose: a 4 × 4\n    matrix for each instance that moves; one without stays in place.\"\"\"\n    rest = {}\n    for inst in {i[\"name\"]: i for pair in pairs for i in pair}.values():\n        rest[inst[\"name\"]] = (inst[\"_solid\"], np.reshape(inst[\"_solid\"].bounding_box(), (2, 3)))\n    hits = []\n    for pose, matrices in poses:\n        placed = dict(rest)\n        for name, matrix in matrices.items():\n            if name in rest:\n                solid = rest[name][0].transform(matrix[:3])\n                placed[name] = (solid, np.reshape(solid.bounding_box(), (2, 3)))\n        for a, b in pairs:\n            (solid, box), (other, other_box) = placed[a[\"name\"]], placed[b[\"name\"]]\n            if _box_gap(box, other_box) > 0:\n                continue\n            hit = overlap(solid, other)\n            if hit:\n                hits.append(\n                    {\n                        \"pose\": round(pose, 3),\n                        \"moving\": a[\"name\"],\n                        \"with\": b[\"name\"],\n                        **hit,\n                        \"_matrices\": {\n                            n: matrices.get(n, np.eye(4)) for n in (a[\"name\"], b[\"name\"])\n                        },\n                    }\n                )\n    return hits\n\n\ndef _motion(\n    motion: dict, names: dict, skip: set, pressed: set, out_dir: Path, problems: list[str]\n) -> dict:\n    row: dict[str, Any] = {\"name\": motion[\"name\"], \"kind\": motion[\"kind\"], \"range\": motion[\"range\"]}\n    if motion[\"kind\"] == \"screw\":\n        row[\"pitch_mm\"] = motion[\"pitch_mm\"]\n    drives = motion.get(\"drives\") or []\n    if drives:\n        row[\"drives\"] = [{\"instances\": d[\"instances\"], \"ratio\": d[\"ratio\"]} for d in drives]\n    driven = [n for d in drives for n in d[\"instances\"]]\n    missing = [n for n in dict.fromkeys(motion[\"instances\"] + driven) if n not in names]\n    if missing:\n        problems.append(f\"motion {motion['name']}: there are no instances {missing}\")\n        return {**row, \"ok\": False}\n",
+    "stderr": "",
+    "stdout_bytes": 5257,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 0.554,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "a1c3e6cd649abb7e"
+}

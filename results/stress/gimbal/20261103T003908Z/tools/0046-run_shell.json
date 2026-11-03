@@ -1,0 +1,36 @@
+{
+  "seq": 46,
+  "iteration": 28,
+  "name": "run_shell",
+  "arguments": {
+    "cmd": "grep -rn \"def find_spec\" -A 60 /opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/spec.py | head -n 100"
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.006,
+    "stdout": "112:def find_spec(echo: list[str], assembly: bool = False) -> dict[str, Any] | None:\n113-    \"\"\"The parsed `cadverify_spec` echo, None when the program does not print one.\"\"\"\n114-    prefix = f\"{SPEC_NAME} = \"\n115-    values = list(dict.fromkeys(e.removeprefix(prefix) for e in echo if e.startswith(prefix)))\n116-    if not values:\n117-        return None\n118-    if len(values) > 1:\n119-        raise SpecError(f\"{SPEC_NAME} was printed {len(values)} times with different values\")\n120-    return parse_spec(values[0], assembly)\n121-\n122-\n123-def parse_spec(text: str, assembly: bool = False) -> dict[str, Any]:\n124-    try:\n125-        data = json.loads(re.sub(r\"\\bundef\\b\", \"null\", text))\n126-    except json.JSONDecodeError as exc:\n127-        raise SpecError(f\"{SPEC_NAME} is not a valid vector: {exc}\") from None\n128-    if not isinstance(data, list) or not all(_is_pair(p) for p in data):\n129-        raise SpecError(f'{SPEC_NAME} must be a list of [\"key\", value] pairs')\n130-    pairs = dict(data)\n131-    if len(pairs) != len(data):\n132-        raise SpecError(f\"{SPEC_NAME} repeats a key\")\n133-    keys = ASSEMBLY_KEYS if assembly else PART_KEYS\n134-    if unknown := set(pairs) - keys:\n135-        where = \"of the assembly\" if assembly else \"of a part\"\n136-        hint = \"\"\n137-        if assembly and unknown <= PART_KEYS:\n138-            hint = \": they belong to each part, in its own spec\"\n139-        raise SpecError(\n140-            f\"Unknown keys in the {SPEC_NAME} {where}: {sorted(unknown)}{hint}; valid: \"\n141-            f\"{sorted(keys)}\"\n142-        )\n143-    if \"bounds\" not in pairs and not assembly:\n144-        raise SpecError(f'{SPEC_NAME} needs [\"bounds\", [[xmin, ymin, zmin], [xmax, ymax, zmax]]]')\n145-    spec = {\n146-        \"bounds\": _bounds(pairs[\"bounds\"], \"bounds\") if \"bounds\" in pairs else None,\n147-        \"bodies\": None if assembly else _count(pairs.get(\"bodies\", 1), \"bodies\", minimum=1),\n148-        \"through_holes\": None,\n149-        \"support_faces\": [],\n150-        \"overhangs_allowed\": [],\n151-    }\n152-    if pairs.get(\"through_holes\") is not None:\n153-        spec[\"through_holes\"] = _count(pairs[\"through_holes\"], \"through_holes\", minimum=0)\n154-    for item in _list(pairs.get(\"support_faces\", []), \"support_faces\"):\n155-        if not (\n156-            isinstance(item, list)\n157-            and len(item) == 3\n158-            and isinstance(item[0], str)\n159-            and item[1] in DIRECTIONS\n160-            and _number(item[2])\n161-            and item[2] > 0\n162-        ):\n163-            raise SpecError(\n164-                f'support_faces: each face is [\"name\", direction, minimum area in mm²] with '\n165-                f\"the direction in {list(DIRECTIONS)}; got {item!r}\"\n166-            )\n167-        spec[\"support_faces\"].append(\n168-            {\"name\": item[0], \"direction\": item[1], \"min_area_mm2\": item[2]}\n169-        )\n170-    for item in _list(pairs.get(\"overhangs_allowed\", []), \"overhangs_allowed\"):\n171-        if not (isinstance(item, list) and len(item) == 2 and isinstance(item[0], str)):\n172-            raise SpecError(\n",
+    "stderr": "",
+    "stdout_bytes": 3104,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 0.429,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "5ac934cf3ac5b839"
+}

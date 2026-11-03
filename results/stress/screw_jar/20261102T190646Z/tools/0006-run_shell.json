@@ -1,0 +1,36 @@
+{
+  "seq": 6,
+  "iteration": 6,
+  "name": "run_shell",
+  "arguments": {
+    "cmd": "grep -n \"def \\|motions\\|rotate\\|slide\\|axis\\|point\\|range\\|sweep\" /opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/assembly.py | head -n 80\necho ====; sed -n '/def _motion_matrices/,/^def /p' /opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/assembly.py | head -n 120"
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.026,
+    "stdout": "30:- each `motions` entry sweeps its instances through the whole range (from 0, the assembled\n35:  from the surface of the other solid) and the parts are free at both ends of the range: a\n41:  direction (the farthest point of the moving parts against the nearest of the placed ones, on a\n55:`print_pose`: each of its motions at its value, applied in order to the instances it moves; the\n111:def assembly_report(\n181:    motions = spec.get(\"motions\", [])\n182:    report[\"motions\"] = [_motion(m, names, skip, pressed, out_dir, g4) for m in motions]\n194:def _done(report: dict[str, Any], t0: float) -> dict[str, Any]:\n203:def _export_parts(path: Path, out_dir: Path, timeout_s: float) -> dict[str, dict[str, Any]]:\n216:def _export_instances(path: Path, out_dir: Path, listed: list[dict], timeout_s: float) -> list:\n217:    def one(item: dict[str, Any]) -> dict[str, Any]:\n248:def _properties(mesh: trimesh.Trimesh) -> tuple[float, float, np.ndarray]:\n253:def _congruence(instances: list[dict], parts: dict[str, dict], problems: list[str]) -> None:\n281:def _copies(instances: list[dict], parts: dict[str, dict], problems: list[str]) -> list[dict]:\n303:def _permitted(spec: dict[str, Any], names: set[str], problems: list[str]) -> dict:\n313:def overlap(a: manifold3d.Manifold, b: manifold3d.Manifold) -> dict[str, Any] | None:\n332:def _pairs(instances: list[dict], permitted: dict, out_dir: Path, problems: list[str]) -> list:\n371:def _components(instances: list[dict], pairs: list[dict], problems: list[str]) -> list[list[str]]:\n374:    def root(n: str) -> str:\n396:def _units(instances: list[dict], pairs: list[dict], required: int, problems: list[str]) -> dict:\n406:    for u in range(2, required + 1):\n417:def _own_spec(instances: list[dict], spec: dict[str, Any], problems: list[str]) -> dict | None:\n440:def _print_in_place(\n454:        printed = _in_print_pose(printed, pose, spec[\"motions\"])\n494:def _in_print_pose(printed: list[dict], pose: list[dict], motions: list[dict]) -> list[dict]:\n496:    by_name = {m[\"name\"]: m for m in motions}\n516:def rotation(point, axis, degrees: float) -> np.ndarray:\n517:    \"\"\"4 × 4 rotation by `degrees` about the axis through `point` (right hand rule).\"\"\"\n518:    return trimesh.transformations.rotation_matrix(math.radians(degrees), axis, point)\n521:def translation(direction, mm: float) -> np.ndarray:\n527:def _sweep(\n556:def _motion(\n559:    row: dict[str, Any] = {\"name\": motion[\"name\"], \"kind\": motion[\"kind\"], \"range\": motion[\"range\"]}\n571:    lo, hi = min(0.0, motion[\"range\"][0]), max(0.0, motion[\"range\"][1])\n572:    if motion[\"kind\"] == \"rotate\":\n573:        reach = max(_radius(i[\"_mesh\"].vertices, motion[\"point\"], motion[\"axis\"]) for i in moving)\n580:    hits = _fits_left_out(_sweep(moving, others, poses), pressed)\n581:    unit = \"°\" if motion[\"kind\"] == \"rotate\" else \" mm\"\n611:def _fits_left_out(hits: list[dict], pressed: set) -> list[dict]:\n621:def _flexes(\n631:    unit = \"°\" if motion[\"kind\"] == \"rotate\" else \" mm\"\n655:            posed = trimesh.transform_points(\n677:                \"an end of its range: a flex springs back at rest; a fit that stays loaded is \"\n692:def _flex_depth(\n695:    \"\"\"How deep two solids go into each other: the farthest a point of their overlap's surface\n696:    is from the surface of the other solid (each point of it lies on one of the two; `moving`\n700:    The deepest point can be inside a face (a ridge as wide as the slider over it has every\n703:    than the point moves, so a triangle whose center plus its radius stays under the limit\n709:    jar): a point farther than that from it is at least that deep.\"\"\"\n719:        lo, hi = vertices.min(axis=0) - margin, vertices.max(axis=0) + margin\n721:            t[np.all(t.max(axis=1) >= lo, axis=1) & np.all(t.min(axis=1) <= hi, axis=1)]\n733:def _piece_depth(\n739:    for _ in range(FLEX_ROUNDS):\n740:        centers = triangles.mean(axis=1)\n741:        radius = np.linalg.norm(triangles - centers[:, None], axis=2).max(axis=1)\n755:def _distance(points: np.ndarray, triangles: np.ndarray) -> np.ndarray:\n756:    \"\"\"The distance from each point to the nearest of the triangles (inf without any). Only\n757:    the triangles whose bounding sphere comes nearer to the point than the far side of the\n759:    out = np.full(len(points), np.inf)\n762:    centers = triangles.mean(axis=1)\n763:    radius = np.linalg.norm(triangles - centers[:, None], axis=2).max(axis=1)\n765:    for i in range(0, len(points), step):\n766:        chunk = points[i : i + step]\n767:        to_center = np.linalg.norm(chunk[:, None] - centers[None], axis=2)\n768:        bound = (to_center + radius).min(axis=1)\n770:        closest = trimesh.triangles.closest_point(triangles[cols], chunk[rows])\n772:        np.minimum.at(best, rows, np.linalg.norm(closest - chunk[rows], axis=1))\n777:def _split(triangles: np.ndarray) -> np.ndarray:\n778:    \"\"\"Each triangle as four, through the midpoints of its edges.\"\"\"\n782:        [np.stack(t, axis=1) for t in ((a, ab, ca), (ab, b, bc), (ca, bc, c), (ab, bc, ca))]\n786:def _pose(motion: dict, value: float) -> np.ndarray:\n787:    if motion[\"kind\"] == \"rotate\":\n788:        return rotation(motion[\"point\"], motion[\"axis\"], value)\n789:    return translation(motion[\"axis\"], value)\n792:def _assembly_order(\n842:                    rotation(turn[\"point\"], turn[\"axis\"], -turn[\"degrees\"]) if turn else np.eye(4)\n859:                        for name, axis in AXES.items()\n864:                            np.array(axis, float),\n878:                            else \"it goes in along no axis direction\"\n884:                        _radius(m[\"_mesh\"].vertices, turn[\"point\"], turn[\"axis\"]) for m in moving\n====\n",
+    "stderr": "",
+    "stdout_bytes": 5659,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 0.567,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "e3b0c44298fc1c14"
+}

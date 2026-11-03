@@ -1,0 +1,36 @@
+{
+  "seq": 25,
+  "iteration": 25,
+  "name": "run_shell",
+  "arguments": {
+    "cmd": "cat > /tmp/groove_test.scad <<'EOF'\nW_in=32.4; groove_d=1.6; gb=17.0; ce_in=19.4; ce_out=21.0; groove_y0=2.0; L_out=67.0;\nmodule groove_void_left() {\n    x_in = -W_in/2; x_out = -W_in/2 - groove_d; y0 = groove_y0; y1 = L_out + 0.1;\n    polyhedron(\n        points = [\n            [x_in, y0, gb], [x_out, y0, gb],\n            [x_out, y0, ce_out], [x_in, y0, ce_in],\n            [x_in, y1, gb], [x_out, y1, gb],\n            [x_out, y1, ce_out], [x_in, y1, ce_in]\n        ],\n        faces = [[0,1,5,4],[1,2,6,5],[2,3,7,6],[3,0,4,7],[0,3,2,1],[4,5,6,7]]\n    );\n}\ngroove_void_left();\nEOF\nOPENSCAD_BIN=/usr/local/bin/openscad; /usr/local/bin/openscad -o /tmp/groove_test.stl /tmp/groove_test.scad 2>&1; python3 -c \"\nimport trimesh\nm = trimesh.load('/tmp/groove_test.stl')\nprint('watertight:', m.is_watertight, 'volume:', m.volume)\nprint('bounds:', m.bounds)\n\""
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 1.02,
+    "stdout": "Geometries in cache: 2\nGeometry cache size in bytes: 1712\nCGAL Polyhedrons in cache: 0\nCGAL cache size in bytes: 0\nTotal rendering time: 0:00:00.000\nTop level object is a 3D object (PolySet):\n   Convex:       no\n   Facets:         6\nwatertight: True volume: -333.3120000000011\nbounds: [[-17.8   2.   17. ]\n [-16.2  67.1  21. ]]\n",
+    "stderr": "",
+    "stdout_bytes": 328,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 1.575,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "05a95b1e6cf85c17"
+}

@@ -1,0 +1,36 @@
+{
+  "seq": 21,
+  "iteration": 15,
+  "name": "run_python",
+  "arguments": {
+    "code": "import trimesh, manifold3d, numpy as np\nfor p in [\"exports/model.lid.6029fe16.stl\",\"exports/model.base.87e59dfb.stl\"]:\n    m=trimesh.load_mesh(p,process=False)\n    print(p, m.is_watertight, m.is_winding_consistent, m.volume)\n    try:\n        mm=manifold3d.Manifold(mesh=manifold3d.Mesh(np.array(m.vertices,dtype=np.float32), np.array(m.faces,dtype=np.uint32)))\n        print(\" manifold status\", mm.status, \"vol\", mm.volume, \"genus\", mm.genus)\n    except Exception as e:\n        print(\" err\", e)\n    # self intersection?\n    print(\" euler\", m.euler_number)\n"
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 1.176,
+    "stdout": "exports/model.lid.6029fe16.stl False True 19036.781999999996\n manifold status <nanobind.nb_bound_method object at 0x7d3b6f590c00> vol <nanobind.nb_bound_method object at 0x7d3b6fefb3c0> genus <nanobind.nb_bound_method object at 0x7d3b6f567300>\n euler 292\nexports/model.base.87e59dfb.stl False True 17018.021666538967\n manifold status <nanobind.nb_bound_method object at 0x7d3b6d649e40> vol <nanobind.nb_bound_method object at 0x7d3b6d649ec0> genus <nanobind.nb_bound_method object at 0x7d3b6d649f00>\n euler 1380\n",
+    "stderr": "",
+    "stdout_bytes": 512,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 1.768,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "8d3915c3a479ec62"
+}

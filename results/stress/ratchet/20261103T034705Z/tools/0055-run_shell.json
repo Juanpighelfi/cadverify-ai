@@ -1,0 +1,37 @@
+{
+  "seq": 55,
+  "iteration": 45,
+  "name": "run_shell",
+  "arguments": {
+    "cmd": "python3 -c \"\nimport numpy as np, trimesh\nfrom cadverify.cadcheck.mesh import load_exact\nfrom cadverify.cadcheck import section\nfrom cadverify.cadcheck.assembly import rotation\nw = load_exact('checks/assembly/model.assembly.1d428528.stl')\nb = load_exact('checks/assembly/model.assembly.57cfb177.stl')\nsw = section.to_manifold(w); sb = section.to_manifold(b)\nM = rotation([0,0,4],[0,0,1],-17.0)\nprint('rotation matrix:'); print(M)\nsw2 = sw.transform(M[:3,:])\nprint('overlap vol via rotation matrix:', round((sb ^ sw2).volume(),4))\n# compare with manifold rotate degrees\nsw3 = sw.translate([0,0,-4]).rotate([0,0,-17.0]).translate([0,0,4])\nprint('overlap vol via manifold rotate:', round((sb ^ sw3).volume(),4))\n\"\n",
+    "timeout_s": 120.0
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.958,
+    "stdout": "rotation matrix:\n[[ 0.95630476  0.2923717   0.          0.        ]\n [-0.2923717   0.95630476  0.          0.        ]\n [ 0.          0.          1.          0.        ]\n [ 0.          0.          0.          1.        ]]\noverlap vol via rotation matrix: 4.4203\noverlap vol via manifold rotate: 4.4203\n",
+    "stderr": "",
+    "stdout_bytes": 302,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 1.355,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "a1c3e6cd649abb7e"
+}

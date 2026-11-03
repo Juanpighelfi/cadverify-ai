@@ -1,0 +1,37 @@
+{
+  "seq": 58,
+  "iteration": 48,
+  "name": "run_shell",
+  "arguments": {
+    "cmd": "python3 -c \"\nimport numpy as np\nfrom cadverify.cadcheck.mesh import load_exact\nfrom cadverify.cadcheck import section\nw = load_exact('checks/assembly/model.assembly.1d428528.stl')\nb = load_exact('checks/assembly/model.assembly.57cfb177.stl')\nsw = section.to_manifold(w); sb = section.to_manifold(b)\nimport trimesh\nM = trimesh.transformations.rotation_matrix(np.radians(-17), [0,0,1], [0,0,4])\nprint('M:'); print(M)\na = sw.transform(M[:3,:])\nprint('first overlap:', round((sb ^ a).volume(),4))\nprint('sw vol still:', round(sw.volume(),3))\nc = sw.transform(M[:3,:])\nprint('second overlap (fresh from sw again):', round((sb ^ c).volume(),4))\nprint('a is sw?', a is sw, 'c is sw?', c is sw)\n\"\n",
+    "timeout_s": 60.0
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 1.02,
+    "stdout": "M:\n[[ 0.95630476  0.2923717   0.          0.        ]\n [-0.2923717   0.95630476  0.          0.        ]\n [ 0.          0.          1.          0.        ]\n [ 0.          0.          0.          1.        ]]\nfirst overlap: 4.4203\nsw vol still: 9564.419\nsecond overlap (fresh from sw again): 4.4203\na is sw? False c is sw? False\n",
+    "stderr": "",
+    "stdout_bytes": 328,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 1.437,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "a1c3e6cd649abb7e"
+}

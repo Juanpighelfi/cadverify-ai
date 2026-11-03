@@ -1,0 +1,32 @@
+{
+  "seq": 1,
+  "iteration": 1,
+  "name": "scad_write",
+  "arguments": {
+    "content": "// Knob for potentiometer 6mm D-shaft, M3 nut trap, set screw hole\n// PLA, 0.4mm nozzle, no supports, print orientation +Z up, bottom on bed\n\npart = \"knob\"; // [knob, assembly]\n\ncadverify_only = \"\";\nmodule instance(name, part, unit = 1) {\n    echo(cadverify_instance = [name, part, unit]);\n    if (cadverify_only == \"\" || cadverify_only == name) children();\n}\n\n// ---- parameters (mm) ----\nR_out = 15;        // max radius incl ribs -> ~30 across\nR_base = 14;       // base cylinder radius\nR_bot = 13.5;      // bottom face radius (chamfer)\nR_top = 12.5;      // top face radius (chamfer)\nH = 18;            // total height\nH_bot = 0.5;       // bottom chamfer height\nH_topc = 1.5;      // top chamfer height\nH_straight_bot = 0.5;\nH_straight_top = 16.5;\n\nhole_R = 3.15;     // D-hole radius (6.3 dia, +0.15 clearance)\nhole_flat = 1.65;  // D-hole flat plane y (shaft 1.5 + 0.15)\nhole_depth = 15;   // D-hole depth from bottom\nhole_top = 15;\n\nscrew_r = 1.5;     // 3mm screw hole radius\nscrew_z = 6;       // screw axis height\nscrew_x = 0;\n\nnut_AF = 5.5;\nnut_T = 2.4;\npocket_AF = 5.8;   // +0.3 clearance\npocket_T = 2.7;    // +0.3 clearance\npocket_R = 5.8/1.7320508; // corner radius 3.348\nnut_y = 8;\nnut_z = 6;\n\nn_ribs = 36;\n\nmodule knob() {\n    difference() {\n        union() {\n            // bottom chamfer\n            translate([0,0,0]) cylinder(r1=R_bot, r2=R_base, h=H_bot, $fn=128);\n            // straight section (overlap to avoid coincident faces)\n            translate([0,0,H_straight_bot-0.01]) cylinder(r=R_base, h=(H_straight_top-H_straight_bot)+0.02, $fn=128);\n            // top chamfer 45deg\n            translate([0,0,H_straight_top]) cylinder(r1=R_base, r2=R_top, h=H_topc, $fn=128);\n            // knurl ribs: vertical, 36x\n            for (a=[0:10:350]) rotate([0,0,a]) translate([13.9,-0.6,0.5]) cube([1.1,1.2,16.0]);\n        }\n        // D-hole: cylinder r=hole_R clipped at y<=hole_flat, from bottom to hole_top\n        intersection() {\n            translate([0,0,-0.1]) cylinder(r=hole_R, h=hole_top+0.2, $fn=64);\n            translate([-4,-4,-0.2]) cube([8, hole_flat+4, hole_top+0.4]);\n        }\n        // screw cross hole dia 3 along Y at (0,*,screw_z), from inside shaft to outside\n        translate([screw_x, 6, screw_z]) rotate([90,0,0]) cylinder(r=screw_r, h=22, center=true, $fn=48);\n        // hex nut pocket, axis Y, flats top/bottom, centered at (0,nut_y,nut_z)\n        translate([0,nut_y,nut_z]) rotate([90,0,0])\n            linear_extrude(height=pocket_T, center=true)\n                polygon(points=[[pocket_R,0],[pocket_R/2,pocket_AF/2],[-pocket_R/2,pocket_AF/2],[-pocket_R,0],[-pocket_R/2,-pocket_AF/2],[pocket_R/2,-pocket_AF/2]]);\n        // nut entry slot from +X side, rectangular, same cross-section as pocket thickness\n        translate([0, nut_y-pocket_T/2, nut_z-pocket_AF/2]) cube([16, pocket_T, pocket_AF]);\n        // pointer groove on top, along +Y, 1.2 wide, 1 deep, y 2..12\n        translate([-0.6, 2, 17]) cube([1.2, 10, 1.2]);\n    }\n}\n\nmodule shaft() {\n    // 6mm D-shaft, 4.5 across flat (flat at y=1.5), length 20, tip at z=12, bottom at -8\n    intersection() {\n        translate([0,0,-8]) cylinder(r=3, h=20, $fn=64);\n        translate([-4,-4,-9]) cube([8, 5.5, 22]);\n    }\n}\n\nmodule nut_m3() {\n    Rnut = 5.5/1.7320508;\n    difference() {\n        translate([0,nut_y,nut_z]) rotate([90,0,0])\n            linear_extrude(height=nut_T, center=true)\n                polygon(points=[[Rnut,0],[Rnut/2,2.75],[-Rnut/2,2.75],[-Rnut,0],[-Rnut/2,-2.75],[Rnut/2,-2.75]]);\n        translate([0,nut_y,nut_z]) rotate([90,0,0]) cylinder(r=1.5, h=3.2, center=true, $fn=32);\n    }\n}\n\nif (part == \"knob\") {\n    knob();\n    echo(cadverify_spec = [\n        [\"bounds\", [[-R_out-0.1, -R_out-0.1, 0], [R_out+0.1, R_out+0.1, H]]],\n        [\"bodies\", 1],\n        [\"through_holes\", 1],\n        [\"support_faces\", [[\"bottom\", \"-z\", 500]]],\n        [\"overhangs_allowed\", [\n            [\"d_hole ceiling bridge dia 6.3\", [[-3.5, -3.5, hole_top-0.5], [3.5, 2.0, hole_top+0.5]]],\n            [\"nut pocket and entry slot ceiling bridge 2.7mm\", [[-3.6, nut_y-1.5, nut_z+2.2], [13.0, nut_y+1.5, nut_z+3.2]]],\n            [\"cross hole bridge dia 3\", [[screw_x-1.6, -3.5, screw_z+0.8], [screw_x+1.6, 15.2, screw_z+1.7]]]\n        ]],\n        [\"copies\", 1],\n        [\"details\", [\n            [\"knurl_rib\", \"material\", [[13.5, -0.4, 5], [14.9, 0.4, 10]], 0.9],\n            [\"nut_pocket\", \"void\", [[-3.3, nut_y-1.3, nut_z-2.7], [3.3, nut_y+1.3, nut_z+2.7]], 0.6],\n            [\"nut_entry\", \"void\", [[4, nut_y-1.3, nut_z-2.7], [12, nut_y+1.3, nut_z+2.7]], 0.9],\n            [\"d_hole\", \"void\", [[-2, -2, 1], [2, 1, 10]], 0.9],\n            [\"screw_hole\", \"hole\", [[0, 20, screw_z]], [[0, -1, 0]], [[0, 3], [4, 3]]],\n            [\"side_wall\", \"thickness\", [[20, 0, 8]], [[-1, 0, 0]], 8],\n            [\"top_floor\", \"thickness\", [[0, 0, 25]], [[0, 0, -1]], 2.5],\n            [\"pointer\", \"view\", [[-0.6, 2, 17], [0.6, 12, 18.2]]]\n        ]]\n    ]);\n} else if (part == \"assembly\") {\n    instance(\"knob1\", \"knob\") knob();\n    instance(\"shaft1\", \"external\") shaft();\n    instance(\"nut1\", \"external\") nut_m3();\n    echo(cadverify_spec = [\n        [\"bounds\", [[-R_out-0.1, -R_out-0.1, -8], [R_out+0.1, R_out+0.1, H]]],\n        [\"allowed_interferences\", []],\n        [\"assembly_order\", [\n            [[\"knob1\"], [0, 0, 0]],\n            [[\"shaft1\"], [0, 0, 1]],\n            [[\"nut1\"], [-1, 0, 0]]\n        ]]\n    ]);\n}\n",
+    "path": "model.scad"
+  },
+  "result": {
+    "ok": true,
+    "path": "model.scad",
+    "replaced": false,
+    "bytes": 5421,
+    "lines": 127,
+    "sha256": "aa8a78388386b5799567349498413bb74a9d53aef39b5512f58bf97c4ab5ab9f"
+  },
+  "seconds": 0.508,
+  "image": null,
+  "files": {
+    "new": [
+      "model.scad"
+    ],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [
+    "model.scad"
+  ],
+  "rule": null,
+  "source": "c0eca41c81e204d2"
+}

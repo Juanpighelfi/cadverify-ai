@@ -1,0 +1,35 @@
+{
+  "seq": 4,
+  "iteration": 4,
+  "name": "scad_patch",
+  "arguments": {
+    "new": "module bin() {\n    x_in = (Lx-2*wall_t)/2;\n    y_in0 = -(Ly-2*wall_t)/2;\n    y_in1 = (Ly-2*wall_t)/2;\n    shelf_y0 = 13.15;\n    shelf_y1 = 17.65;\n    shelf_z0 = 6.0;\n    shelf_z1 = 12.0;\n    difference() {\n        bin_solid();\n        // lower cavity, fronted by label shelf slope on +Y\n        hull() {\n            translate([-x_in, y_in0, shelf_z0]) cube([2*x_in, shelf_y0-y_in0, 0.2]);\n            translate([-x_in, y_in0, shelf_z1-0.2]) cube([2*x_in, shelf_y1-y_in0, 0.2]);\n        }\n        // upper cavity full width\n        translate([-x_in, y_in0, shelf_z1]) cube([2*x_in, y_in1-y_in0, H-shelf_z1+1]);\n        // scoop at +X front: cylinder axis X, R30 center z42 -> bottom 12 at center\n        translate([41.0, 0, 42]) rotate([0, 90, 0]) cylinder(r=30, h=12, center=true, $fn=128);\n    }\n}",
+    "old": "module bin() {\n    difference() {\n        bin_solid();\n        // interior cavity, open top\n        translate([-(Lx-2*wall_t)/2, -(Ly-2*wall_t)/2, floor_z]) cube([Lx-2*wall_t, Ly-2*wall_t, H-floor_z+1]);\n        // scoop at +X front: cylinder axis X, R30 center z42 -> bottom 12 at center\n        translate([41.0, 0, 42]) rotate([0, 90, 0]) cylinder(r=30, h=12, center=true, $fn=128);\n    }\n}",
+    "path": "model.scad"
+  },
+  "result": {
+    "ok": true,
+    "path": "model.scad",
+    "line": 74,
+    "lines_removed": 9,
+    "lines_added": 21,
+    "bytes": 3616,
+    "lines": 96,
+    "sha256": "06ff1fa815486fc50c243ae4957a01a8d5f1af9bd113c973283ab0c8bd22fc9a"
+  },
+  "seconds": 0.354,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [
+      "model.scad"
+    ],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [
+    "model.scad"
+  ],
+  "rule": null,
+  "source": "3fa5148cd829329f"
+}

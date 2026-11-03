@@ -1,0 +1,36 @@
+{
+  "seq": 6,
+  "iteration": 6,
+  "name": "run_shell",
+  "arguments": {
+    "cmd": "sed -n 230,300p /opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/section.py"
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.005,
+    "stdout": "    for face in shapely.get_parts(faces):\n        filled = filled.symmetric_difference(shapely.Polygon(face.exterior))\n    polygons = [p for p in shapely.get_parts(filled) if isinstance(p, shapely.Polygon) and p.area]\n    open_chains = sum(len(shapely.get_parts(g)) for g in (cuts, dangles, invalid))\n    return polygons, open_chains\n\n\ndef through_holes(\n    mesh: trimesh.Trimesh, engine: str = \"auto\", max_levels: int = MAX_LEVELS\n) -> list[dict[str, Any]]:\n    \"\"\"Holes along X, Y or Z that cross the part: their axis, position and diameters.\n\n    For each axis, the part is sliced at one level between every pair of distinct vertex\n    coordinates (the topology of a section only changes at vertices). A hole is a chain of\n    inner contours that overlap from one level to the next; it is a through hole when the\n    material is open at both ends. Each end's diameter is measured 0.05 mm inside the end, so\n    a countersink or a counterbore shows on the side where it is. Oblique holes are not found.\n    \"\"\"\n    solid = to_manifold(mesh) if engine != \"trimesh\" else None\n    holes: list[dict[str, Any]] = []\n    for axis in range(3):\n        normal = np.eye(3)[axis]\n        coords = np.unique(np.round(mesh.vertices[:, axis], 4))\n        if len(coords) < 2:\n            continue\n        levels = (coords[:-1] + coords[1:]) / 2\n        if len(levels) > max_levels:\n            levels = levels[np.linspace(0, len(levels) - 1, max_levels).round().astype(int)]\n        sections = [_section_at(mesh, solid, normal, z) for z in levels]\n        for chain in _hole_chains(sections):\n            first, last = chain[0], chain[-1]\n            below = sections[first[0] - 1] if first[0] > 0 else None\n            above = sections[last[0] + 1] if last[0] + 1 < len(sections) else None\n            open_below = below is None or not _covers(below, sections[first[0]][1][first[1]])\n            open_above = above is None or not _covers(above, sections[last[0]][1][last[1]])\n            if not (open_below and open_above):\n                continue\n            start = float(coords[np.searchsorted(coords, levels[first[0]]) - 1])\n            end = float(coords[np.searchsorted(coords, levels[last[0]])])\n            holes.append(_describe_hole(mesh, solid, axis, chain, sections, start, end))\n    for i, hole in enumerate(holes, 1):\n        hole[\"id\"] = f\"a{i}\"\n    return holes\n\n\ndef _describe_hole(mesh, solid, axis, chain, sections, start, end) -> dict[str, Any]:\n    rings = [sections[level][1][index] for level, index in chain]\n    narrowest = min(rings, key=lambda r: r.area)\n    normal = np.eye(3)[axis]\n    ends = []\n    for z in (start + END_INSET_MM, end - END_INSET_MM):\n        polygons, inner = _section_at(mesh, solid, normal, z)\n        ring = next((r for r in inner if r.intersects(narrowest)), None)\n        ends.append(round(_equivalent_diameter(ring), 2) if ring is not None else None)\n    center2d = np.array(narrowest.centroid.coords[0])\n    center = np.insert(center2d, axis, (start + end) / 2)\n    region = shapely.unary_union(rings)\n    return {\n        \"axis\": \"xyz\"[axis],\n        \"center\": _r(center),\n        \"from\": round(start, 3),\n        \"to\": round(end, 3),\n        \"length_mm\": round(end - start, 3),\n        \"min_diameter_mm\": round(_equivalent_diameter(narrowest), 2),\n        \"diameter_at_from_mm\": ends[0],\n        \"diameter_at_to_mm\": ends[1],\n        \"_footprint\": region,  # 2D region (in the other two axes) for highlighting faces\n    }\n\n\ndef hole_faces(mesh: trimesh.Trimesh, holes: list[dict[str, Any]]) -> np.ndarray:\n",
+    "stderr": "",
+    "stdout_bytes": 3553,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 0.385,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "46198b4e7fed2be7"
+}

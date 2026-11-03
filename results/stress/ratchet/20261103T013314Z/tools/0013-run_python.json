@@ -1,0 +1,37 @@
+{
+  "seq": 13,
+  "iteration": 9,
+  "name": "run_python",
+  "arguments": {
+    "code": "import trimesh, numpy as np\nfrom manifold3d import Manifold, Mesh\ndef load_manifold(path):\n    m = trimesh.load(path, process=True)\n    mesh = Mesh(vertProperties=np.asarray(m.vertices, dtype=np.float32),\n                triVerts=np.asarray(m.faces, dtype=np.int32))\n    return Manifold(mesh)\nw0 = load_manifold('checks/assembly/model.assembly.1d428528.stl')\nb0 = load_manifold('checks/assembly/model.assembly.57cfb177.stl')\nprint('w vol', w0.volume(), 'b vol', b0.volume())\nfrom trimesh.transformations import rotation_matrix\nfor deg in [0,-10,-21,-22,-23,-24,-25,-26,-27,-28,-29,-30,-40]:\n    M = rotation_matrix(np.radians(deg), [0,0,1], point=[-10,0,6.0])\n    wv = trimesh.load('checks/assembly/model.assembly.1d428528.stl')\n    wv.apply_transform(M)\n    wm = Manifold(Mesh(vertProperties=np.asarray(wv.vertices,dtype=np.float32), triVerts=np.asarray(wv.faces,dtype=np.int32)))\n    try:\n        iv = (wm ^ b0).volume()\n    except Exception as e:\n        iv = f'ERR {e}'\n    print(deg, iv)\n",
+    "timeout_s": 180.0
+  },
+  "result": {
+    "ok": false,
+    "exit_code": 1,
+    "timed_out": false,
+    "seconds": 0.905,
+    "stdout": "",
+    "stderr": "Traceback (most recent call last):\n  File \"<string>\", line 8, in <module>\n  File \"<string>\", line 5, in load_manifold\nTypeError: __init__(): incompatible function arguments. The following argument types are supported:\n    1. __init__(self, vert_properties: ndarray[dtype=float32, shape=(*, *), order='C'], tri_verts: ndarray[dtype=uint32, shape=(*, 3), order='C'], merge_from_vert: ndarray[dtype=uint32, shape=(*), order='C'] | None = None, merge_to_vert: ndarray[dtype=uint32, shape=(*), order='C'] | None = None, run_index: ndarray[dtype=uint32, shape=(*), order='C'] | None = None, run_original_id: ndarray[dtype=uint32, shape=(*), order='C'] | None = None, run_transform: ndarray[dtype=float32, shape=(*, 4, 3), order='C'] | None = None, run_flags: ndarray[dtype=uint8, shape=(*), order='C'] | None = None, face_id: ndarray[dtype=uint32, shape=(*), order='C'] | None = None, halfedge_tangent: ndarray[dtype=float32, shape=(*, 3, 4), order='C'] | None = None, tolerance: float = 0) -> None\n\nInvoked with types: manifold3d.Mesh, kwargs = { vertProperties: ndarray, triVerts: ndarray }\n",
+    "stdout_bytes": 0,
+    "stderr_bytes": 1087,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 1.317,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "076ebf94697f2642"
+}

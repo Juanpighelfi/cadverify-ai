@@ -1,0 +1,36 @@
+{
+  "seq": 25,
+  "iteration": 16,
+  "name": "run_python",
+  "arguments": {
+    "code": "import trimesh, numpy as np\nraw=trimesh.load_mesh(\"exports/model.lid.6029fe16.stl\",process=False)\nverts,inv=np.unique(raw.vertices[raw.faces].reshape(-1,3),axis=0,return_inverse=True)\nm=trimesh.Trimesh(verts,inv.reshape(-1,3),process=False)\nprint(\"watertight\",m.is_watertight,\"euler\",m.euler_number)\ncomps=trimesh.graph.connected_components(m.face_adjacency,nodes=np.arange(len(m.faces)),min_len=1)\ntri=m.triangles\nsigned=np.einsum(\"ij,ij->i\",tri[:,0],np.cross(tri[:,1],tri[:,2]))/6\nfor c in comps:\n    print(\"shell faces\",len(c),\"vol\",round(float(signed[c].sum()),2),\"bounds\",np.round(m.vertices[m.faces[c]].reshape(-1,3).min(0),2),np.round(m.vertices[m.faces[c]].reshape(-1,3).max(0),2))\n"
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.858,
+    "stdout": "watertight True euler -6\nshell faces 280 vol 19082.98 bounds [0. 0. 0.] [95.  66.  16.6]\nshell faces 12 vol -46.2 bounds [20.   1.1 13.4] [75.   1.8 14.6]\n",
+    "stderr": "",
+    "stdout_bytes": 155,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 1.235,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "a604bda53faf47e0"
+}

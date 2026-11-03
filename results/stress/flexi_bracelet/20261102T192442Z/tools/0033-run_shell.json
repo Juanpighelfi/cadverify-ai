@@ -1,0 +1,37 @@
+{
+  "seq": 33,
+  "iteration": 27,
+  "name": "run_shell",
+  "arguments": {
+    "cmd": "grep -n \"options\\|part.*selector\\|param\" /opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/scad.py | head -40; echo ====; sed -n 1,150p /opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/scad.py",
+    "timeout_s": 30.0
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.007,
+    "stdout": "24:PART = \"part\"  # the Customizer selector of a source with several parts\n====\n\"\"\"scad_compile and scad_export, the OpenSCAD tools of the agent (docs/architecture.md).\n\nBoth return JSON-ready dicts. Diagnostics come from OpenSCAD's log, never from the exit code\nalone: OpenSCAD (2021.01 and 2026.10) exits 0 after a failed assert when it exports `.echo`.\n\"\"\"\n\nfrom __future__ import annotations\n\nimport hashlib\nimport json\nimport os\nimport re\nimport subprocess\nimport tempfile\nimport time\nfrom dataclasses import dataclass\nfrom pathlib import Path\nfrom typing import Any\n\nfrom cadverify.cadcheck.mesh import load_exact, report_from_mesh\nfrom cadverify.cadcheck.spec import SpecError, check_spec, find_spec\nfrom cadverify.openscad import define_args, openscad_bin\n\nPART = \"part\"  # the Customizer selector of a source with several parts\nASSEMBLY = \"assembly\"  # the `part` option of the assembly, never printed\nINSTANCE_ECHO = \"cadverify_instance\"  # echoed by instance() of each part the assembly places\n\n# fmt -> OpenSCAD --export-format. STL stays ASCII: its coordinates are full doubles, while\n# binary STL rounds to float32 and fuses vertices that OpenSCAD leaves 1e-9 mm apart (a\n# perforated plate went from closed to 202 bad edges). OpenSCAD plans binary as the default.\nFORMATS = {\"stl\": \"asciistl\"}\nMAX_LINES = 50\n\n_ASSERT = re.compile(\n    r\"^ERROR: Assertion '(?P<condition>.*)' failed(?:: (?P<message>.*))?\"\n    r\" in file (?P<file>.*), line (?P<line>\\d+)$\"\n)\n_ERROR = re.compile(r\"^[A-Z-]*ERROR: \")\n_WARNING = re.compile(r\"^(?:[A-Z-]*WARNING|DEPRECATED): \")\n# OpenSCAD prints strings raw, without escaping inner quotes. A value with quotes only at both\n# ends is therefore a single string; two or more values always leave quotes in the middle.\n_SINGLE_STRING = re.compile(r'^\"[^\"]*\"$')\n_EMPTY = \"Current top level object is empty.\"\n\n\n@dataclass(frozen=True)\nclass Engine:\n    \"\"\"An OpenSCAD binary and its geometry backend.\n\n    backend=None runs the binary without `--backend` (OpenSCAD 2021.01 only has CGAL).\n    \"\"\"\n\n    binary: str\n    backend: str | None = \"Manifold\"\n\n    def export_command(self) -> list[str]:\n        return [self.binary] + ([f\"--backend={self.backend}\"] if self.backend else [])\n\n\ndef default_engine() -> Engine:\n    \"\"\"OPENSCAD_BIN (or `openscad` on PATH) with OPENSCAD_BACKEND, Manifold unless set.\"\"\"\n    return Engine(openscad_bin(), os.environ.get(\"OPENSCAD_BACKEND\", \"Manifold\") or None)\n\n\ndef scad_compile(\n    path: str | Path,\n    overrides: dict[str, Any] | None = None,\n    *,\n    engine: Engine | None = None,\n    timeout_s: float = 120,\n) -> dict[str, Any]:\n    \"\"\"Evaluate the program without building geometry: echoes, warnings, failed asserts, errors.\n\n    Exporting `.echo` instantiates the whole tree selected by the overrides, so asserts inside\n    modules run, but no mesh is computed.\n    \"\"\"\n    path = Path(path).resolve()\n    engine = engine or default_engine()\n    with tempfile.TemporaryDirectory() as tmp:\n        out = Path(tmp) / \"out.echo\"\n        run = _run(\n            [engine.binary, \"-o\", str(out), *define_args(overrides), path.name], path, timeout_s\n        )\n        # Both 2021.01 and 2026.10 send every message to the .echo file and none to the console;\n        # the console only matters when OpenSCAD fails before writing it.\n        log = out.read_text(errors=\"replace\") if out.exists() else run[\"log\"]\n    diag = parse_log(log)\n    diag[\"echo\"] = _cap(diag[\"echo\"])\n    ok = run[\"returncode\"] == 0 and not diag[\"errors\"] and not diag[\"asserts_failed\"]\n    return {\"ok\": ok, **diag, **_timing(run)}\n\n\ndef scad_export(\n    path: str | Path,\n    part: str | None = None,\n    overrides: dict[str, Any] | None = None,\n    fmt: str = \"stl\",\n    *,\n    out_dir: str | Path | None = None,\n    engine: Engine | None = None,\n    timeout_s: float = 900,\n) -> dict[str, Any]:\n    \"\"\"Export one part (`part`) and attach its mesh_report and its check against the spec.\n\n    `ok` means OpenSCAD wrote a non-empty file without errors or failed asserts; whether the\n    mesh is good (closed, one body, not inside out) is in `mesh`, and whether it measures what\n    the part's `cadverify_spec` echo declares is in `spec_check`, for the gates to judge.\n    The file goes to `out_dir` (default: `exports/` next to the source) as\n    `<stem>.<part>.<hash of the defines>.<fmt>`, so variants never overwrite each other.\n    Echo values are left to scad_compile to keep the result short.\n    \"\"\"\n    if fmt not in FORMATS:\n        raise ValueError(f\"Unsupported format {fmt!r}; supported: {', '.join(FORMATS)}\")\n    path = Path(path).resolve()\n    engine = engine or default_engine()\n    defines = dict(overrides or {})\n    if part is not None:\n        defines[PART] = part\n    key = hashlib.sha256(json.dumps(defines, sort_keys=True).encode()).hexdigest()[:8]\n    out_dir = Path(out_dir).resolve() if out_dir else path.parent / \"exports\"\n    out_dir.mkdir(parents=True, exist_ok=True)\n    out = out_dir / f\"{path.stem}.{part or 'default'}.{key}.{fmt}\"\n    out.unlink(missing_ok=True)\n\n    cmd = [\n        *engine.export_command(),\n        f\"--export-format={FORMATS[fmt]}\",\n        \"-o\",\n        str(out),\n        *define_args(defines),\n        path.name,\n    ]\n    run = _run(cmd, path, timeout_s)\n    diag = parse_log(run[\"log\"])\n    echo = diag.pop(\"echo\")\n    spec, spec_error = None, None\n    try:\n        spec = find_spec(echo, assembly=part == ASSEMBLY)\n    except SpecError as exc:\n        spec_error = str(exc)\n    instances, instance_error = None, None\n    try:\n        instances = find_instances(echo)\n    except SpecError as exc:\n        instance_error = str(exc)\n    empty = _EMPTY in run[\"log\"]\n    produced = out.exists() and out.stat().st_size > 0\n    ok = (\n        run[\"returncode\"] == 0\n        and produced\n",
+    "stderr": "",
+    "stdout_bytes": 5789,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 0.391,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "523cd575cf5938bc"
+}

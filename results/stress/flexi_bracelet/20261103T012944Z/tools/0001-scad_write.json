@@ -1,0 +1,32 @@
+{
+  "seq": 1,
+  "iteration": 1,
+  "name": "scad_write",
+  "arguments": {
+    "content": "part = \"link\"; // [link, assembly]\ncadverify_only = \"\";\nmodule instance(name, part, unit = 1) {\n    echo(cadverify_instance = [name, part, unit]);\n    if (cadverify_only == \"\" || cadverify_only == name) children();\n}\n\n// Parameters (mm)\npitch = 18;          // pin-to-bore distance\nlink_w = 12;         // width (Y)\nlink_t = 5;          // thickness (Z)\npin_d = 4;           // pin shaft diameter\nbore_d = 4.6;        // bore diameter (0.3 radial clearance)\ncap_d = 6;           // cap diameter\ncap_h = 1;           // cap thickness\ngap_z = 0.3;         // vertical clearance cap<->knuckle\nkn_h = 2.4;          // knuckle height = 5-2*1-2*0.3\nkn_out_d = 7.6;      // knuckle outer diameter (1.5 wall)\ncap_cav_d = 6.6;     // cap cavity diameter (0.3 radial clearance)\nneck_w = 2;          // neck width\nslot_half = 50;      // slot half-angle (deg), allows +-30 deg swing\nyoke_east = 20.5;    // full-height yoke east extent (local X)\n$fn = 64;\n\nmodule link_geom() {\n    bore_x = pitch;\n    cap_r = cap_d/2;\n    cav_r = cap_cav_d/2;\n    pin_r = pin_d/2;\n    bore_r = bore_d/2;\n    kn_out_r = kn_out_d/2;\n    // far points for slot wedge (full height + middle)\n    // wedge from bore center to the east, half-angle slot_half\n    wedge_far = 30;\n    dy_far = wedge_far * tan(slot_half);\n    // ---- full height (0..5): yoke + neck + pin shaft ----\n    linear_extrude(height = link_t, convexity = 8) {\n        difference() {\n            union() {\n                // pin shaft disc\n                translate([0,0]) circle(r = pin_r);\n                // neck rect X[0,5] Y[-1,1]\n                translate([0,-neck_w/2]) square([5, neck_w]);\n                // yoke base rect X[4,yoke_east] Y[-6,6]\n                translate([4,-link_w/2]) square([yoke_east-4, link_w]);\n            }\n            // cap cavity (for next link caps)\n            translate([bore_x,0]) circle(r = cav_r);\n            // slot wedge for next-link neck swing (full height)\n            polygon(points = [[bore_x,0],[bore_x+wedge_far, dy_far],[bore_x+wedge_far, -dy_far]]);\n        }\n    }\n    // ---- middle knuckle ring (1.3..3.7) ----\n    kn_bot = cap_h + gap_z; // 1.3\n    translate([0,0,kn_bot])\n    linear_extrude(height = kn_h, convexity = 8) {\n        difference() {\n            translate([bore_x,0]) circle(r = kn_out_r);\n            translate([bore_x,0]) circle(r = bore_r);\n            polygon(points = [[bore_x,0],[bore_x+wedge_far, dy_far],[bore_x+wedge_far, -dy_far]]);\n        }\n    }\n    // ---- caps ----\n    translate([0,0,0]) cylinder(h = cap_h, r = cap_r);\n    translate([0,0,link_t-cap_h]) cylinder(h = cap_h, r = cap_r);\n}\n\nif (part == \"assembly\") {\n    instance(\"link1\", \"link\", 1) translate([0,0,0]) link_geom();\n    instance(\"link2\", \"link\", 1) translate([18,0,0]) link_geom();\n    instance(\"link3\", \"link\", 1) translate([36,0,0]) link_geom();\n    echo(cadverify_spec = [\n        [\"bounds\", [[-3, -6, 0], [56.5, 6, 5]]],\n        [\"support_faces\", [[\"bed\", \"-z\", 200]]],\n        [\"motions\", [\n            [\"bend\", [\"link3\"], \"rotate\", [36, 0, 0], [0, 0, 1], [-30, 30]]\n        ]],\n        [\"assembly_order\", [\n            [[\"link1\", \"link2\", \"link3\"], [0, 0, 0]]\n        ]],\n        [\"print_in_place\", 0.3],\n        [\"overhangs_allowed\", [\n            [\"pin cap link1\", [[-3, -3, 3.8], [3, 3, 4.2]]],\n            [\"knuckle joint1\", [[14.5, -3.5, 1.0], [21, 3.5, 1.5]]],\n            [\"pin cap link2\", [[15, -3, 3.8], [21, 3, 4.2]]],\n            [\"knuckle joint2\", [[32.5, -3.5, 1.0], [39, 3.5, 1.5]]],\n            [\"pin cap link3\", [[33, -3, 3.8], [39, 3, 4.2]]],\n            [\"knuckle end\", [[50.5, -3.5, 1.0], [57, 3.5, 1.5]]]\n        ]],\n        [\"held\", [\"link1\", \"link2\", \"link3\"]]\n    ]);\n} else {\n    link_geom();\n    echo(cadverify_spec = [\n        [\"bounds\", [[-3, -6, 0], [20.5, 6, 5]]],\n        [\"bodies\", 1],\n        [\"through_holes\", 0],\n        [\"support_faces\", [[\"bed\", \"-z\", 100]]],\n        [\"overhangs_allowed\", [\n            [\"pin cap\", [[-3, -3, 3.8], [3, 3, 4.2]]],\n            [\"knuckle ceiling\", [[14.5, -3.5, 1.0], [21, 3.5, 1.5]]]\n        ]],\n        [\"copies\", 3],\n        [\"details\", [\n            [\"body\", \"material\", [[4, -6, 0], [14, 6, 5]], 0.85],\n            [\"neck\", \"material\", [[0, -1, 0], [5, 1, 5]], 0.8],\n            [\"knuckle\", \"material\", [[14.2, -3.8, 1.3], [21.8, 3.8, 3.7]], 0.25],\n            [\"slot\", \"void\", [[19, -1, 0], [21, 1, 5]], 0.8],\n            [\"cap_cavity\", \"void\", [[14.7, -3.3, 0], [21.3, 3.3, 1]], 0.5],\n            [\"wall\", \"thickness\", [18, 0, 2.5], [0, 1, 0], 1.5],\n            [\"floor\", \"thickness\", [9, 0, -1], [0, 0, 1], 5]\n        ]]\n    ]);\n}\n",
+    "path": "model.scad"
+  },
+  "result": {
+    "ok": true,
+    "path": "model.scad",
+    "replaced": false,
+    "bytes": 4602,
+    "lines": 114,
+    "sha256": "749c857f7636f12652fb917a439690ef1e4f1401aaa2b352455a82294339be12"
+  },
+  "seconds": 0.368,
+  "image": null,
+  "files": {
+    "new": [
+      "model.scad"
+    ],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [
+    "model.scad"
+  ],
+  "rule": null,
+  "source": "7c167270f4ced7e3"
+}

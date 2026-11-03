@@ -1,0 +1,37 @@
+{
+  "seq": 12,
+  "iteration": 8,
+  "name": "run_python",
+  "arguments": {
+    "code": "import trimesh, numpy as np, manifold3d\nprint(manifold3d.__version__ if hasattr(manifold3d,'__version__') else 'manifold?')\nfrom manifold3d import Manifold, CrossSection\ndef load_manifold(path):\n    m = trimesh.load(path)\n    return Manifold(m.triangles[np.asarray(m.faces).flatten()].reshape(-1,3,3).tolist()) if False else Manifold([[list(v) for v in m.vertices], [list(f) for f in m.faces]])\nw0 = load_manifold('checks/assembly/model.assembly.1d428528.stl')\nb0 = load_manifold('checks/assembly/model.assembly.57cfb177.stl')\nprint('w vol', w0.volume(), 'b vol', b0.volume())\nfrom trimesh.transformations import rotation_matrix\nfor deg in [0,-10,-21,-22,-23,-24,-25,-26,-27,-28,-29,-30,-40]:\n    M = rotation_matrix(np.radians(deg), [0,0,1], point=[-10,0,6.0])\n    wv = trimesh.load('checks/assembly/model.assembly.1d428528.stl')\n    wv.apply_transform(M)\n    wm = Manifold([[list(v) for v in wv.vertices],[list(f) for f in wv.faces]])\n    try:\n        iv = (wm ^ b0).volume()\n    except Exception as e:\n        iv = f'ERR {e}'\n    print(deg, iv)\n",
+    "timeout_s": 180.0
+  },
+  "result": {
+    "ok": false,
+    "exit_code": 1,
+    "timed_out": false,
+    "seconds": 0.867,
+    "stdout": "manifold?\n",
+    "stderr": "Traceback (most recent call last):\n  File \"<string>\", line 7, in <module>\n  File \"<string>\", line 6, in load_manifold\nTypeError: __init__(): incompatible function arguments. The following argument types are supported:\n    1. __init__(self) -> None\n    2. __init__(self, mesh: manifold3d.Mesh) -> None\n    3. __init__(self, mesh: manifold3d.Mesh64) -> None\n\nInvoked with types: manifold3d.Manifold, list\n",
+    "stdout_bytes": 10,
+    "stderr_bytes": 403,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 1.269,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "076ebf94697f2642"
+}

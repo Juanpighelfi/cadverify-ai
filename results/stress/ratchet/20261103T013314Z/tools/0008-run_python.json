@@ -1,0 +1,37 @@
+{
+  "seq": 8,
+  "iteration": 5,
+  "name": "run_python",
+  "arguments": {
+    "code": "import trimesh, numpy as np\nwheel = trimesh.load('exports/model.wheel.675d7f4a.stl')\nbase = trimesh.load('exports/model.base.87e59dfb.stl')\nprint('wheel bounds', wheel.bounds)\nprint('base bounds', base.bounds)\n# pawl wedge approx mesh in assembly coords\nimport shapely.geometry as geom\ntri = geom.Polygon([[14.2,0],[16,0],[16,3]])\ntri_mesh = trimesh.creation.extrude_polygon(tri, 8.0)\ntri_mesh.apply_translation([0,0,6.0])\nw = wheel.copy(); w.apply_translation([-10,0,6.0])\nfor deg in [0,-10,-20,-24,-26,-28,-30]:\n    w2 = w.copy()\n    w2.apply_transform(trimesh.transformations.rotation_matrix(np.radians(deg), [0,0,1], point=[-10,0,6.0]))\n    inter = w2.intersection(tri_mesh)\n    print(deg, 'vol=', round(float(inter.volume) if inter is not None else 0.0, 4))\n",
+    "timeout_s": 120.0
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.887,
+    "stdout": "wheel bounds [[-24.93910126 -24.93910126   0.        ]\n [ 24.93910126  24.93910126   8.        ]]\nbase bounds [[-45. -35.   0.]\n [ 45.  35.  16.]]\n0 vol= 0.0\n-10 vol= 0.0\n-20 vol= 0.0\n-24 vol= 2.7928\n-26 vol= 1.6517\n-28 vol= 0.0004\n-30 vol= 0.0\n",
+    "stderr": "/opt/venv/lib/python3.12/site-packages/trimesh/triangles.py:302: RuntimeWarning: invalid value encountered in divide\n  center_mass = integrated[1:4] / volume\n",
+    "stdout_bytes": 245,
+    "stderr_bytes": 158,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 1.269,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "076ebf94697f2642"
+}

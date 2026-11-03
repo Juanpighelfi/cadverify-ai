@@ -1,0 +1,32 @@
+{
+  "seq": 1,
+  "iteration": 1,
+  "name": "scad_write",
+  "arguments": {
+    "content": "/* Jar with screw-on lid - PETG, 0.4mm nozzle, support-free 45deg thread\n   Inside ~60mm across, ~70mm deep. Pitch 6mm, 1.5 turns = 9mm travel.\n*/\n\n// Customizer part selector\npart = \"assembly\"; // [jar, lid, assembly]\ncadverify_only = \"\";\n\nmodule instance(name, part, unit = 1) {\n    echo(cadverify_instance = [name, part, unit]);\n    if (cadverify_only == \"\" || cadverify_only == name) children();\n}\n\n// ---------- parameters ----------\njar_inner_d = 60;\njar_inner_r = 60/2;\njar_inner_depth = 70;\nwall_t = 2.4;\nfloor_t = 3.0;\nR_out = 30 + 2.4; // 32.4\njar_H = 3.0 + 70; // 73\n\npitch = 6;\nthread_h = 1.0;\nthread_w_root = 3.6;\nthread_w_tip = 2.0;\nthread_k = (3.6-2.0)/2/1.0; // 0.8, flank ~38.7 deg from vertical\nclear_radial = 0.4;\n\nR_tip_m = 32.4 + 1.0; // 33.4\nR_root_f = 33.4 + 0.4; // 33.8\nR_tip_f = 32.4 + 0.4; // 32.8\nR_lid_out = 33.8 + 2.4; // 36.2\n\nlid_top_t = 3.0;\nlid_inside_h = 18;\nlid_H = 3.0 + 18; // 21\n\n// thread spans (centers)\nmale_z0 = 55;\nmale_turns = 2;\nfemale_z0_print = 6;\nfemale_turns = 2;\n\nthread_steps = 240;\n\nmodule helical_thread(R_low, w_low, R_high, w_high, pitch, phi_start, phi_end, z_at_start, steps) {\n    N = steps;\n    pts = [ for(i=[0:N])\n        let(\n            phi = phi_start + (phi_end-phi_start)*i/N,\n            zc = z_at_start + pitch*(phi-phi_start)/(2*PI),\n            c = cos(phi), s = sin(phi)\n        )\n        each [\n            [R_low*c, R_low*s, zc - w_low/2],\n            [R_low*c, R_low*s, zc + w_low/2],\n            [R_high*c, R_high*s, zc + w_high/2],\n            [R_high*c, R_high*s, zc - w_high/2]\n        ]\n    ];\n    faces = concat(\n        [ for(i=[0:N-1]) [i*4+0, i*4+1, (i+1)*4+1] ],\n        [ for(i=[0:N-1]) [i*4+0, (i+1)*4+1, (i+1)*4+0] ],\n        [ for(i=[0:N-1]) [i*4+3, (i+1)*4+3, (i+1)*4+2] ],\n        [ for(i=[0:N-1]) [i*4+3, (i+1)*4+2, i*4+2] ],\n        [ for(i=[0:N-1]) [i*4+0, (i+1)*4+0, (i+1)*4+3] ],\n        [ for(i=[0:N-1]) [i*4+0, (i+1)*4+3, i*4+3] ],\n        [ for(i=[0:N-1]) [i*4+1, i*4+2, (i+1)*4+2] ],\n        [ for(i=[0:N-1]) [i*4+1, (i+1)*4+2, (i+1)*4+1] ],\n        [[0,3,2],[0,2,1]],\n        [[N*4+0, N*4+1, N*4+2],[N*4+0, N*4+2, N*4+3]]\n    );\n    polyhedron(points=pts, faces=faces, convexity=10);\n}\n\nmodule jar_geom() {\n    // base body\n    difference() {\n        cylinder(r=R_out, h=jar_H, $fn=180);\n        translate([0,0,floor_t]) cylinder(r=jar_inner_r, h=jar_inner_depth+2, $fn=180);\n    }\n    // external thread, embedded 0.2 into wall\n    // R_low=32.2 (embedded), w_low=3.92, R_high=33.4, w_high=2.0\n    helical_thread(32.2, 3.92, 33.4, 2.0, pitch, 0, 4*PI, male_z0, thread_steps);\n}\n\nmodule lid_geom() {\n    // outer solid minus bore\n    difference() {\n        cylinder(r=R_lid_out, h=lid_H, $fn=180);\n        translate([0,0,lid_top_t]) cylinder(r=R_root_f, h=lid_inside_h+2, $fn=180);\n    }\n    // internal thread, embedded 0.2 outward\n    // R_low=32.8 (tip, exposed), w_low=2.0, R_high=34.0 (embedded), w_high=3.92\n    helical_thread(32.8, 2.0, 34.0, 3.92, pitch, 0, 4*PI, female_z0_print, thread_steps);\n}\n\nmodule jar() {\n    jar_geom();\n}\n\nmodule lid() {\n    lid_geom();\n}\n\nmodule assembly() {\n    instance(\"jar\", \"jar\") jar();\n    // lid printed opening-up (0..21, sealing at 3), assembled flipped: z_asm = 76 - z_print\n    instance(\"lid\", \"lid\") translate([0,0,76]) rotate([180,0,0]) lid();\n}\n\n// ---------- specs ----------\nif (part == \"jar\") {\n    echo(cadverify_spec = [\n        [\"bounds\", [[-33.4,-33.4,0],[33.4,33.4,73]]],\n        [\"bodies\", 1],\n        [\"through_holes\", 0],\n        [\"support_faces\", [[\"base\",\"-z\",2000]]],\n        [\"overhangs_allowed\", []],\n        [\"copies\", 1],\n        [\"details\", [\n            [\"wall\", \"thickness\", [40,0,30], [-1,0,0], 2.4],\n            [\"floor\", \"thickness\", [0,0,-1], [0,0,1], 3.0],\n            [\"cavity\", \"void\", [[-21,-21,10],[21,21,65]], 0.95],\n            [\"mouth\", \"hole\", [0,0,80], [0,0,-1], [[0,60],[60,60]]],\n            [\"thread_view\", \"view\", [[-34,-34,53],[34,34,69]]]\n        ]]\n    ]);\n    jar();\n} else if (part == \"lid\") {\n    echo(cadverify_spec = [\n        [\"bounds\", [[-36.2,-36.2,0],[36.2,36.2,21]]],\n        [\"bodies\", 1],\n        [\"through_holes\", 0],\n        [\"support_faces\", [[\"base\",\"-z\",2000]]],\n        [\"overhangs_allowed\", []],\n        [\"copies\", 1],\n        [\"details\", [\n            [\"wall\", \"thickness\", [42,0,20.5], [-1,0,0], 2.4],\n            [\"top\", \"thickness\", [0,0,-1], [0,0,1], 3.0],\n            [\"bore\", \"void\", [[-20,-20,5],[20,20,19]], 0.95],\n            [\"thread_view\", \"view\", [[-34,-34,4],[34,34,20]]]\n        ]]\n    ]);\n    lid();\n} else if (part == \"assembly\") {\n    echo(cadverify_spec = [\n        [\"bounds\", [[-36.2,-36.2,0],[36.2,36.2,76]]],\n        [\"support_faces\", [[\"base\",\"-z\",2000]]],\n        [\"motions\", [\n            [\"lid_open\", [\"lid\"], \"screw\", [0,0,0], [0,0,1], 6, [0,540]]\n        ]],\n        [\"assembly_order\", [\n            [[\"jar\"], [0,0,0]],\n            [[\"lid\"], [0,0,-1], [\"screw\", [0,0,0], [0,0,1], 6, 540]]\n        ]],\n        [\"held\", [\"lid\"]]\n    ]);\n    assembly();\n}\n",
+    "path": "model.scad"
+  },
+  "result": {
+    "ok": true,
+    "path": "model.scad",
+    "replaced": false,
+    "bytes": 4994,
+    "lines": 161,
+    "sha256": "847c818c956b7c7f9ca8aeaecf0ef7525fa60a1fd96878e93244eb6a6ed74678"
+  },
+  "seconds": 0.512,
+  "image": null,
+  "files": {
+    "new": [
+      "model.scad"
+    ],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [
+    "model.scad"
+  ],
+  "rule": null,
+  "source": "dbef8f6b766fc236"
+}

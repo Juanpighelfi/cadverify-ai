@@ -1,0 +1,36 @@
+{
+  "seq": 45,
+  "iteration": 27,
+  "name": "run_shell",
+  "arguments": {
+    "cmd": "grep -rn \"def define_args\" -A 30 /opt/venv/lib/python3.12/site-packages/cadverify/ | head -n 60\ngrep -rn \"SOLO\\|OUTSIDE\\|INSTANCE\" /opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/assembly.py | head -n 30\ngrep -rn \"def scad_export\" -A 80 /opt/venv/lib/python3.12/site-packages/cadverify/cadcheck/scad.py | head -n 120"
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.012,
+    "stdout": "/opt/venv/lib/python3.12/site-packages/cadverify/openscad.py:43:def define_args(defines: dict[str, Any] | None) -> list[str]:\n/opt/venv/lib/python3.12/site-packages/cadverify/openscad.py-44-    \"\"\"`-D name=value` arguments; they override the file's own assignments.\"\"\"\n/opt/venv/lib/python3.12/site-packages/cadverify/openscad.py-45-    args: list[str] = []\n/opt/venv/lib/python3.12/site-packages/cadverify/openscad.py-46-    for name, value in (defines or {}).items():\n/opt/venv/lib/python3.12/site-packages/cadverify/openscad.py-47-        if not re.fullmatch(r\"\\$?[A-Za-z_]\\w*\", name):\n/opt/venv/lib/python3.12/site-packages/cadverify/openscad.py-48-            raise ValueError(f\"Invalid OpenSCAD variable name: {name!r}\")\n/opt/venv/lib/python3.12/site-packages/cadverify/openscad.py-49-        args += [\"-D\", f\"{name}={scad_literal(value)}\"]\n/opt/venv/lib/python3.12/site-packages/cadverify/openscad.py-50-    return args\n98:SOLO = \"cadverify_only\"\n99:OUTSIDE = \"__outside_instances__\"\n161:    outside = scad_export(path, ASSEMBLY, {SOLO: OUTSIDE}, out_dir=out_dir, timeout_s=timeout_s)\n252:            path, ASSEMBLY, {SOLO: item[\"name\"]}, out_dir=out_dir, timeout_s=timeout_s\n95:def scad_export(\n96-    path: str | Path,\n97-    part: str | None = None,\n98-    overrides: dict[str, Any] | None = None,\n99-    fmt: str = \"stl\",\n100-    *,\n101-    out_dir: str | Path | None = None,\n102-    engine: Engine | None = None,\n103-    timeout_s: float = 900,\n104-) -> dict[str, Any]:\n105-    \"\"\"Export one part (`part`) and attach its mesh_report and its check against the spec.\n106-\n107-    `ok` means OpenSCAD wrote a non-empty file without errors or failed asserts; whether the\n108-    mesh is good (closed, one body, not inside out) is in `mesh`, and whether it measures what\n109-    the part's `cadverify_spec` echo declares is in `spec_check`, for the gates to judge.\n110-    The file goes to `out_dir` (default: `exports/` next to the source) as\n111-    `<stem>.<part>.<hash of the defines>.<fmt>`, so variants never overwrite each other.\n112-    Echo values are left to scad_compile to keep the result short.\n113-    \"\"\"\n114-    if fmt not in FORMATS:\n115-        raise ValueError(f\"Unsupported format {fmt!r}; supported: {', '.join(FORMATS)}\")\n116-    path = Path(path).resolve()\n117-    engine = engine or default_engine()\n118-    defines = dict(overrides or {})\n119-    if part is not None:\n120-        defines[PART] = part\n121-    key = hashlib.sha256(json.dumps(defines, sort_keys=True).encode()).hexdigest()[:8]\n122-    out_dir = Path(out_dir).resolve() if out_dir else path.parent / \"exports\"\n123-    out_dir.mkdir(parents=True, exist_ok=True)\n124-    out = out_dir / f\"{path.stem}.{part or 'default'}.{key}.{fmt}\"\n125-    out.unlink(missing_ok=True)\n126-\n127-    cmd = [\n128-        *engine.export_command(),\n129-        f\"--export-format={FORMATS[fmt]}\",\n130-        \"-o\",\n131-        str(out),\n132-        *define_args(defines),\n133-        path.name,\n134-    ]\n135-    run = _run(cmd, path, timeout_s)\n136-    diag = parse_log(run[\"log\"])\n137-    echo = diag.pop(\"echo\")\n138-    spec, spec_error = None, None\n139-    try:\n140-        spec = find_spec(echo, assembly=part == ASSEMBLY)\n141-    except SpecError as exc:\n142-        spec_error = str(exc)\n143-    instances, instance_error = None, None\n144-    try:\n145-        instances = find_instances(echo)\n146-    except SpecError as exc:\n147-        instance_error = str(exc)\n148-    empty = _EMPTY in run[\"log\"]\n149-    produced = out.exists() and out.stat().st_size > 0\n150-    ok = (\n151-        run[\"returncode\"] == 0\n152-        and produced\n153-        and not empty\n154-        and not diag[\"errors\"]\n155-        and not diag[\"asserts_failed\"]\n156-    )\n157-    mesh = load_exact(out) if ok else None\n158-    report = report_from_mesh(mesh) if mesh is not None else None\n159-    return {\n160-        \"ok\": ok,\n161-        \"path\": str(out) if produced else None,\n162-        \"sha256\": hashlib.sha256(out.read_bytes()).hexdigest() if produced else None,\n163-        \"part\": part,\n164-        \"empty\": empty,\n165-        **diag,\n166-        **_timing(run),\n167-        \"mesh\": report,\n168-        \"spec\": spec,\n169-        \"spec_error\": spec_error,\n170-        \"spec_check\": check_spec(mesh, report, spec)\n171-        if spec and report and report[\"triangles\"]\n172-        else None,\n173-        **({\"instances\": instances} if instances is not None else {}),\n174-        **({\"instance_error\": instance_error} if instance_error else {}),\n175-    }\n",
+    "stderr": "",
+    "stdout_bytes": 4519,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 0.418,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "5ac934cf3ac5b839"
+}
