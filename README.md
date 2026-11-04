@@ -22,7 +22,8 @@ After the demo, each round of runs looked for where the harness itself was wrong
 came with tests: [both designers](#two-designers-three-runs-each) three times on every request,
 [the bridges](#bridges-and-the-print-pose) the hinge boxes slipped past, and
 [fourteen hard requests](#the-stress-set) written the way a user would, which found five greens
-that were wrong.
+that were wrong. The last, [a crank gear train](#a-crank-gear-train), puts gears, a detent and a
+print in place into one product.
 
 ## Meta models
 
@@ -313,6 +314,47 @@ Every final ever recorded, checked again offline on the final harness (G3 to G5)
 | stress, second round | 16 | 16 | |
 | stress, final harness | 6 | 6 | |
 
+## A crank gear train
+
+The last request puts most of what the harness measures into one product: a
+[crank gear train](requests/crank_gear_train.md) printed in place, four spur gears on capped pins
+on a base, a crank on the first, and a bump on a flexible arm that clicks into a notch at every
+quarter turn. Its spec declares one motion, a full turn of the crank, that drives the other three
+gears at their ratios (-1.5, +1.125 and -1.8), with the detent's flex and its rests at 0, 90,
+180, 270 and 360°; the gears, held on by their caps; and the print in place, 0.2 mm apart at
+least.
+
+It took three sessions, USD 3.74 in all, each going on from the model.scad of the one before:
+
+| Session | Requests | USD | Minutes | How it ended |
+|---|--:|--:|--:|---|
+| [Wonder](https://juanpighelfi.github.io/cadverify-ai/results/showcase/crank_gear_train/20261103T141025Z/replay.html) | 32 | 2.08 | 44 | the API sent no event for 30 minutes, and the session ended there |
+| [Wonder](https://juanpighelfi.github.io/cadverify-ai/results/showcase/crank_gear_train/20261103T181440Z/replay.html) | 9 | 1.35 | 11 | out of its USD 1.20 with G1 to G4 green: the first gear 0.19 mm from the base, where the print in place asks for 0.2, and three details not seen up close |
+| [Spark](https://juanpighelfi.github.io/cadverify-ai/results/showcase/crank_gear_train/20261103T183609Z/replay.html) (contributor) | 29 | 0.31 | 13 | green at its second close, USD 0.28 of it the two audits: the auditor refused the first for "teeth material 80-81%", measured from 79.9 to 81.78%, and for a cut at z=6 that nothing verified |
+
+![The crank gear train as it prints: four gears on capped pins over the base, the crank on the first gear and the detent's arc beside it](results/showcase/crank_gear_train/20261103T183609Z/print-in-place.png)
+
+The close leaves unverified the feel of the click, the crank's strength and whether the arm
+takes its 0.7 mm of flex in PLA without breaking. The sessions found two problems in the harness,
+and needed two things of the command:
+
+- **A part selector in quotes.** OpenSCAD reads `part = "assembly"; // ["assembly", "base"]` as
+  the options assembly and base. The harness kept the quotes, looked for a part named `"base"`,
+  and every export of its verification failed: the first session's G1 was red for 26 requests
+  while its own exports, which name the part, worked, and its interference check told it its
+  parts were not options of the selector. Seven earlier green sessions had written their selector
+  that way, and closed only after they dropped the quotes. The verification had the fix from the
+  first session's 27th request on; its sandbox, read-only, kept the old code to the end.
+- **A stream that never started.** The first session's 32nd request got its headers and then no
+  event for 30 minutes. With no response id there was nothing to fetch, and a timeout is not sent
+  again, so that a request is never billed twice. A stream that sent no event is sent again now,
+  though the server may have billed it, and the time to its first event is recorded, to set a
+  shorter limit from data.
+- **Going on from a design.** `--seed <run>/workspace/model.scad` starts a session from the
+  model.scad of another, fenced as OpenSCAD in the request; the replay folds it.
+- **A small cap.** A session under USD 1 was refused even when asked for; now only when the
+  budget left is what would make it so.
+
 ## Quick start
 
 Requirements: Python 3.12, [uv](https://docs.astral.sh/uv/) and Docker with BuildKit. Only
@@ -325,7 +367,8 @@ uv run cadverify hostile               # attacks on the real sandbox: each must 
 uv run cadverify table results/bench   # the bench sessions side by side, per request and model
 uv run cadverify summary results/design/bayonet_jar/20261031T003026Z   # one session, per iteration
 uv run cadverify replay results/design/bayonet_jar/20261031T003026Z    # rebuilds its replay.html
-uv run cadverify index results/design results/bench results/bridge results/bridge/explore
+uv run cadverify index results/design results/bench results/bridge results/bridge/explore \
+  results/stress results/showcase
 ```
 
 Open `results/design/bayonet_jar/20261031T003026Z/replay.html` in a browser to step through

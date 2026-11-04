@@ -18,14 +18,25 @@ def test_a_request_without_a_scad_starts_from_an_empty_workspace():
 
 def test_the_scad_of_a_request_seeds_model_scad():
     request, seed = split_request("Improve this.\n// ===\n//  Jar\nx = 1;\n")
-    assert request == "Improve this.\n// ===\n//  Jar\nx = 1;" + SEED_NOTE
+    assert request == "Improve this.\n\n```openscad\n// ===\n//  Jar\nx = 1;\n```" + SEED_NOTE
     assert seed == b"// ===\n//  Jar\nx = 1;\n"
 
 
 def test_an_added_paragraph_goes_between_the_request_and_its_scad():
     request, seed = split_request("Improve this.\n// ===\nx = 1;\n", add=" Make it pretty. \n")
-    assert request == "Improve this.\n\nMake it pretty.\n// ===\nx = 1;" + SEED_NOTE
+    assert (
+        request
+        == "Improve this.\n\nMake it pretty.\n\n```openscad\n// ===\nx = 1;\n```" + SEED_NOTE
+    )
     assert seed == b"// ===\nx = 1;\n"
+
+
+def test_a_seed_file_seeds_model_scad_like_the_scad_of_a_request():
+    request, seed = split_request("Go on.\n", add="It stopped.", seed="x = 1;\n")
+    assert request == "Go on.\n\nIt stopped.\n\n```openscad\nx = 1;\n```" + SEED_NOTE
+    assert seed == b"x = 1;\n"
+    with pytest.raises(ValueError, match="already carries"):
+        split_request("Improve this.\n// ===\nx = 1;\n", seed="y = 2;\n")
 
 
 def test_the_asker_writes_the_questions_and_reads_the_answer(tmp_path, capsys):
@@ -42,6 +53,18 @@ def test_a_session_needs_units_and_budget(tmp_path):
         cli.main(["design", str(request), "--units", "0", "--results", str(tmp_path)])
     with pytest.raises(SystemExit, match="raise the budget"):
         cli.main(["design", str(request), "--results", str(tmp_path), "--budget-usd", "0.5"])
+
+
+def test_the_session_cap_is_max_usd_or_what_the_budget_has_left():
+    assert cli.session_cap(2.0, 20.0, 5.0) == 2.0
+    assert cli.session_cap(2.0, 20.0, 18.5) == 1.5  # the budget has less left
+    assert cli.session_cap(0.4, 4.0, 3.43) == 0.4  # a small cap, asked for
+    with pytest.raises(SystemExit, match="USD 0.57 left of USD 4.00"):
+        cli.session_cap(2.0, 4.0, 3.43)  # the budget would shrink it under USD 1
+    with pytest.raises(SystemExit, match="USD 0.30 left"):
+        cli.session_cap(0.4, 4.0, 3.70)
+    with pytest.raises(SystemExit, match="above 0"):
+        cli.session_cap(0.0, 4.0, 0.0)
 
 
 def test_spent_reads_the_ledger_of_the_results_dir(tmp_path, capsys):

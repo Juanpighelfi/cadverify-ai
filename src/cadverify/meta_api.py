@@ -276,9 +276,15 @@ class MetaClient:
             server_failed = failed and ((body or {}).get("error") or {}).get("code") == (
                 "server_error"
             )
+            # A stream that sent no event has no response to fetch (a showcase session waited
+            # 30 min on one, then ended): the only way on is to send it again, though the server
+            # may have billed it, since no usage of it ever reaches the client. A request without
+            # streaming that timed out may still be running, and is not sent twice.
+            silent = stream is not None and stream["events"] == 0 and status_code is None
             retryable = (
                 status_code in RETRYABLE_STATUS
                 or server_failed
+                or silent
                 or (status_code is None and isinstance(error, str) and "Timeout" not in error)
             )
             chained = attempt <= CHAIN_RETRIES and _chain_not_stored(payload, status_code, body)
@@ -310,8 +316,9 @@ class MetaClient:
 
     def _post_stream(self, payload: dict) -> tuple:
         """One streamed attempt: status, headers, body, error, the response and what the stream
-        brought ({"events", "terminal", "recovered"})."""
+        brought ({"events", "first_event_s", "terminal", "recovered"})."""
         info: dict[str, Any] = {"events": 0, "terminal": None}
+        started = time.perf_counter()
         headers: dict[str, str] = {}
         response_id, final, error, resp = None, None, None, None
         timeout = httpx.Timeout(STREAM_READ_TIMEOUT_S, connect=30.0)
@@ -324,6 +331,8 @@ class MetaClient:
                     return resp.status_code, headers, body, error, resp, None
                 for event in sse_events(resp.iter_lines()):
                     info["events"] += 1
+                    if info["events"] == 1:
+                        info["first_event_s"] = round(time.perf_counter() - started, 3)
                     response = event.get("response")
                     if isinstance(response, dict):
                         response_id = response.get("id") or response_id

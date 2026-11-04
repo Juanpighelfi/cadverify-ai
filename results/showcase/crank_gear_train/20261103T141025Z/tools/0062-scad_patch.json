@@ -1,0 +1,35 @@
+{
+  "seq": 62,
+  "iteration": 20,
+  "name": "scad_patch",
+  "arguments": {
+    "path": "model.scad",
+    "old": "module gear1() {\n    difference() {\n        union() {\n            gear_solid(z1);\n            translate([0, 0, gear_h]) cylinder(r = 12, h = 2.5, $fn = 72);\n            // crank peg, standing up at radius 7.5 (clear of the notches)\n            translate([0, 7.5, gear_h]) cylinder(r = 2.6, h = 11.5, $fn = 36);\n        }\n        translate([0, 0, -1]) cylinder(r = bore_r, h = 20, $fn = 48);\n        // four detent notches, every quarter turn\n        for (a = [0, 90, 180, 270])\n            rotate([0, 0, a]) translate([0, -12, gear_h - 0.2])\n                cylinder(r = 1.6, h = 2.9, $fn = 32);\n    }\n}",
+    "new": "module gear1() {\n    difference() {\n        union() {\n            gear_solid(z1);\n            // detent flange, a ring on edge radius 12 with four deep V\n            // notches: the base bump clicks in every quarter turn\n            rotate_extrude($fn = 96)\n                polygon(points = [[9, 5], [12, 5], [12, 7.5], [9, 7.5]]);\n            // crank peg, standing up at radius 7.5 (clear of the notches)\n            translate([0, 7.5, gear_h]) cylinder(r = 2.6, h = 11.5, $fn = 36);\n        }\n        translate([0, 0, -1]) cylinder(r = bore_r, h = 20, $fn = 48);\n        for (a = [0, 90, 180, 270])\n            rotate([0, 0, a]) translate([0, -10.6, gear_h - 0.2])\n                cylinder(r1 = 1.2, r2 = 2.6, h = 2.9, $fn = 32);\n    }\n}"
+  },
+  "result": {
+    "ok": true,
+    "path": "model.scad",
+    "line": 110,
+    "lines_removed": 15,
+    "lines_added": 17,
+    "bytes": 12783,
+    "lines": 274,
+    "sha256": "d4289a098657e52d9960f7021821e918dc7061719c7e61880ed7e107d0a4d2ae"
+  },
+  "seconds": 0.34,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [
+      "model.scad"
+    ],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [
+    "model.scad"
+  ],
+  "rule": null,
+  "source": "8ff7c2fbc414fea1"
+}

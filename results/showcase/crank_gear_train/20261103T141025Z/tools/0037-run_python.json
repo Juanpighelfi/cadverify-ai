@@ -1,0 +1,36 @@
+{
+  "seq": 37,
+  "iteration": 12,
+  "name": "run_python",
+  "arguments": {
+    "code": "import trimesh\nm = trimesh.load(\"exports/model.base.87e59dfb.stl\")\nprint(\"watertight\", m.is_watertight, \"vol\", m.volume)\nparts = m.split(only_watertight=False)\nfor i,p in enumerate(parts):\n    print(i, len(p.faces), round(float(p.volume),2), [round(float(v),2) for v in p.bounds[0]], [round(float(v),2) for v in p.bounds[1]])\n# tooth centroids for gear2 at y=0.8\ng = trimesh.load(\"exports/model.gear2.c296662c.stl\")\nimport numpy as np\n# cross-section at z=2.5\nsec = g.section(plane_origin=[0,0,2.5], plane_normal=[0,0,1])\nplanar,_ = sec.to_2D()\nangs=[]\nfor ent in planar.entities:\n    pts = planar.vertices[ent.points]\n    c = pts.mean(axis=0)\n    angs.append((round(float(np.degrees(np.arctan2(c[1],c[0]))),1), round(float(np.hypot(*c)),2)))\nprint(\"gear2 section blobs (angle, radius):\", sorted(angs))\ng1 = trimesh.load(\"exports/model.gear1.60ff1f0c.stl\")\nsec = g1.section(plane_origin=[0,0,2.5], plane_normal=[0,0,1])\nplanar,_ = sec.to_2D()\nangs=[]\nfor ent in planar.entities:\n    pts = planar.vertices[ent.points]\n    c = pts.mean(axis=0)\n    angs.append((round(float(np.degrees(np.arctan2(c[1],c[0]))),1), round(float(np.hypot(*c)),2)))\nprint(\"gear1 section blobs:\", sorted(angs))\n"
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 1.037,
+    "stdout": "watertight True vol 19351.296111748336\n0 1354 19332.28 [0.0, 0.0, 0.0] [100.0, 60.0, 13.7]\n1 64 19.01 [19.9, 14.4, 9.0] [22.1, 18.8, 11.2]\ngear2 section blobs (angle, radius): [(-126.6, 0.03), (90.0, 0.04)]\ngear1 section blobs: [(90.0, 0.03), (90.0, 0.04)]\n",
+    "stderr": "",
+    "stdout_bytes": 257,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 1.606,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "873b2ec8e4e8b999"
+}

@@ -5,6 +5,7 @@ import re
 
 from cadverify import cli, replay
 from cadverify.agent.gates import GATES
+from cadverify.agent.prompts import SEED_NOTE
 
 GREEN = {g: True for g in GATES}
 
@@ -149,6 +150,20 @@ def test_the_markdown_the_model_writes_is_rendered_and_escaped():
     assert "<ol><li>first</li><li>second</li></ol>" in html
     assert '<p class="h">Not verified</p><p>strength</p>' in html
     assert replay._inline("diameters [[0.0, 4.6]]") == "diameters [[0.0, 4.6]]"
+
+
+def test_a_fenced_block_is_code_and_a_bare_seed_is_fenced():
+    html = replay._markdown("Go on.\n\n```openscad\nmodule a() {\n    cube(1);\n}\n```\nDone.")
+    assert html == (
+        '<p>Go on.</p><pre class="code">module a() {\n    cube(1);\n}</pre><p>Done.</p>'
+    )
+    bare = "Go on.\n// Gear\nx = 1; // <mm>" + SEED_NOTE
+    fenced = "Go on.\n\n```openscad\n// Gear\nx = 1; // <mm>\n```\n\n" + SEED_NOTE.strip()
+    assert replay._fenced_seed(bare) == fenced
+    assert replay._fenced_seed(fenced) == fenced
+    assert "x = 1; // &lt;mm&gt;</pre>" in replay._markdown(fenced)
+    long = "```openscad\n" + "x = 1;\n" * 21 + "```"
+    assert replay._markdown(long).startswith("<details><summary>openscad · 21 lines</summary><pre")
 
 
 def test_a_numbered_list_keeps_its_first_number():

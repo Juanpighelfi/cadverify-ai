@@ -1,0 +1,36 @@
+{
+  "seq": 4,
+  "iteration": 3,
+  "name": "run_python",
+  "arguments": {
+    "code": "import math\nfrom shapely.geometry import Polygon\nfrom shapely.strtree import STRtree\n\ndef inv(a): return math.tan(a)-a\ndef gear_pts(z,mod=1.5,pa_deg=20,back=0.4):\n    rp=mod*z/2; rb=rp*math.cos(math.radians(pa_deg)); rt=rp+mod; rr=rp-1.25*mod\n    pa=math.radians(pa_deg)\n    def half_ang(r):\n        ar=math.acos(rb/r)\n        hp=math.pi/(2*z)-back/(2*rp)\n        return hp+inv(pa)-inv(ar)\n    rs=max(rb,rr); steps=4; pitch=2*math.pi/z\n    def pol(r,a): return (r*math.cos(a),r*math.sin(a))\n    ha_root=half_ang(rs)\n    pts=[pol(rr,-pitch/2),pol(rr,-ha_root)]\n    for i in range(steps+1):\n        r=rs+(rt-rs)*i/steps; pts.append(pol(r,-half_ang(r)))\n    for i in range(steps,-1,-1):\n        r=rs+(rt-rs)*i/steps; pts.append(pol(r,half_ang(r)))\n    pts.append(pol(rr,ha_root))\n    poly=Polygon(pts)\n    polys=[]\n    for i in range(z):\n        a=pitch*i; ca,sa=math.cos(a),math.sin(a)\n        polys.append(Polygon([(x*ca-y*sa,x*sa+y*ca) for x,y in pts]))\n    from shapely.geometry import Point\n    body=Polygon(pts)  # placeholder\n    # union via shapely ops\n    from shapely.ops import unary_union\n    core=Point(0,0).buffer(rr, resolution=64)\n    return unary_union([core]+polys), rr, rt, rb\n\npolys={}\nfor z in (18,12,16,10):\n    p,rr,rt,rb=gear_pts(z)\n    print(f\"z={z} valid={p.is_valid} area={p.area:.1f} tip={rt}\")\n    polys[z]=p\n\ncentres={18:(21,30)}\nx1,r1=21,13.5; x2=x1+22.9; x3=x2+21.4; x4=x3+19.9\nc=[(x1,30),(x2,30),(x3,30),(x4,30)]; zs=[18,12,16,10]\nprint(\"centres\",c)\ndef rot(p,a,cx,cy):\n    from shapely.affinity import rotate, translate\n    return translate(rotate(p,a,origin=(0,0)), xoff=cx, yoff=cy)\ng1=rot(polys[18],0,*c[0]); g2=rot(polys[12],270,*c[1]); g3=rot(polys[16],0,*c[2]); g4=rot(polys[10],288,*c[3])\nfor n,(a,b) in enumerate([(g1,g2),(g2,g3),(g3,g4)]):\n    print(f\"mesh {n+1}: overlap={a.intersection(b).area:.3f} mm2  dist={a.distance(b):.3f}\")\n# sweep gear1/g2 one pitch, driven gear counter-rotating\ng2b=polys[12]\nworst=0; worst_a=None\nfor k in range(37):\n    a1=k*2.0\n    a2=270-a1*18/12\n    A=rot(polys[18],a1,*c[0]); B=rot(g2b,a2,*c[1])\n    ov=A.intersection(B).area\n    if ov>worst: worst,worst_a=ov,a1\nprint(f\"mesh1 sweep: worst tooth overlap {worst:.3f} mm2 at gear1 angle {worst_a}\")\n# detent: flange r12 disc vs bump circle at (21,18)\nfrom shapely.geometry import Point\nbump=Point(21,18).buffer(0.8)\ndef notch_cx(a):\n    pts=[]\n    for k in range(4):\n        t=math.radians(a+90*k)\n        pts.append((21-12*math.sin(t),30-12*math.cos(t)))\n    return pts\nfor a in (0,45,90):\n    ns=notch_cx(a); d=[Point(*p).buffer(1.6) for p in ns]\n    ov=[bump.intersection(x).area for x in d]\n    print(f\"gear1 at {a}: notch centres {[(round(x,1),round(y,1)) for x,y in ns]} bump overlap {max(ov):.3f}\")\nprint(\"bump to flange edge overlap (disc r12 minus notches):\", bump.intersection(Point(21,30).buffer(12)).area)\n"
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.275,
+    "stdout": "z=18 valid=True area=532.0 tip=15.0\nz=12 valid=True area=227.0 tip=10.5\nz=16 valid=True area=416.0 tip=13.5\nz=10 valid=True area=154.1 tip=9.0\ncentres [(21, 30), (43.9, 30), (65.3, 30), (85.19999999999999, 30)]\nmesh 1: overlap=3.624 mm2  dist=0.000\nmesh 2: overlap=3.421 mm2  dist=0.000\nmesh 3: overlap=3.129 mm2  dist=0.000\nmesh1 sweep: worst tooth overlap 4.567 mm2 at gear1 angle 30.0\ngear1 at 0: notch centres [(21.0, 18.0), (9.0, 30.0), (21.0, 42.0), (33.0, 30.0)] bump overlap 2.007\ngear1 at 45: notch centres [(12.5, 21.5), (12.5, 38.5), (29.5, 38.5), (29.5, 21.5)] bump overlap 0.000\ngear1 at 90: notch centres [(9.0, 30.0), (21.0, 42.0), (33.0, 30.0), (21.0, 18.0)] bump overlap 2.007\nbump to flange edge overlap (disc r12 minus notches): 0.9723300320692428\n",
+    "stderr": "",
+    "stdout_bytes": 767,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 0.804,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "c1400c49d7f04fa6"
+}

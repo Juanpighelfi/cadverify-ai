@@ -1,0 +1,35 @@
+{
+  "seq": 71,
+  "iteration": 23,
+  "name": "scad_patch",
+  "arguments": {
+    "path": "model.scad",
+    "old": "    difference() {\n        union() {\n            gear_solid(z1);\n            // detent flange, a ring on edge radius 12 with four deep V\n            // notches: the base bump clicks in every quarter turn\n            rotate_extrude($fn = 96)\n                polygon(points = [[9, 5], [12, 5], [12, 7.5], [9, 7.5]]);\n            // crank peg, standing up at radius 7.5 (clear of the notches)\n            translate([0, 7.5, gear_h]) cylinder(r = 2.6, h = 11.5, $fn = 36);\n        }\n        translate([0, 0, -1]) cylinder(r = bore_r, h = 20, $fn = 48);\n        for (a = [0, 90, 180, 270])\n            rotate([0, 0, a]) translate([0, -10.6, gear_h - 0.2])\n                cylinder(r1 = 1.2, r2 = 2.6, h = 2.9, $fn = 32);\n    }",
+    "new": "    difference() {\n        union() {\n            gear_solid(z1);\n            // detent plate on the gear, dipping 0.7 below the gear top so\n            // its underside bridges only 0.6 above the gear top face\n            translate([0, 0, gear_h - 0.7]) cylinder(r = 12, h = 3.2, $fn = 72);\n            // crank peg, standing up at radius 7.5 (clear of the notches)\n            translate([0, 7.5, gear_h]) cylinder(r = 2.6, h = 11.5, $fn = 36);\n        }\n        translate([0, 0, -1]) cylinder(r = bore_r, h = 20, $fn = 48);\n        // four deep V notches: the base bump clicks in every quarter turn\n        for (a = [0, 90, 180, 270])\n            rotate([0, 0, a]) translate([0, -10.6, gear_h - 1.5])\n                cylinder(r1 = 2.6, r2 = 1.2, h = 4.2, $fn = 32);\n    }"
+  },
+  "result": {
+    "ok": true,
+    "path": "model.scad",
+    "line": 111,
+    "lines_removed": 15,
+    "lines_added": 15,
+    "bytes": 12975,
+    "lines": 275,
+    "sha256": "d888a8e94e2886b429601ca9fe2404a964487d63ddf8a8876502c4d6b6f0eeef"
+  },
+  "seconds": 0.372,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [
+      "model.scad"
+    ],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [
+    "model.scad"
+  ],
+  "rule": null,
+  "source": "c32d163a9aa78358"
+}

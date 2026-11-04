@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any
 
 from cadverify.agent.gates import GATES
+from cadverify.agent.prompts import SEED_NOTE
 
 GATE_NAMES = {
     "G1": "compiles clean",
@@ -38,6 +39,7 @@ CLOSES = {
 STATUS = {"green": "ok", "running": "info"}
 # Lines of findings shown per tool call and per red gate of a refused close.
 MAX_FINDINGS = 6
+FOLD_CODE_LINES = 20  # a longer code block (a seeded model.scad) is folded
 # Width of the gate grid's cells: they share the panel, within these bounds (px).
 GRID_WIDTH, CELL_MIN, CELL_MAX = 860, 10, 32
 
@@ -94,6 +96,7 @@ pre {
 .md p { margin: 0 0 8px; }
 .md p.h { font-weight: 700; margin-top: 12px; }
 .md ul, .md ol { margin: 0 0 8px; padding-left: 22px; }
+.md pre.code, .md details { margin: 0 0 8px; }
 .md ul { list-style: disc; }
 .md li > ul { list-style: circle; }
 .md li > ul, .md li > ol { margin: 2px 0 0; }
@@ -217,9 +220,29 @@ def _markdown(text: str) -> str:
             else:
                 blocks.append(html)
 
+    code: list[str] | None = None  # the lines of an open ``` block
+    language = ""
+
+    def code_block() -> str:
+        pre = f'<pre class="code">{escape(chr(10).join(code or []))}</pre>'
+        if len(code or []) <= FOLD_CODE_LINES:
+            return pre
+        name = f"{language} · " if language else ""
+        return f"<details><summary>{escape(name)}{len(code or [])} lines</summary>{pre}</details>"
+
     for line in text.strip().splitlines():
         stripped = line.strip()
-        if not stripped:
+        if code is not None:
+            if stripped.startswith("```"):
+                blocks.append(code_block())
+                code = None
+            else:
+                code.append(line)
+        elif stripped.startswith("```"):
+            close_para()
+            close_lists()
+            code, language = [], stripped[3:].strip()
+        elif not stripped:
             close_para()
             close_lists()
         elif heading := HEADING.fullmatch(stripped):
@@ -243,7 +266,23 @@ def _markdown(text: str) -> str:
             para.append(stripped)
     close_para()
     close_lists()
+    if code is not None:
+        blocks.append(code_block())
     return "".join(blocks)
+
+
+def _fenced_seed(request: str) -> str:
+    """A request that carries a .scad, with the .scad fenced: the sessions before the fence had
+    it bare, from its first line that starts with // (where the command found it) to SEED_NOTE."""
+    note = SEED_NOTE.strip()
+    if not request.endswith(note) or "\n```" in request:
+        return request
+    lines = request[: -len(note)].rstrip().splitlines()
+    start = next((i for i, line in enumerate(lines) if line.startswith("//")), None)
+    if start is None:
+        return request
+    scad = "\n".join(lines[start:])
+    return "\n".join(lines[:start]).rstrip() + f"\n\n```openscad\n{scad}\n```\n\n{note}"
 
 
 def _records(run_dir: Path) -> dict[int, dict[str, Any]]:
@@ -396,7 +435,7 @@ def html_page(run_dir: Path) -> str:
         f'<span class="badge {_state(final.get(g))}">{g} {GATE_NAMES[g]}</span>' for g in GATES
     )
     source = run_dir / "workspace" / "model.scad"
-    request = session["request"].strip()
+    request = _fenced_seed(session["request"].strip())
     first, _, rest = request.partition("\n")
     if HEADING.fullmatch(first.strip()) and _title(first) == title:
         request = rest  # the page's own heading already says it

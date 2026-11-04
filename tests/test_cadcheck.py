@@ -138,6 +138,9 @@ spread = 0; // [0:5:120]
 no_range = 2;
 """
     assert customizer_options(code, "part") == ["a", "b", "c"]
+    # quoted, as OpenSCAD reads them (its parameter export gives the values without quotes)
+    quoted = 'part = "base"; // ["assembly", "base", "gear 1", "x, y":Label X]\n'
+    assert customizer_options(quoted, "part") == ["assembly", "base", "gear 1", "x, y"]
     assert customizer_options(code, "spread") == []
     assert customizer_options(code, "no_range") == []
     assert customizer_options(code, "other") == []

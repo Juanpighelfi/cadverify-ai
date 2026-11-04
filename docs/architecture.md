@@ -48,7 +48,9 @@ against a total budget before a session starts.
 Long sessions are kept alive by:
 
 - streaming every request (a non-streamed request times out at about 600 s on the server, and a
-  64k-token response takes longer);
+  64k-token response takes longer); a stream that breaks after it started is fetched from the
+  server, and one that sends no event at all in 30 minutes is sent again, since it has nothing
+  to fetch;
 - chaining with `previous_response_id`, while keeping the whole conversation locally: when the
   server loses a stored response, the loop resends the history without it;
 - prompt caching (`prompt_cache_key`, 24 h retention), so a long session pays the cached rate

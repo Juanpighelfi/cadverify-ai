@@ -1,0 +1,36 @@
+{
+  "seq": 5,
+  "iteration": 4,
+  "name": "run_python",
+  "arguments": {
+    "code": "import math\nfrom shapely.geometry import Polygon, Point\nfrom shapely.ops import unary_union\nfrom shapely.affinity import rotate, translate\n\ndef inv(a): return math.tan(a)-a\ndef make(z, mod=1.5, pa_deg=20, back=0.4, root_taper=1.0):\n    rp=mod*z/2; rb=rp*math.cos(math.radians(pa_deg)); rt=rp+mod; rr=rp-1.25*mod\n    pa=math.radians(pa_deg)\n    def ha(r):\n        ar=math.acos(min(1.0, rb/r))\n        return math.pi/(2*z)-back/(2*rp)+inv(pa)-inv(ar)\n    rs=max(rb,rr); steps=5; pitch=2*math.pi/z\n    def pol(r,a): return (r*math.cos(a), r*math.sin(a))\n    ha_rs=ha(rs); ha_root=ha_rs*root_taper if rs>rr else ha(rr)\n    tooth=[pol(rr,-pitch/2), pol(rr,-ha_root), pol(rs,-ha_rs)]\n    for i in range(1,steps+1):\n        r=rs+(rt-rs)*i/steps; tooth.append(pol(r,-ha(r)))\n    tooth.append(pol(rt,0))\n    for i in range(steps,-1,-1):\n        r=rs+(rt-rs)*i/steps; tooth.append(pol(r,ha(r)))\n    tooth+= [pol(rs,ha_rs), pol(rr,ha_root)]\n    polys=[]\n    for i in range(z):\n        a=pitch*i; ca,sa=math.cos(a),math.sin(a)\n        polys.append(Polygon([(x*ca-y*sa, x*sa+y*ca) for x,y in tooth]))\n    core=Point(0,0).buffer(rr, resolution=96)\n    return unary_union([core]+polys)\n\ndef place(p,a,c): return translate(rotate(p,a,origin=(0,0)), xoff=c[0], yoff=c[1])\ncentres=[(21,30),(43.9,30),(65.3,30),(85.2,30)]\nP={18:make(18),12:make(12),16:make(16),10:make(10)}\nzs=[18,12,16,10]\nfor n in range(3):\n    A0,B0,zA,zB = P[zs[n]], P[zs[n+1]], zs[n], zs[n+1]\n    worst=(0,None,None)\n    for k in range(73):\n        a=k*2.5; b=180-180/zB - a*zA/zB\n        iv=place(A0,a,centres[n]).intersection(place(B0,b,centres[n+1]))\n        if iv.area>worst[0]: worst=(iv.area,a,iv.representative_point())\n    print(f\"mesh{n+1} z{zA}-z{zB}: worst overlap {worst[0]:.4f} at gear angle {worst[1]} near {worst[2]}\")\n# try root taper on small gears\nfor taper in (0.8, 0.65, 0.5):\n    P2={18:make(18),12:make(12,root_taper=taper),16:make(16),10:make(10,root_taper=taper)}\n    ok=True; out=[]\n    for n in range(3):\n        w=0\n        for k in range(73):\n            a=k*2.5; b=180-180/zs[n+1] - a*zs[n]/zs[n+1]\n            iv=place(P2[zs[n]],a,centres[n]).intersection(place(P2[zs[n+1]],b,centres[n+1]))\n            w=max(w,iv.area)\n        out.append(round(w,4))\n    print(f\"taper {taper}: worst overlaps {out}\")\n# also: increase extra centre to 0.6 with taper 0.65\ncentres2=[(21,30),(21+13.5+9+0.6,30),(21+22.5+1.2+12+9+0.6,30)]\n# recompute properly\nc2=[(21,30)]; rp=[13.5,9,12,7.5]\nfor i in range(3): c2.append((c2[-1][0]+rp[i]+rp[i+1]+0.6,30))\nP2={18:make(18),12:make(12,root_taper=0.65),16:make(16),10:make(10,root_taper=0.65)}\nout=[]\nfor n in range(3):\n    w=0\n    for k in range(73):\n        a=k*2.5; b=180-180/zs[n+1] - a*zs[n]/zs[n+1]\n        iv=place(P2[zs[n]],a,c2[n]).intersection(place(P2[zs[n+1]],b,c2[n+1]))\n        w=max(w,iv.area)\n    out.append((round(w,4),))\nprint(\"centres +0.6:\", c2, \"worst\", out)\n"
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.842,
+    "stdout": "mesh1 z18-z12: worst overlap 0.0000 at gear angle None near None\nmesh2 z12-z16: worst overlap 0.0000 at gear angle None near None\nmesh3 z16-z10: worst overlap 0.0000 at gear angle None near None\ntaper 0.8: worst overlaps [0, 0, 0]\ntaper 0.65: worst overlaps [0, 0, 0]\ntaper 0.5: worst overlaps [0, 0, 0]\ncentres +0.6: [(21, 30), (44.1, 30), (65.69999999999999, 30), (85.79999999999998, 30)] worst [(0,), (0,), (0,)]\n",
+    "stderr": "",
+    "stdout_bytes": 416,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 1.66,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "c1400c49d7f04fa6"
+}

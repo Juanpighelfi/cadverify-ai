@@ -168,7 +168,9 @@ def test_a_streamed_response_is_recorded_like_one_without_streaming(tmp_path, mo
         and call.body == final
         and call.cost_usd == cost_usd({"input_tokens": 10, "output_tokens": 5}, "m")
     )
-    assert call.attempts[0]["stream"] == {"events": 3, "terminal": "response.completed"}
+    stream = call.attempts[0]["stream"]
+    assert isinstance(stream.pop("first_event_s"), float)
+    assert stream == {"events": 3, "terminal": "response.completed"}
     (record,) = _raw_records(tmp_path)
     assert record["response"] == final and record["request"]["stream"] is True
 
@@ -218,7 +220,51 @@ def test_a_broken_stream_is_fetched_from_the_server(tmp_path, monkeypatch):
 
     call = _client(tmp_path, handler, monkeypatch).responses("t", model="m", input="x", stream=True)
     assert call.ok and call.response_status == "completed" and len(call.attempts) == 1
-    assert call.attempts[0]["stream"] == {"events": 1, "terminal": None, "recovered": True}
+    stream = call.attempts[0]["stream"]
+    assert isinstance(stream.pop("first_event_s"), float)
+    assert stream == {"events": 1, "terminal": None, "recovered": True}
+
+
+class _SilentStream(httpx.SyncByteStream):
+    """Headers, then `first` (maybe nothing) and a read timeout."""
+
+    def __init__(self, first: bytes = b""):
+        self.first = first
+
+    def __iter__(self):
+        if self.first:
+            yield self.first
+        raise httpx.ReadTimeout("The read operation timed out")
+
+
+def test_a_stream_that_sends_nothing_is_sent_again(tmp_path, monkeypatch):
+    replies = iter([_SilentStream(), None])
+
+    def handler(request):
+        reply = next(replies)
+        if reply is not None:
+            return httpx.Response(200, stream=reply)
+        return _stream({"type": "response.completed", "response": _response()})
+
+    call = _client(tmp_path, handler, monkeypatch).responses("t", model="m", input="x", stream=True)
+    assert call.ok and len(call.attempts) == 2
+    assert call.attempts[0]["stream"] == {"events": 0, "terminal": None}
+    assert "ReadTimeout" in call.attempts[0]["error"]
+
+
+def test_a_started_stream_that_times_out_is_not_sent_twice(tmp_path, monkeypatch):
+    """The server has the response: sent again, it could be billed twice."""
+    monkeypatch.setattr(meta_api, "RECOVER_MAX_S", 0)
+    created = _sse({"type": "response.created", "response": _response("in_progress")}, done=False)
+
+    def handler(request):
+        if request.method == "GET":
+            return httpx.Response(200, json=_response("in_progress"))
+        return httpx.Response(200, stream=_SilentStream(created))
+
+    call = _client(tmp_path, handler, monkeypatch).responses("t", model="m", input="x", stream=True)
+    assert not call.ok and len(call.attempts) == 1
+    assert call.attempts[0]["stream"]["recovered"] is False
 
 
 def test_a_stream_that_never_started_is_retried_like_a_request(tmp_path, monkeypatch):

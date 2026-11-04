@@ -2,6 +2,7 @@
 
 uv run cadverify design requests/bayonet_jar.md          # one design session (uses the API)
 uv run cadverify design request.md --add "One more requirement."  # one more paragraph
+uv run cadverify design request.md --seed <run>/workspace/model.scad  # go on from a design
 uv run cadverify design request.md --units 2 --max-usd 4  # two chained units, USD 4 at most
 uv run cadverify design request.md --model muse-spark-1.3 --auditor muse-wonder-1.0
 uv run cadverify summary results/design/<request>/<UTC>   # a session in Markdown
@@ -13,7 +14,8 @@ uv run cadverify hostile                                   # hostile cases in th
 
 A request is a Markdown file. If it carries a starting .scad (everything from its first line that
 starts with //), that is model.scad when the session starts, and the request says so in one added
-line. --add puts one more paragraph between the request and its .scad.
+line. --seed gives that .scad from a file instead (the model.scad of a session that stopped, to go
+on from it). --add puts one more paragraph between the request and its .scad.
 
 Each session runs in a new sandbox container, with the full tool set and gates G1 to G8, and
 records everything under <results>/<request name>/<UTC>/: raw/ (every request, without the key),
@@ -43,6 +45,7 @@ from pathlib import Path
 
 from cadverify import hostile, ledger, replay, summary
 from cadverify.agent.loop import Limits, run_session
+from cadverify.agent.prompts import SEED_NOTE
 from cadverify.agent.sandbox import Sandbox
 from cadverify.agent.tools import ToolBox
 from cadverify.config import PROJECT_ROOT, load_env, make_client
@@ -60,21 +63,26 @@ LIMITS = Limits(
     wrap_up_requests=10,
 )
 MAX_LIVE_IMAGES = 40  # more than this in the context and the oldest leave it (agent/loop.py)
-SEED_NOTE = "\n\n(The .scad of this message is already model.scad, in your workspace.)"
+MIN_SESSION_USD = 1.0
 
 
-def split_request(text: str, add: str = "") -> tuple[str, bytes | None]:
+def split_request(text: str, add: str = "", seed: str | None = None) -> tuple[str, bytes | None]:
     """The request for the model and the .scad it carries, if any, which seeds model.scad. `add`
-    is one more paragraph for the request, after its text and before the .scad."""
+    is one more paragraph for the request, after its text and before the .scad. `seed` is a .scad
+    from elsewhere (a previous session's model.scad) for a request that carries none."""
     lines = text.splitlines(keepends=True)
     start = next((i for i, line in enumerate(lines) if line.startswith("//")), None)
     request = "".join(lines[:start]).rstrip()
     if add.strip():
         request += "\n\n" + add.strip()
-    if start is None:
+    if start is not None:
+        if seed is not None:
+            raise ValueError("the request already carries a .scad: --seed would replace it")
+        seed = "".join(lines[start:])
+    if seed is None:
         return request, None
-    scad = "".join(lines[start:])
-    return request + "\n" + scad.rstrip() + SEED_NOTE, scad.encode("utf-8")
+    fenced = f"\n\n```openscad\n{seed.rstrip()}\n```"
+    return request + fenced + SEED_NOTE, seed.encode("utf-8")
 
 
 class FileAsker:
@@ -105,21 +113,37 @@ def check_contributor(request: Path, models: list[str]) -> None:
         )
 
 
+def session_cap(max_usd: float, budget_usd: float, spent_usd: float) -> float:
+    """What the session may spend: --max-usd, or less when the budget has less left; refused
+    when the budget leaves less than USD 1 of it (too little for a session to get anywhere). A
+    smaller --max-usd is the user's own choice, for a cheaper model or a short session."""
+    if max_usd <= 0:
+        raise SystemExit("--max-usd must be above 0.")
+    left = budget_usd - spent_usd
+    if left < min(max_usd, MIN_SESSION_USD):
+        raise SystemExit(f"USD {left:.2f} left of USD {budget_usd:.2f}: raise the budget.")
+    return min(max_usd, left)
+
+
 def design(args: argparse.Namespace) -> int:
     check_contributor(args.request, [args.model, args.auditor])
-    request, seed = split_request(args.request.read_text(encoding="utf-8"), args.add)
+    try:
+        request, seed = split_request(
+            args.request.read_text(encoding="utf-8"),
+            args.add,
+            args.seed.read_text(encoding="utf-8") if args.seed else None,
+        )
+    except ValueError as exc:
+        raise SystemExit(f"{args.request}: {exc}") from None
     if args.units < 1:
         raise SystemExit("--units starts at 1.")
-    left = args.budget_usd - ledger.spent_usd(args.results)
     limits = replace(
         LIMITS,
         max_requests=args.max_requests,
-        max_cost_usd=min(args.max_usd, left),
+        max_cost_usd=session_cap(args.max_usd, args.budget_usd, ledger.spent_usd(args.results)),
         max_wall_s=args.max_minutes * 60,
         max_live_images=MAX_LIVE_IMAGES,
     )
-    if limits.max_cost_usd < 1.0:
-        raise SystemExit(f"USD {left:.2f} left of USD {args.budget_usd:.2f}: raise the budget.")
     ledger.check_budget(limits.max_cost_usd, args.results, args.budget_usd)
     print(f"Session cap: USD {limits.max_cost_usd:.2f}", flush=True)
     run_dir = ledger.new_run_dir(args.results, args.request.stem)
@@ -168,6 +192,9 @@ def main(argv: list[str] | None = None) -> int:
     run = sub.add_parser("design", help="one design session on a request file")
     run.add_argument("request", type=Path)
     run.add_argument("--add", default="", help="one more paragraph for the request")
+    run.add_argument(
+        "--seed", type=Path, help="a .scad that starts as model.scad (a previous session's)"
+    )
     run.add_argument("--units", type=int, default=1, help="chained units the assembly shows")
     run.add_argument("--max-usd", type=float, default=LIMITS.max_cost_usd)
     run.add_argument("--max-requests", type=int, default=LIMITS.max_requests)

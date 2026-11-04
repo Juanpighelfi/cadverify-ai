@@ -1,0 +1,36 @@
+{
+  "seq": 38,
+  "iteration": 13,
+  "name": "run_python",
+  "arguments": {
+    "code": "import trimesh, numpy as np, math\nfor name, tip in [(\"gear1\",15.0),(\"gear2\",10.5),(\"gear3\",13.5),(\"gear4\",9.0)]:\n    m = trimesh.load(f\"exports/model.{name}.\" + {\"gear1\":\"60ff1f0c\",\"gear2\":\"c296662c\",\"gear3\":\"fdff3092\",\"gear4\":\"32f2c95a\"}[name] + \".stl\")\n    sec = m.section(plane_origin=[0,0,2.5], plane_normal=[0,0,1])\n    planar,_ = sec.to_2D()\n    poly = planar.polygons_closed[0]\n    xs, ys = poly.exterior.xy\n    angs = []\n    # tooth tips = vertices near tip radius\n    for x,y in zip(xs,ys):\n        r = math.hypot(x,y)\n        if r > tip-0.3:\n            angs.append(round(math.degrees(math.atan2(y,x)),1))\n    angs = sorted(set(angs))\n    # cluster\n    clusters=[]\n    for a in angs:\n        if not clusters or a-clusters[-1][-1]>1: clusters.append([a])\n        else: clusters[-1].append(a)\n    cents = [round(sum(c)/len(c),1) for c in clusters]\n    print(name, \"tooth tip angles:\", cents)\n"
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.994,
+    "stdout": "gear1 tooth tip angles: [-179.4, -161.4, -159.4, -141.4, -139.4, -121.4, -119.4, -101.4, -99.4, -81.4, -79.4, -61.5, -59.4, -41.5, -39.4, -21.5, -19.4, -1.5, 0.6, 18.5, 20.6, 38.5, 40.6, 58.5, 60.6, 78.6, 80.6, 98.6, 100.6, 118.6, 120.6, 138.6, 140.6, 158.6, 160.6, 178.6]\ngear2 tooth tip angles: []\ngear3 tooth tip angles: []\ngear4 tooth tip angles: [-178.9, -146.4, -145.3, -142.9, -110.4, -109.3, -106.9, -74.4, -73.3, -70.9, -38.4, -37.3, -34.9, -2.4, -1.3, 1.1, 33.6, 34.7, 37.1, 69.6, 70.7, 73.1, 105.6, 106.7, 109.1, 141.6, 142.7, 145.1, 177.6, 178.7]\n",
+    "stderr": "",
+    "stdout_bytes": 559,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 1.384,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "873b2ec8e4e8b999"
+}

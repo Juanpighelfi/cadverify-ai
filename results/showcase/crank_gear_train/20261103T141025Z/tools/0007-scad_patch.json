@@ -1,0 +1,35 @@
+{
+  "seq": 7,
+  "iteration": 6,
+  "name": "scad_patch",
+  "arguments": {
+    "path": "model.scad",
+    "old": "function tooth_pts(z) =\n    let(rp = pitch_r(z), rb = rp * cos(press_deg), rt = rp + mod,\n        rr = rp - 1.25 * mod, pitch_a = 2 * PI / z,\n        rs = max(rb, rr), steps = 4,\n        ha_root = half_ang(z, rs, rb, rp))\n    concat(\n        [pol(rr, -pitch_a / 2), pol(rr, -ha_root)],\n        [for (i = [0 : steps]) let(r = rs + (rt - rs) * i / steps)\n             pol(r, -half_ang(z, r, rb, rp))],\n        [for (i = [steps : -1 : 0]) let(r = rs + (rt - rs) * i / steps)\n             pol(r, half_ang(z, r, rb, rp))],\n        [pol(rr, ha_root)]);",
+    "new": "function tooth_pts(z) =\n    let(rp = pitch_r(z), rb = rp * cos(press_deg), rt = rp + mod,\n        rr = rp - 1.25 * mod, pitch_a = 2 * PI / z,\n        rs = max(rb, rr), steps = 4,\n        ha_root = half_ang(z, rs, rb, rp))\n    concat(\n        // root arc to involute start, flank up, tip point, flank down\n        [pol(rr, -pitch_a / 2), pol(rr, -ha_root)],\n        [for (i = [1 : steps]) let(r = rs + (rt - rs) * i / steps)\n             pol(r, -half_ang(z, r, rb, rp))],\n        [for (i = [steps - 1 : -1 : 0]) let(r = rs + (rt - rs) * i / steps)\n             pol(r, half_ang(z, r, rb, rp))],\n        [pol(rr, ha_root)]);"
+  },
+  "result": {
+    "ok": true,
+    "path": "model.scad",
+    "line": 58,
+    "lines_removed": 12,
+    "lines_added": 13,
+    "bytes": 12467,
+    "lines": 271,
+    "sha256": "b20900790389afb11f0e0deb5aa84367516a093c25b35f85933b8ccddb20bc63"
+  },
+  "seconds": 0.465,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [
+      "model.scad"
+    ],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [
+    "model.scad"
+  ],
+  "rule": null,
+  "source": "ede2073ac39d0d41"
+}

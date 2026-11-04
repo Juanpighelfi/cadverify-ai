@@ -1,0 +1,36 @@
+{
+  "seq": 60,
+  "iteration": 19,
+  "name": "run_shell",
+  "arguments": {
+    "cmd": "grep -n \"cadverify_spec\" model.scad | head; sed -n 1,40p model.scad"
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.014,
+    "stdout": "134:    echo(cadverify_spec = [\n159:    echo(cadverify_spec = [\n179:    echo(cadverify_spec = [\n195:    echo(cadverify_spec = [\n211:    echo(cadverify_spec = [\n227:    echo(cadverify_spec = [\n// Crank gear train, printed in place. PLA, Bambu Lab A1, 0.4 mm nozzle.\n// Four meshing spur gears on capped fixed pins, on a 100 x 60 mm base.\n// Gear 1 carries a crank peg and a notched detent flange; a flexible leaf\n// on the base clicks into the flange notches every quarter turn.\n//\n// Print-in-place clearances used throughout (mm):\n//   gear bore / pin        0.4 radial\n//   gear underside / plate 0.6 vertical\n//   cap underside / gear   0.6 vertical\n//   detent wall / gear tip 0.6\n//   gear mesh              extra centre distance 0.4 + tooth thinning 0.4\npart = \"assembly\"; // [\"assembly\", \"base\", \"gear1\", \"gear2\", \"gear3\", \"gear4\"]\n\ncadverify_only = \"\";\nmodule instance(name, part, unit = 1) {\n    echo(cadverify_instance = [name, part, unit]);\n    if (cadverify_only == \"\" || cadverify_only == name) children();\n}\n\n/* [Gear geometry] */\nmod = 1.5;                    // gear module\npress_deg = 20;               // pressure angle\ngear_h = 5;                   // gear thickness\nbacklash = 0.4;               // circumferential tooth thinning\nextra_centre = 0.4;           // extra centre distance per mesh\nz1 = 18; z2 = 12; z3 = 16; z4 = 10;\nfunction pitch_r(z) = mod * z / 2;\nr1 = pitch_r(z1); r2 = pitch_r(z2); r3 = pitch_r(z3); r4 = pitch_r(z4);\n\n// centres, in assembly coordinates\ny_c = 30;\nx1 = 21;\nx2 = x1 + r1 + r2 + extra_centre;          // 43.9\nx3 = x2 + r2 + r3 + extra_centre;          // 65.3\nx4 = x3 + r3 + r4 + extra_centre;          // 85.2\ncentres = [[x1, y_c], [x2, y_c], [x3, y_c], [x4, y_c]];\n\nbase_w = 100; base_d = 60; plate_h = 3;\ngear_z = plate_h + 0.6;                    // underside of every gear: 3.6\npin_r = 3; bore_r = 3.4;                   // 0.4 radial clearance\n",
+    "stderr": "",
+    "stdout_bytes": 1905,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 0.423,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "e17ec57e44f25f27"
+}

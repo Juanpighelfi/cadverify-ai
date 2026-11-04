@@ -7,6 +7,9 @@ messages of the loop (agent/loop.py): a close refused with the red gates, a resp
 and the end of the session in sight.
 """
 
+# After the .scad a request carries (fenced as openscad), which starts as model.scad.
+SEED_NOTE = "\n\n(The .scad of this message is already model.scad, in your workspace.)"
+
 INSTRUCTIONS = """You are a design engineer for FDM 3D printing who works in OpenSCAD. You work \
 in an isolated workspace and only through the tools. The main file is model.scad.
 
