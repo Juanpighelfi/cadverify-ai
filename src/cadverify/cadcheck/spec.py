@@ -14,6 +14,29 @@ parameters, in the coordinates of the exported part (oriented for printing, in m
 Only `bounds` is required. OpenSCAD cannot measure geometry, so the echo can only restate the
 design intent; the harness measures the mesh and compares.
 
+What the part does under force (cadcheck.behaviour, G6), for a part or, with an instance and in
+assembly coordinates, for the assembly:
+
+    ["material", "PLA"],
+    ["loads", [["shelf", [[x, y, z], [x, y, z]], ["weight_kg", 2, [0, 0, -1]],
+                [[x, y, z], [x, y, z]], 1.5]]],
+    ["stability", [["standing", [0, 0, -1], [[0.25, [x, y, z]]], 10]]]
+
+A product made for a range declares it, and G3 to G6 run at each value (cadcheck.verify):
+
+    ["family", [["phone_width", [60, 75, 90]]]]
+
+What to touch when the real print disagrees, each moved by the harness and checked to move its
+measurement, and a small test print of a flex (a part `test_*` of the selector, not in the
+assembly), with a load of its own, whose stiffness is compared with the real part's:
+
+    ["tune", [["the click is too hard", "arm_thickness", 1.4, "flex lever/wheel"]]]
+    ["probe_of", "flex lever/wheel"]
+
+A load is a box on the surface it acts on, a force in N or a weight, a box of what holds the part,
+and optionally how far it may move. A stability entry is which way is down, what it carries (kg,
+where) and optionally how far it must lean before it tips. A flex may end in a target force in N.
+
 Two more keys for a part: `copies`, how many of it one unit needs (the assembly must place that
 many), and `details`, the features the part announces, each with how to measure it
 (cadcheck.details):
@@ -31,7 +54,8 @@ The assembly (`part = "assembly"`) declares instead, in assembly coordinates
     ["allowed_interferences", [["pin_right", "arm_top", "press fit"]]],
     ["motions", [["hinge", ["lid"], "rotate", [x, y, z], [ax, ay, az], [0, 90]],
                  ["drawer", ["tray"], "slide", [dx, dy, dz], [0, 30],
-                  ["flex", [["tray", "body", 0.5, "the detent bump rides over the ridge"]]],
+                  ["flex", [["tray", "body", 0.5, "the detent bump rides over the ridge",
+                             [2, 8]]]],
                   ["stops", [0, 30]]],
                  ["open", ["cap"], "screw", [x, y, z], [ax, ay, az], 3, [0, -720]],
                  ["crank", ["sun"], "rotate", [x, y, z], [ax, ay, az], [0, 360],
@@ -83,16 +107,21 @@ import numpy as np
 import trimesh
 
 from cadverify.cadcheck import details as details_mod
+from cadverify.cadcheck.materials import GRAVITY, MATERIALS
 
 SPEC_NAME = "cadverify_spec"
+NAME = re.compile(r"[A-Za-z_]\w*")
+MAX_FAMILY_VALUES = 8
+MAX_TUNE = 4
 BOUNDS_TOLERANCE_MM = 0.2  # faceting of $fn circles stays below this at the usual sizes
 PLANE_TOLERANCE_MM = 0.01
 _FACING = np.cos(np.radians(1.0))
 DIRECTIONS = {"+x": (0, 1), "-x": (0, -1), "+y": (1, 1), "-y": (1, -1), "+z": (2, 1), "-z": (2, -1)}
 _AXES = "xyz"
 _KEYS = {"bounds", "bodies", "through_holes", "support_faces", "overhangs_allowed"}
-PART_KEYS = _KEYS | {"copies", "details"}
-ASSEMBLY_KEYS = {
+BEHAVIOUR_KEYS = {"material", "loads", "stability", "family", "tune"}
+PART_KEYS = _KEYS | BEHAVIOUR_KEYS | {"copies", "details", "probe_of"}
+ASSEMBLY_KEYS = BEHAVIOUR_KEYS | {
     "bounds",
     "support_faces",
     "allowed_interferences",
@@ -181,6 +210,13 @@ def parse_spec(text: str, assembly: bool = False) -> dict[str, Any]:
         spec["overhangs_allowed"].append(
             {"name": item[0], "bounds": _bounds(item[1], f"overhangs_allowed {item[0]!r}")}
         )
+    spec["material"] = _material(pairs.get("material"))
+    spec["loads"] = _loads(pairs.get("loads", []), assembly)
+    spec["stability"] = _stabilities(pairs.get("stability", []))
+    spec["family"] = _family(pairs.get("family", []))
+    spec["tune"] = _tune(pairs.get("tune", []))
+    if not assembly:
+        spec["probe_of"] = _probe_of(pairs.get("probe_of"))
     if assembly:
         spec.update(_assembly_keys(pairs))
         if spec["overhangs_allowed"] and spec["print_in_place"] is None:
@@ -192,6 +228,161 @@ def parse_spec(text: str, assembly: bool = False) -> dict[str, Any]:
         spec["copies"] = _count(pairs.get("copies", 1), "copies", minimum=1)
         spec["details"] = _details(pairs.get("details", []))
     return spec
+
+
+def _material(value: Any) -> str | None:
+    if value is None:
+        return None
+    if value not in MATERIALS:
+        raise SpecError(f"material: one of {sorted(MATERIALS)}; got {value!r}")
+    return value
+
+
+def _force(value: Any, where: str) -> dict[str, Any]:
+    """A force in N, [fx, fy, fz], or a weight, ["weight_kg", kg, direction]."""
+    if isinstance(value, list) and len(value) == 3 and value[0] == "weight_kg":
+        if not (_number(value[1]) and value[1] > 0):
+            raise SpecError(f"{where}: a weight is a positive number of kg; got {value[1]!r}")
+        direction = _direction(value[2], where)
+        force = [float(value[1]) * GRAVITY * d for d in direction]
+        return {"force": force, "weight_kg": float(value[1])}
+    force = _vector(value, where)
+    if not any(force):
+        raise SpecError(f"{where}: the force cannot be zero")
+    return {"force": force}
+
+
+def _loads(value: Any, assembly: bool) -> list[dict[str, Any]]:
+    head = '"name", "instance"' if assembly else '"name"'
+    usage = (
+        f"loads: each load is [{head}, box of the surface it acts on, force, box of what holds "
+        "the part, and optionally how far it may move in mm], with the force [fx, fy, fz] in N or "
+        '["weight_kg", kg, direction]'
+    )
+    out, names = [], set()
+    first = 2 if assembly else 1
+    for item in _list(value, "loads"):
+        if not (
+            isinstance(item, list)
+            and len(item) in (first + 3, first + 4)
+            and all(isinstance(x, str) for x in item[:first])
+        ):
+            raise SpecError(f"{usage}; got {item!r}")
+        where = f"loads {item[0]!r}"
+        if item[0] in names:
+            raise SpecError(f"{where}: the name repeats")
+        names.add(item[0])
+        load: dict[str, Any] = {
+            "name": item[0],
+            "box": _bounds(item[first], where),
+            **_force(item[first + 1], where),
+            "fixed": _bounds(item[first + 2], where),
+        }
+        if assembly:
+            load["instance"] = item[1]
+        if len(item) == first + 4:
+            if not (_number(item[-1]) and item[-1] > 0):
+                raise SpecError(f"{where}: how far it may move is a number of mm > 0")
+            load["max_deflection_mm"] = float(item[-1])
+        out.append(load)
+    return out
+
+
+def _family(value: Any) -> list[dict[str, Any]]:
+    usage = (
+        'family: each entry is ["parameter", [value, value, ...]], with at least two values of a '
+        "top-level parameter of the source, numbers or strings"
+    )
+    out, names = [], set()
+    for item in _list(value, "family"):
+        if not (
+            isinstance(item, list)
+            and len(item) == 2
+            and isinstance(item[0], str)
+            and NAME.fullmatch(item[0])
+            and isinstance(item[1], list)
+            and len(item[1]) >= 2
+            and all(_number(v) or isinstance(v, str) for v in item[1])
+        ):
+            raise SpecError(f"{usage}; got {item!r}")
+        if item[0] in names:
+            raise SpecError(f"family {item[0]!r}: the parameter repeats")
+        if len(set(map(str, item[1]))) != len(item[1]):
+            raise SpecError(f"family {item[0]!r}: a value repeats")
+        names.add(item[0])
+        out.append({"param": item[0], "values": list(item[1])})
+    if sum(len(f["values"]) for f in out) > MAX_FAMILY_VALUES:
+        raise SpecError(
+            f"family: at most {MAX_FAMILY_VALUES} values in all: each is a whole verification. "
+            "The ends of the range and the middle say most of it"
+        )
+    return out
+
+
+def _tune(value: Any) -> list[dict[str, Any]]:
+    usage = (
+        'tune: each entry is ["what goes wrong on the real print", "parameter", value to try, '
+        '"flex a/b" or "load name"], the measurement moving that parameter must move'
+    )
+    out = []
+    for item in _list(value, "tune"):
+        if not (
+            isinstance(item, list)
+            and len(item) == 4
+            and isinstance(item[0], str)
+            and isinstance(item[1], str)
+            and NAME.fullmatch(item[1])
+            and (_number(item[2]) or isinstance(item[2], str))
+            and isinstance(item[3], str)
+            and item[3].startswith(("flex ", "load "))
+        ):
+            raise SpecError(f"{usage}; got {item!r}")
+        out.append({"failure": item[0], "param": item[1], "value": item[2], "measure": item[3]})
+    if len(out) > MAX_TUNE:
+        raise SpecError(f"tune: at most {MAX_TUNE} entries: each one is a whole verification")
+    return out
+
+
+def _probe_of(value: Any) -> str | None:
+    if value is None:
+        return None
+    if not (isinstance(value, str) and value.startswith("flex ")):
+        raise SpecError(f'probe_of: the flex this test print stands for, "flex a/b"; got {value!r}')
+    return value
+
+
+def _stabilities(value: Any) -> list[dict[str, Any]]:
+    usage = (
+        'stability: each entry is ["name", direction of down, [[kg, [x, y, z]], ...] of what it '
+        "carries (it may be empty), and optionally how many degrees it must lean before it tips]"
+    )
+    out = []
+    for item in _list(value, "stability"):
+        if not (
+            isinstance(item, list)
+            and len(item) in (3, 4)
+            and isinstance(item[0], str)
+            and isinstance(item[2], list)
+        ):
+            raise SpecError(f"{usage}; got {item!r}")
+        where = f"stability {item[0]!r}"
+        carries = []
+        for carried in item[2]:
+            if not (
+                isinstance(carried, list)
+                and len(carried) == 2
+                and _number(carried[0])
+                and carried[0] > 0
+            ):
+                raise SpecError(f"{usage}; got {carried!r}")
+            carries.append({"kg": float(carried[0]), "at": _vector(carried[1], where)})
+        entry = {"name": item[0], "down": _direction(item[1], where), "carries": carries}
+        if len(item) == 4:
+            if not (_number(item[3]) and 0 < item[3] < 90):
+                raise SpecError(f"{where}: the lean is a number of degrees from 0 to 90")
+            entry["min_tilt_deg"] = float(item[3])
+        out.append(entry)
+    return out
 
 
 def _details(value: Any) -> list[dict[str, Any]]:
@@ -266,7 +457,8 @@ def _assembly_keys(pairs: dict[str, Any]) -> dict[str, Any]:
             'motions: ["name", ["instance", ...], "rotate", point, axis, [from, to]] (degrees), '
             '["name", ["instance", ...], "slide", direction, [from, to]] (mm) or '
             '["name", ["instance", ...], "screw", point, axis, pitch_mm, [from, to]] (degrees), '
-            'each with an optional ["flex", [["instance", "instance", mm, "reason"], ...]], '
+            'each with an optional ["flex", [["instance", "instance", mm, "reason"], ...]] (with '
+            "a target force [min, max] in N after the reason, if the request names one), "
             'an optional ["drives", [[["instance", ...], "rotate", point, axis, ratio] or '
             '[["instance", ...], "slide", direction, ratio], ...]], an optional '
             '["stops", [value, ...]] and an optional ["rests", [value, ...]] at the end'
@@ -472,7 +664,8 @@ def _flex(value: Any, where: str) -> list[dict[str, Any]]:
     """The overlaps a motion allows while it moves: an elastic feature that deflects."""
     usage = (
         f'{where}: the flex is ["flex", [["instance", "instance", mm, "reason"], ...]], with mm '
-        f"the deepest the two may overlap while it moves (up to {FLEX_MAX_MM})"
+        f"the deepest the two may overlap while it moves (up to {FLEX_MAX_MM}), and after the "
+        "reason, optionally, the force it may take in N: [min, max]"
     )
     if not (isinstance(value, list) and len(value) == 2 and value[0] == "flex"):
         raise SpecError(f"{usage}; got {value!r}")
@@ -480,14 +673,25 @@ def _flex(value: Any, where: str) -> list[dict[str, Any]]:
     for item in _list(value[1], where):
         if not (
             isinstance(item, list)
-            and len(item) == 4
+            and len(item) in (4, 5)
             and all(isinstance(x, str) for x in (item[0], item[1], item[3]))
             and item[0] != item[1]
             and _number(item[2])
             and 0 < item[2] <= FLEX_MAX_MM
         ):
             raise SpecError(f"{usage}; got {item!r}")
-        out.append({"a": item[0], "b": item[1], "max_mm": float(item[2]), "reason": item[3]})
+        flex = {"a": item[0], "b": item[1], "max_mm": float(item[2]), "reason": item[3]}
+        if len(item) == 5:
+            target = item[4]
+            if not (
+                isinstance(target, list)
+                and len(target) == 2
+                and all(map(_number, target))
+                and 0 <= target[0] < target[1]
+            ):
+                raise SpecError(f"{usage}; got {item!r}")
+            flex["force_n"] = [float(target[0]), float(target[1])]
+        out.append(flex)
     return out
 
 

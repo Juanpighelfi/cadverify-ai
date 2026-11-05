@@ -13,6 +13,10 @@ model has seen.
   (cadcheck.printability), and every part fits the bed; for an assembly printed in place, the
   same on all its parts together as they print (as they stand, or in its print pose), and the
   clearance it declares between any two (cadcheck.assembly);
+- G6, behaviour: every flex, load and stability declared, computed by the harness on its meshes:
+  force, strain against the material's limit, tension between layers, deflection, how far it can
+  lean (cadcheck.behaviour). What it could not compute is red, with the reason. A declared family
+  has G1 to G6 judged again at each of its values (family_problems);
 - G7, the spec, details included, and what the model saw of the final version: the sheet of
   every part, a view of the assembly with all its instances, and a close view of every "view"
   detail (cadcheck.view, details_in_view);
@@ -24,7 +28,7 @@ from __future__ import annotations
 
 from typing import Any
 
-GATES = ("G1", "G2", "G3", "G4", "G5", "G7", "G8")
+GATES = ("G1", "G2", "G3", "G4", "G5", "G6", "G7", "G8")
 # What a green gate verified, in the words the auditor of the close reads (agent/closing.py).
 GREEN_MEANS = {
     "G1": "the source compiles and every part exports with the default parameters, with no "
@@ -57,7 +61,23 @@ GREEN_MEANS = {
     "assembly that declares print_in_place is checked as printed whole: the same checks on all "
     "its parts together as they print (as they stand, or in the declared print_pose), and "
     "every two of them at least the declared clearance apart in that pose. Whether a bridge "
-    "sags, or how the print looks, is not measured",
+    "sags, or how the print looks, is not measured. A real slicer (see slice in VERIFIED: engine, "
+    "grams and hours as it would print, the thinnest wall in lines of plastic) sliced each part "
+    "and printed all of its section, layer by layer. Its hours are an estimate",
+    "G6": "what the spec declares of how the product behaves, computed by the harness by finite "
+    "elements on its own meshes, with the material's public datasheet values, and within its "
+    "limits: each flex, the force it takes to ride over the depth G4 measured, with the two "
+    "instances as springs in series (and that force within the target it declares, if any), and "
+    "the peak strain of each, on the surface over a 0.4 mm line, under the limit for what bends "
+    "once (an assembly step) or again and again (a motion), and the tension along the print's Z "
+    "under that limit times the material's factor between layers; each load, the same strain "
+    "limits for what stays loaded, the deflection, and the limit it declares, if any; each "
+    "stability, the center of gravity of the printed parts, at 30% to solid weight, with what it "
+    "declares it carries, inside the polygon it stands on, and how far it can lean. The parts are "
+    "taken as solid and elastic: infill, creep, fatigue, friction and how the print turns out are "
+    "not computed, and a green G6 with nothing declared says nothing: see behaviour in VERIFIED. "
+    "With a family, G1 to G6 held at each of its values too: see family in VERIFIED; nothing is "
+    "verified between its values or past its ends",
     "G7": "every spec check holds (bounds, bodies, through holes, support faces, details), and "
     "the designer saw the final version: the multi-view sheet of every part, all the "
     "instances of the assembly together in one view, and a close view of every detail of kind "
@@ -99,6 +119,7 @@ def evaluate(
         spec = export["spec"]
         gates["G2"] += [f"{label}: {r}" for r in mesh_problems(export["mesh"], spec)]
         gates["G5"] += [f"{label}: {r}" for r in print_problems(printability)]
+        gates["G5"] += [f"{label}: {r}" for r in slice_problems(part.get("slice"))]
         gates["G7"] += [f"{label}: {r}" for r in spec_problems(export)]
         if stl_sha.get(label) not in seen_sheets:
             gates["G7"].append(
@@ -117,10 +138,92 @@ def evaluate(
     gates["G3"] += assembly_problems(assembly)
     gates["G4"] += list((assembly.get("problems") or {}).get("G4", []))
     gates["G5"] += print_in_place_problems(assembly)
+    gates["G6"] += behaviour_problems(verify)
+    gates["G6"] += [
+        f"the probe {p['part']}: {p['error']}" for p in verify.get("probes") or [] if p.get("error")
+    ]
     gates["G7"] += assembly_view_problems(assembly, view_groups or [])
+    for gate, problems in family_problems(verify).items():
+        gates[gate] += problems
     result = {name: {"ok": not reasons, "detail": reasons} for name, reasons in gates.items()}
     result["G8"] = {"ok": None, "detail": [PENDING]}
     return result
+
+
+def family_problems(verify: dict[str, Any]) -> dict[str, list[str]]:
+    """G1 to G6 at each value of a declared family, as they are judged at the default. What was
+    not computed is red in G6, with the reason: a range is not verified by its default."""
+    report = verify.get("family")
+    out: dict[str, list[str]] = {g: [] for g in ("G1", "G2", "G3", "G4", "G5", "G6")}
+    if not report:
+        return out
+    out["G6"] += list(report.get("problems") or [])
+    if report.get("skipped"):
+        out["G6"].append(f"the family was not computed: {report['skipped']}")
+    for sweep in report.get("sweeps") or []:
+        for row in sweep["rows"]:
+            label = f"{sweep['param']} = {row['value']}"
+            if row.get("out_of_time"):
+                out["G6"].append(f"{label}: not computed, out of time")
+            elif "compile" not in row:
+                out["G6"].append(f"{label}: could not be verified: {row.get('error')}")
+            else:
+                judged = evaluate(row, set(), {})
+                for gate, problems in out.items():
+                    problems += [f"{label}: {p}" for p in judged[gate]["detail"]]
+    return out
+
+
+def family_rows(verify: dict[str, Any]) -> list[dict[str, Any]] | None:
+    """A family's numbers along its range, for the auditor and the replay."""
+    report = verify.get("family")
+    if not report:
+        return None
+    sweeps = []
+    for sweep in report.get("sweeps") or []:
+        rows = []
+        for row in sweep["rows"]:
+            shown: dict[str, Any] = {"value": row["value"]}
+            if "compile" in row:
+                judged = evaluate(row, set(), {})
+                shown["ok"] = all(judged[g]["ok"] for g in ("G1", "G2", "G3", "G4", "G5", "G6"))
+                shown.update(_family_numbers(row.get("behaviour") or {}))
+            else:
+                shown["ok"] = False
+            rows.append(shown)
+        sweeps.append({"param": sweep["param"], "values": sweep["values"], "rows": rows})
+    return sweeps
+
+
+def _family_numbers(behaviour: dict[str, Any]) -> dict[str, Any]:
+    flex, loads, stability = [], [], []
+    for item in behaviour.get("flex") or []:
+        flex.append(
+            {
+                "name": f"{item['a']} / {item['b']}",
+                "where": item.get("where"),
+                "force_n": item.get("force_n"),
+                "force_moved": item.get("force_moved"),
+                "target_n": item.get("force_target_n"),
+                "strain_pct": [p.get("strain_pct") for p in item.get("parts") or []],
+                "ok": item.get("ok"),
+            }
+        )
+    for item in behaviour.get("loads") or []:
+        loads.append(
+            {
+                "name": item["name"],
+                "strain_pct": item.get("strain_pct"),
+                "largest_mm": item.get("largest_mm"),
+                "ok": item.get("ok"),
+            }
+        )
+    for item in behaviour.get("stability") or []:
+        worst = item.get("worst") or {}
+        stability.append(
+            {"name": item["name"], "tilt_deg": worst.get("tilt_deg"), "ok": item.get("ok")}
+        )
+    return {"flex": flex, "loads": loads, "stability": stability}
 
 
 def assembly_problems(assembly: dict[str, Any]) -> list[str]:
@@ -143,6 +246,14 @@ def assembly_problems(assembly: dict[str, Any]) -> list[str]:
             "each overlap as an STL to look at with render_view"
         )
     return problems
+
+
+def behaviour_problems(verify: dict[str, Any]) -> list[str]:
+    """G6 from the behaviour report of verify. Without one, it is red: never green by omission."""
+    report = verify.get("behaviour")
+    if not report:
+        return ["the verification did not compute the behaviour"]
+    return list(report.get("problems") or [])
 
 
 def print_in_place_problems(assembly: dict[str, Any]) -> list[str]:
@@ -213,6 +324,25 @@ def mesh_problems(mesh: dict[str, Any], spec: dict[str, Any] | None) -> list[str
         problems.append(f"volume not positive ({mesh['volume_mm3']} mm³)")
     if mesh["bodies"] != bodies:
         problems.append(f"{mesh['bodies']} bodies, {bodies} expected")
+    return problems
+
+
+def slice_problems(report: dict[str, Any] | None) -> list[str]:
+    """G5, from the slicer (cadcheck.slicer): it ran, and it prints what was drawn."""
+    if not report:
+        return ["the slicer did not run on it"]
+    if not report.get("ok"):
+        return [f"the slicer could not slice it: {report.get('error', 'no detail')}"]
+    if report.get("not_compared"):
+        return [f"the slice could not be compared with the mesh: {report['not_compared']}"]
+    problems = []
+    for lost in report.get("lost") or []:
+        problems.append(
+            f"the slicer does not print part of what you drew: {lost['area_mm2']} mm² near "
+            f"[{lost['at'][0]}, {lost['at'][1]}], z {lost['z']} to {lost['z_to']}, about "
+            f"{lost['across_mm']} mm across. A line of plastic is {report['line_width_mm']} mm: "
+            "make that wall thicker, or take it out"
+        )
     return problems
 
 

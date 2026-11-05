@@ -4,6 +4,7 @@ import json
 import re
 
 from cadverify import cli, replay
+from cadverify.agent import physical
 from cadverify.agent.gates import GATES
 from cadverify.agent.prompts import SEED_NOTE
 
@@ -161,6 +162,8 @@ def test_a_fenced_block_is_code_and_a_bare_seed_is_fenced():
     fenced = "Go on.\n\n```openscad\n// Gear\nx = 1; // <mm>\n```\n\n" + SEED_NOTE.strip()
     assert replay._fenced_seed(bare) == fenced
     assert replay._fenced_seed(fenced) == fenced
+    later = bare + "\n\nThis is a new version."
+    assert replay._fenced_seed(later) == fenced + "\n\nThis is a new version."
     assert "x = 1; // &lt;mm&gt;</pre>" in replay._markdown(fenced)
     long = "```openscad\n" + "x = 1;\n" * 21 + "```"
     assert replay._markdown(long).startswith("<details><summary>openscad · 21 lines</summary><pre")
@@ -227,3 +230,25 @@ def test_the_index_links_every_replay_of_each_results_dir(tmp_path):
     assert "<h2>results/design</h2>" in page and "results/bench" not in page
     numbers = '<td class="n">3</td><td class="n">0.30</td><td class="n">2</td><td class="n">1</td>'
     assert numbers in page and "<td>2026-10-31 00:30</td>" in page
+
+
+def test_a_later_version_folds_what_the_model_was_reminded_of():
+    def later(request: str, feedback: str) -> str:
+        return physical.ITERATE.format(
+            request=request, close="It closed green.", brief="{}", feedback=feedback, baseline=""
+        )
+
+    first = later("Make a crank.", "The click takes 202 N.")
+    page = replay._request(first)
+    asked, _, rest = page.partition("<details>")
+    assert "Make a crank." in asked
+    folded, _, said = rest.partition("</details>")
+    assert "It closed green." in folded and "is a fact about the real part" in folded
+    assert "The click takes 202 N." not in folded
+    assert "What the user said" in said and "The click takes 202 N." in said
+    assert "is a fact about the real part" not in said
+
+    page = replay._request(later(first, "Finish it."))
+    assert page.count("<details>") == 2 and page.count("What the user said") == 2
+    assert page.index("202 N") < page.index("Finish it.")
+    assert replay._request("Make a crank.") == replay._markdown("Make a crank.")

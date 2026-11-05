@@ -47,7 +47,10 @@ CPUS, MEMORY, PIDS = "2", "4g", "512"
 WORK_SIZE, TMP_SIZE = "1g", "512m"
 # Grace on top of a tool's own timeout before the orchestrator gives up on the exec.
 EXEC_GRACE_S = 30
-VERIFY_TIMEOUT_S = 900
+# Measured: the default and 3 values of a battery box took 1398 s on a busy host, 970 s of CPU
+# (results/g6_recomputed/family_time.json), so about 5 versions of that size fit. cadcheck.verify
+# stops itself before this, and reports a value it did not reach as out of time.
+VERIFY_TIMEOUT_S = 1800
 # The mirror copies a changed file up to this size, and up to this many bytes per session;
 # the rest is listed in the result as not copied. .scad files are always copied, up to
 # SOURCE_MAX_BYTES in all (the verification needs them).

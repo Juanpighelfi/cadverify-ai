@@ -54,7 +54,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
-from cadverify.agent import closing
+from cadverify.agent import closing, review
 from cadverify.agent.gates import all_green, green_but
 from cadverify.agent.prompts import (
     CLOSE_REJECTED,
@@ -96,20 +96,32 @@ def run_session(
     asker: Callable[[str, int], str] | None = None,
     model: str = MODEL,
     auditor: str = MODEL,
+    reviewer: str | None = None,
+    first_images: list[str] | None = None,
+    parent: dict[str, Any] | None = None,
 ) -> dict:
     """Run one session of `model` and write `session.json` in `out` after every iteration.
     `asker(questions, iteration)` answers the model's questions and returns the user's answer;
-    `auditor` is the model that audits the close (G8)."""
+    `auditor` is the model that audits the close (G8); `reviewer` looks at the product before it
+    (agent/review.py); `first_images` go with the first message, `parent` is the session this one
+    continues (agent/physical.py)."""
     started = time.perf_counter()
-    system = instructions(questions=asker is not None, requirements=toolbox.requirements)
+    system = instructions(
+        questions=asker is not None,
+        requirements=toolbox.requirements,
+        lookup=toolbox.searcher is not None,
+    )
     initial_source = toolbox.source_hash()
     session: dict[str, Any] = {
         "model": model,
         "auditor": auditor,
         "limits": asdict(limits),
         "request": task,
+        "parent": parent,
+        "requirements": toolbox.requirements,
         "instructions": system,
         "tools": [s["name"] for s in toolbox.schemas],
+        "reviews": [],
         "iterations": [],
         "status": "running",
         "user_wait_s": 0.0,
@@ -120,8 +132,14 @@ def run_session(
     def working_s() -> float:
         return time.perf_counter() - started - session["user_wait_s"]
 
-    payload: dict[str, Any] = {"input": task}
-    history: list[dict[str, Any]] = [{"role": "user", "content": task}]
+    first: Any = task
+    if first_images:
+        first = [{"type": "input_text", "text": task}]
+        first += [{"type": "input_image", "image_url": url} for url in first_images]
+    payload: dict[str, Any] = {
+        "input": [{"role": "user", "content": first}] if first_images else task
+    }
+    history: list[dict[str, Any]] = [{"role": "user", "content": first}]
     live: list[dict[str, int]] = []  # the images in the context: tool call seq, history index
     spent = 0.0
     told_last = False  # WRAP_UP_LAST was sent
@@ -192,6 +210,7 @@ def run_session(
             iteration["tool_calls"].append(
                 {"seq": toolbox.seq, "name": fc.get("name"), "summary": summarize(fc, result)}
             )
+            spent += sum(c.cost_usd for c in toolbox.take_api_calls())
             text = json.dumps(result, ensure_ascii=False)
             output: Any = text
             if image:
@@ -237,6 +256,33 @@ def run_session(
             history.append(_user(answer))
         else:
             current = state["gates"]
+            if reviewer and green_but(current, "G8") and review.due(session, state):
+                images = toolbox.review_images(state)
+                found, calls = review.run(client, task, state, images, f"it{i:02d}", model=reviewer)
+                spent += sum(c.cost_usd for c in calls)
+                new = toolbox.add_findings(found or [])
+                session["reviews"].append(
+                    {
+                        "iteration": i,
+                        "source": state["source"],
+                        "model": reviewer,
+                        "images": [caption for caption, _ in images],
+                        "findings": new,
+                        **({"not_reviewed": True} if found is None else {}),
+                        "requests": [c.metrics() for c in calls],
+                    }
+                )
+                if new:
+                    iteration["close"] = "reviewed"
+                    iteration["findings"] = new
+                    message = review.message(new)
+                    if notice:
+                        message += "\n\n" + notice
+                    payload = {"previous_response_id": call.response_id, "input": message}
+                    history.append(_user(message))
+                    _write(out, session, spent, started, toolbox)
+                    continue
+                state["findings"] = [dict(f) for f in toolbox.findings]
             if green_but(current, "G8"):
                 g8, calls = closing.judge(
                     client,

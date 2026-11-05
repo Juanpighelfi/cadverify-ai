@@ -239,11 +239,11 @@ def _done(report: dict[str, Any], t0: float) -> dict[str, Any]:
 
 
 def _export_parts(path: Path, out_dir: Path, timeout_s: float) -> dict[str, dict[str, Any]]:
-    from cadverify.cadcheck.verify import printable_parts
+    from cadverify.cadcheck.verify import is_probe, printable_parts
 
     out = {}
     for part in printable_parts(path.read_text(encoding="utf-8")):
-        if part is None:
+        if part is None or is_probe(part):
             continue
         export = scad_export(path, part, out_dir=out_dir, timeout_s=timeout_s)
         if export["ok"]:
@@ -843,6 +843,8 @@ def _flexes(
             depth_mm=deepest["depth_mm"],
             at=deepest["pose"],
             overlap_stl=str(stl),
+            # Where each one is at that pose, for the forces G6 computes on it.
+            matrices={n: np.round(m, 9).tolist() for n, m in deepest["_matrices"].items()},
         )
         at_rest = [p for p in poses if any(abs(p - e) <= 1e-3 for e in ends)]  # poses: 3 decimals
         if at_rest:

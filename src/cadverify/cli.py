@@ -5,6 +5,8 @@ uv run cadverify design request.md --add "One more requirement."  # one more par
 uv run cadverify design request.md --seed <run>/workspace/model.scad  # go on from a design
 uv run cadverify design request.md --units 2 --max-usd 4  # two chained units, USD 4 at most
 uv run cadverify design request.md --model muse-spark-1.3 --auditor muse-wonder-1.0
+uv run cadverify iterate <run> --feedback "It snaps too hard." --photo x.jpg  # the next version
+uv run cadverify baseline <run> --material PLA              # "this version worked" (no model)
 uv run cadverify summary results/design/<request>/<UTC>   # a session in Markdown
 uv run cadverify replay results/design/<request>/<UTC>    # the session as a static page
 uv run cadverify table results/bench                        # sessions side by side, per model
@@ -39,11 +41,13 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import tempfile
 import time
 from dataclasses import replace
 from pathlib import Path
 
 from cadverify import hostile, ledger, replay, summary
+from cadverify.agent import physical, world
 from cadverify.agent.loop import Limits, run_session
 from cadverify.agent.prompts import SEED_NOTE
 from cadverify.agent.sandbox import Sandbox
@@ -126,7 +130,9 @@ def session_cap(max_usd: float, budget_usd: float, spent_usd: float) -> float:
 
 
 def design(args: argparse.Namespace) -> int:
-    check_contributor(args.request, [args.model, args.auditor])
+    check_contributor(
+        args.request, [args.model, args.auditor, args.reviewer or args.auditor, args.lookup or ""]
+    )
     try:
         request, seed = split_request(
             args.request.read_text(encoding="utf-8"),
@@ -153,7 +159,12 @@ def design(args: argparse.Namespace) -> int:
         with Sandbox(run_dir / "workspace") as box:
             if seed is not None:
                 box.restore({"model.scad": seed})
-            toolbox = ToolBox(box, run_dir / "tools", requirements={"units": args.units})
+            toolbox = ToolBox(
+                box,
+                run_dir / "tools",
+                requirements={"units": args.units},
+                searcher=world.Searcher(client, args.lookup) if args.lookup else None,
+            )
             asker = FileAsker(run_dir / "questions")
             session = run_session(
                 client,
@@ -164,12 +175,120 @@ def design(args: argparse.Namespace) -> int:
                 asker=asker,
                 model=args.model,
                 auditor=args.auditor,
+                reviewer=args.reviewer or args.auditor,
             )
     finally:
         client.close()
     print(session["status"], json.dumps(session["totals"]), flush=True)
     if "final" in session:
         print(json.dumps({k: v["ok"] for k, v in session["final"]["gates"].items()}), flush=True)
+    return 0
+
+
+def check_iterate_contributor(
+    run: Path, feedback_file: Path | None, photo: Path | None, models: list[str]
+) -> None:
+    """Meta trains on what a contributor model gets: a photo or the user's own words are neither
+    public nor theirs to give away by accident, so only a file of requests/ goes to one, on top of a
+    session that came from a public request."""
+    contributors = [m for m in models if m.endswith("-contributor")]
+    if not contributors:
+        return
+    if photo is not None:
+        raise SystemExit(f"{contributors[0]} lets Meta train on what it is sent: not a photo.")
+    public = (PUBLIC_REQUESTS / f"{run.resolve().parent.name}.md").exists()
+    written = feedback_file and feedback_file.resolve().is_relative_to(PUBLIC_REQUESTS)
+    if not (public and written):
+        raise SystemExit(
+            f"{contributors[0]} lets Meta train on what it is sent: only a session from a public "
+            f"request, with its feedback in a file of {PUBLIC_REQUESTS} (--feedback-file)."
+        )
+
+
+def iterate(args: argparse.Namespace) -> int:
+    """A new session from a version that was printed, with what the user found (agent/physical)."""
+    check_iterate_contributor(
+        args.run,
+        args.feedback_file,
+        args.photo,
+        [args.model, args.auditor, args.reviewer or args.auditor, args.lookup or ""],
+    )
+    if bool(args.feedback) == bool(args.feedback_file):
+        raise SystemExit("Say what happened: one of --feedback or --feedback-file.")
+    feedback = args.feedback or args.feedback_file.read_text(encoding="utf-8")
+    parent = json.loads((args.run / "session.json").read_text(encoding="utf-8"))
+    seed = (args.run / "workspace/model.scad").read_bytes()
+    baseline = physical.load_baseline(args.run)
+    limits = replace(
+        LIMITS,
+        max_requests=args.max_requests,
+        max_cost_usd=session_cap(args.max_usd, args.budget_usd, ledger.spent_usd(args.results)),
+        max_wall_s=args.max_minutes * 60,
+        max_live_images=MAX_LIVE_IMAGES,
+    )
+    ledger.check_budget(limits.max_cost_usd, args.results, args.budget_usd)
+    print(f"Session cap: USD {limits.max_cost_usd:.2f}", flush=True)
+    run_dir = ledger.new_run_dir(args.results, args.run.resolve().parent.name)
+    print(run_dir, flush=True)
+    client = make_client(run_dir)
+    try:
+        with Sandbox(run_dir / "workspace") as box:
+            box.restore({"model.scad": seed})
+            toolbox = ToolBox(
+                box,
+                run_dir / "tools",
+                requirements=parent.get("requirements") or {"units": args.units},
+                baseline=baseline,
+                parent_final=parent.get("final"),
+                searcher=world.Searcher(client, args.lookup) if args.lookup else None,
+            )
+            first_images = []
+            if args.photo:
+                url = toolbox.photo_url(args.photo.name, args.photo.read_bytes())
+                if url is None:
+                    raise SystemExit(f"{args.photo}: not an image the sandbox could read.")
+                first_images.append(url)
+            session = run_session(
+                client,
+                toolbox,
+                physical.iterate_task(parent, feedback, baseline),
+                limits,
+                run_dir,
+                asker=FileAsker(run_dir / "questions"),
+                model=args.model,
+                auditor=args.auditor,
+                reviewer=args.reviewer or args.auditor,
+                first_images=first_images,
+                parent={"run": str(args.run), "feedback": feedback, "photo": bool(args.photo)},
+            )
+    finally:
+        client.close()
+    print(session["status"], json.dumps(session["totals"]), flush=True)
+    return 0
+
+
+def baseline(args: argparse.Namespace) -> int:
+    """The user says this version worked: its numbers, measured now, in <run>/baseline.json. Costs
+    no model; the session's own files are only read."""
+    workspace = args.run / "workspace"
+    files = {
+        str(p.relative_to(workspace)): p.read_bytes()
+        for p in workspace.rglob("*.scad")
+        if p.relative_to(workspace).parts[0] != "checks"
+    }
+    with tempfile.TemporaryDirectory() as work, Sandbox(Path(work)) as box:
+        box.restore(files)
+        args_ = ["behaviour", "model.scad", "--out-dir", "checks/behaviour"]
+        args_ += ["--material", args.material]
+        result = box.cadcheck(args_, timeout_s=physical.BASELINE_TIMEOUT_S)
+    report = result.get("behaviour") or {}
+    if not report.get("flex") and not report.get("loads"):
+        raise SystemExit(f"{args.run}: nothing computed to compare with: {report.get('problems')}")
+    numbers = physical.baseline_numbers(report, str(args.run))
+    out = args.run / physical.BASELINE_FILE
+    out.write_text(json.dumps(numbers, indent=1), encoding="utf-8")
+    print(out)
+    print(json.dumps(numbers))
     return 0
 
 
@@ -201,8 +320,36 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--max-minutes", type=float, default=LIMITS.max_wall_s / 60)
     run.add_argument("--model", choices=sorted(PRICE_PER_MTOK), default=MODEL)
     run.add_argument("--auditor", choices=sorted(PRICE_PER_MTOK), default=MODEL)
+    run.add_argument(
+        "--reviewer",
+        choices=sorted(PRICE_PER_MTOK),
+        help="looks at the product, the auditor's model by default",
+    )
+    again = sub.add_parser("iterate", help="the next version of a session, after a real print")
+    again.add_argument("run", type=Path, help="the session it starts from")
+    again.add_argument("--feedback", default="", help="what happened when you used it")
+    again.add_argument("--feedback-file", type=Path, help="the same, from a file")
+    again.add_argument("--photo", type=Path, help="a photo of it")
+    again.add_argument(
+        "--units", type=int, default=1, help="chained units, for a session that did not record it"
+    )
+    again.add_argument("--max-usd", type=float, default=LIMITS.max_cost_usd)
+    again.add_argument("--max-requests", type=int, default=LIMITS.max_requests)
+    again.add_argument("--max-minutes", type=float, default=LIMITS.max_wall_s / 60)
+    again.add_argument("--model", choices=sorted(PRICE_PER_MTOK), default=MODEL)
+    again.add_argument("--auditor", choices=sorted(PRICE_PER_MTOK), default=MODEL)
+    again.add_argument("--reviewer", choices=sorted(PRICE_PER_MTOK))
+    good = sub.add_parser("baseline", help="this version worked: new forces compare with it")
+    good.add_argument("run", type=Path)
+    good.add_argument("--material", default="PLA")
+    for command in (run, again):
+        command.add_argument(
+            "--lookup",
+            choices=sorted(PRICE_PER_MTOK),
+            help="the model that searches the web for the designer (web_lookup); off without it",
+        )
     spent = sub.add_parser("spent", help="USD spent under the results directory")
-    for command in (run, spent):
+    for command in (run, again, spent):
         command.add_argument("--results", type=Path, default=RESULTS)
         command.add_argument("--budget-usd", type=float, default=BUDGET_USD)
     sub.add_parser("summary", help="a session in Markdown").add_argument("run_dir", type=Path)
@@ -235,6 +382,10 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.command == "hostile":
         return run_hostile()
+    if args.command == "iterate":
+        return iterate(args)
+    if args.command == "baseline":
+        return baseline(args)
     return design(args)
 
 

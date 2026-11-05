@@ -34,6 +34,8 @@ MODEL = "muse-wonder-1.0"
 
 # USD per 1M tokens (dev.meta.ai/docs/pricing-rate-limits, read 2026-10-31). A "-contributor"
 # model is the same model at a discount, in exchange for Meta training on what it is sent.
+# dev.meta.ai/docs/pricing-rate-limits: USD 2.50 per 1000 search queries, on top of the tokens.
+WEB_SEARCH_USD = 0.0025
 PRICE_PER_MTOK = {
     "muse-wonder-1.0": {"input": 4.00, "cached_input": 0.20, "output": 20.00},
     "muse-spark-1.3": {"input": 1.25, "cached_input": 0.15, "output": 4.25},
@@ -130,7 +132,7 @@ class ApiCall:
 
     @property
     def cost_usd(self) -> float:
-        return cost_usd(self.usage, self.model)
+        return cost_usd(self.usage, self.model) + search_fee_usd(self.output)
 
     def error_summary(self) -> dict[str, Any] | None:
         if self.ok:
@@ -156,6 +158,11 @@ class ApiCall:
             "cost_usd": round(self.cost_usd, 6),
             "error": self.error_summary(),
         }
+
+
+def search_fee_usd(output: list[dict[str, Any]] | None) -> float:
+    """What a response's web searches cost, on top of its tokens."""
+    return WEB_SEARCH_USD * sum(1 for i in output or [] if i.get("type") == "web_search_call")
 
 
 def cost_usd(usage: dict[str, int], model: str | None) -> float:

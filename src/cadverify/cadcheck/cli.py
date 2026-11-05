@@ -10,6 +10,8 @@
     cadcheck patch model.scad < '{"old": "...", "new": "..."}'
     cadcheck verify model.scad --out-dir /out [--assembly] [--requirements '{"units": 2}']
     cadcheck assembly model.scad --out-dir checks/assembly [--requirements '{"units": 2}']
+    cadcheck behaviour model.scad --out-dir checks/behaviour [--material PLA]
+    cadcheck slice part.stl --out-dir checks/slices [--material PLA]
     cadcheck run < '{"kind": "shell", "code": "ls", "timeout_s": 60}'
     cadcheck reap
     cadcheck manifest
@@ -65,10 +67,20 @@ def main(argv: list[str] | None = None) -> int:
     verify_cmd.add_argument("--out-dir")
     verify_cmd.add_argument("--assembly", action="store_true")
     verify_cmd.add_argument("--requirements", type=json.loads, default={})
+    verify_cmd.add_argument("--material")
     assembly = sub.add_parser("assembly")
     assembly.add_argument("scad")
     assembly.add_argument("--out-dir", required=True)
     assembly.add_argument("--requirements", type=json.loads, default={})
+    behaviour = sub.add_parser("behaviour")
+    behaviour.add_argument("scad")
+    behaviour.add_argument("--out-dir", required=True)
+    behaviour.add_argument("--requirements", type=json.loads, default={})
+    behaviour.add_argument("--material")
+    slice_cmd = sub.add_parser("slice")
+    slice_cmd.add_argument("mesh")
+    slice_cmd.add_argument("--out-dir", required=True)
+    slice_cmd.add_argument("--material")
     for name in ("view", "run", "reap", "manifest"):
         sub.add_parser(name)
     image = sub.add_parser("image")
@@ -148,10 +160,32 @@ def _dispatch(args: argparse.Namespace) -> dict[str, Any]:
         from cadverify.cadcheck.assembly import assembly_report
 
         return assembly_report(args.scad, args.out_dir, requirements=args.requirements)
+    if command == "slice":
+        from cadverify.cadcheck.slicer import slice_report
+
+        return slice_report(args.mesh, args.out_dir, args.material)
     from cadverify.cadcheck.verify import verify
 
+    if command == "behaviour":
+        found = verify(
+            args.scad,
+            out_dir=args.out_dir,
+            assembly=True,
+            requirements=args.requirements,
+            default_material=args.material,
+            embed=False,
+        )
+        return {
+            "ok": True,  # the measurement ran; its findings are in behaviour
+            "behaviour": found["behaviour"],
+            "geometry_problems": (found.get("assembly") or {}).get("problems"),
+        }
     return verify(
-        args.scad, out_dir=args.out_dir, assembly=args.assembly, requirements=args.requirements
+        args.scad,
+        out_dir=args.out_dir,
+        assembly=args.assembly,
+        requirements=args.requirements,
+        default_material=args.material,
     )
 
 

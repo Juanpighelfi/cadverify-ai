@@ -7,7 +7,7 @@ import json
 from datetime import UTC, datetime
 from pathlib import Path
 
-from cadverify.meta_api import cost_usd
+from cadverify.meta_api import cost_usd, search_fee_usd
 
 
 def new_run_dir(root: Path, kind: str) -> Path:
@@ -29,7 +29,7 @@ def spent_usd(root: Path) -> float:
                 "output_tokens": usage.get("output_tokens", 0),
             },
             (record.get("request") or {}).get("model"),
-        )
+        ) + search_fee_usd((record.get("response") or {}).get("output"))
     return total
 
 

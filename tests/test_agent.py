@@ -25,6 +25,7 @@ from cadverify.meta_api import ApiCall
 PNG = base64.b64decode(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC"
 )
+SLICE = {"ok": True, "engine": "PrusaSlicer", "grams": 1.2, "hours": 0.1, "lost": []}
 GOOD_MESH = {
     "triangles": 12,
     "watertight": True,
@@ -95,8 +96,9 @@ def _verify(mesh=None, spec=SPEC, check=GOOD_CHECK, printability=None, compile_o
     }
     return {
         "compile": compiled,
-        "parts": [{"part": None, "export": export, "printability": printability}],
+        "parts": [{"part": None, "export": export, "printability": printability, "slice": SLICE}],
         "assembly": {"ok": True, "not_needed": True},  # one part
+        "behaviour": {"declared": False, "ok": True, "problems": []},
     }
 
 
@@ -399,7 +401,9 @@ class FakeSandbox(Sandbox):
 def _toolbox(tmp_path, **kwargs) -> ToolBox:
     workspace = tmp_path / "workspace"
     workspace.mkdir(exist_ok=True)
-    return ToolBox(FakeSandbox(workspace, _verify()), tmp_path / "tools", **kwargs)
+    return ToolBox(
+        FakeSandbox(workspace, _verify()), tmp_path / "tools", require_brief=False, **kwargs
+    )
 
 
 def _seeded(tmp_path) -> ToolBox:
@@ -408,7 +412,7 @@ def _seeded(tmp_path) -> ToolBox:
     workspace.mkdir()
     box = FakeSandbox(workspace, _verify())
     box.restore({"model.scad": b"cube(10);\n"})
-    return ToolBox(box, tmp_path / "tools")
+    return ToolBox(box, tmp_path / "tools", require_brief=False)
 
 
 @pytest.fixture
@@ -434,6 +438,10 @@ def test_the_tools():
         "view_image",
         "render_view",
         "interference_check",
+        "behaviour_check",
+        "slice_report",
+        "design_brief",
+        "answer_finding",
     ]
     export = next(s for s in SCHEMAS if s["name"] == "scad_export")
     assert "part" in export["parameters"]["properties"]
@@ -586,7 +594,7 @@ def test_an_image_outside_the_mirror_is_never_read(tmp_path):
     workspace.mkdir()
     outside.mkdir()
     (workspace / "renders").symlink_to(outside)
-    toolbox = ToolBox(FakeSandbox(workspace, _verify()), tmp_path / "tools")
+    toolbox = ToolBox(FakeSandbox(workspace, _verify()), tmp_path / "tools", require_brief=False)
     toolbox.call("scad_write", _args(path="model.scad", content="cube(10);\n"), 1)
     export, image = toolbox.call("scad_export", _args(path="model.scad"), 2)
     assert image is None and "Could not read the image" in export["error"]
@@ -607,9 +615,18 @@ class FakeModel:
     """
 
     def __init__(
-        self, script, cost_tokens=1000, lose=(), lose_then_fail=(), fail_chained=(), audits=()
+        self,
+        script,
+        cost_tokens=1000,
+        lose=(),
+        lose_then_fail=(),
+        fail_chained=(),
+        audits=(),
+        reviews=(),
     ):
         self.script = list(script)
+        self.reviews = list(reviews)
+        self.review_payloads = []
         self.payloads = []
         self.audits = list(audits)
         self.audit_payloads = []
@@ -623,6 +640,10 @@ class FakeModel:
             self.audit_payloads.append(payload)
             text = self.audits.pop(0) if self.audits else CLEAN_AUDIT
             return self._answer(label, f"audit_{len(self.audit_payloads)}", text)
+        if "-review" in label:
+            self.review_payloads.append(payload)
+            text = self.reviews.pop(0) if self.reviews else '{"findings": []}'
+            return self._answer(label, f"review_{len(self.review_payloads)}", text)
         self.payloads.append(payload)
         chained = "previous_response_id" in payload
         error = {"type": "invalid_request_error", "message": "referenced response not found"}

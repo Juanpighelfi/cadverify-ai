@@ -17,7 +17,10 @@ collided, now with a shorter range that leaves the collision out, or removed, or
 the parts unchanged because its collision is declared as a flex; a flex or a print_in_place
 clearance moved past what was measured. A bounds
 coordinate counts when the spec was more than BOUNDS_FLAG_MM off the mesh: less is the rounding
-of a spec formula (one early session flagged 61 adjustments, 18 of them of 0.2 to 1 mm).
+of a spec formula (one early session flagged 61 adjustments, 18 of them of 0.2 to 1 mm). For G6:
+a flex, load or stability that was red and passes now because what it declares moved (a force
+target widened, a lighter load, a material changed, less lean asked for), or that left the spec;
+and a value of a family that was red and left the range.
 
 The harness cannot tell a spec formula fixed from a defect hidden: what it asks is that the close
 tells them. Each observation gives the model one short note per part (notes). When the checked
@@ -46,6 +49,8 @@ class SpecHistory:
     def __init__(self) -> None:
         self.parts: dict[str, dict[str, Any]] = {}  # label -> last observation
         self.assembly: dict[str, Any] | None = None
+        self.behaviour: dict[str, dict[str, Any]] | None = None
+        self.family: dict[str, dict[str, Any]] | None = None
         self.adjustments: list[dict[str, Any]] = []
         self._seen: set[tuple] = set()
 
@@ -140,6 +145,50 @@ class SpecHistory:
                         "why": "the range got shorter and leaves the collision out",
                     }
                 )
+        return self._record(ASSEMBLY, found, seq)
+
+    def observe_behaviour(self, report: dict[str, Any], seq: int | None = None) -> list:
+        """A behaviour report (cadcheck.behaviour). Returns the new adjustments."""
+        if not report.get("declared") or report.get("skipped"):
+            return []
+        items = _behaviour_items(report)
+        previous, self.behaviour = self.behaviour, items
+        found = []
+        for key, old in (previous or {}).items():
+            new = items.get(key)
+            if old["ok"] or (new is not None and not new["ok"]):
+                continue
+            moved = None if new is None else _moved_declared(old["declared"], new["declared"])
+            if new is None or moved:
+                found.append(
+                    {
+                        "item": key,
+                        "from": old["declared"],
+                        "to": "removed" if new is None else moved,
+                        "measured": old["measured"],
+                        "why": "a limit it failed passes because what it declares moved",
+                    }
+                )
+        return self._record(ASSEMBLY, found, seq)
+
+    def observe_family(self, sweeps: list[dict[str, Any]] | None, seq: int | None = None) -> list:
+        """The family's rows (agent/gates.family_rows). Returns the new adjustments."""
+        previous, self.family = self.family, {s["param"]: s for s in sweeps or []}
+        found = []
+        for param, old in (previous or {}).items():
+            new = self.family.get(param)
+            kept = {str(v) for v in new["values"]} if new else set()
+            for row in old["rows"]:
+                if not row.get("ok") and str(row["value"]) not in kept:
+                    found.append(
+                        {
+                            "item": f"family {param}",
+                            "from": old["values"],
+                            "to": new["values"] if new else "removed",
+                            "measured": f"{param} = {row['value']} was red",
+                            "why": "a value it failed at left the range",
+                        }
+                    )
         return self._record(ASSEMBLY, found, seq)
 
     def _record(self, label: str, found: list[dict], seq: int | None) -> list[dict]:
@@ -295,6 +344,44 @@ def _assembly_items(report: dict[str, Any]) -> dict[str, dict[str, Any]]:
             in_place["min_gap_mm"], gap["gap_mm"], gap["ok"], "mm"
         )
     return items
+
+
+def _behaviour_items(report: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """Each flex, load and stability of a behaviour report: what it declares, and what it gave."""
+    items = {}
+    for flex in report.get("flex") or []:
+        parts = flex.get("parts") or []
+        items[f"flex {flex['a']} / {flex['b']} ({flex['where']})"] = {
+            "ok": bool(flex.get("ok")),
+            "declared": {
+                "force_target_n": flex.get("force_target_n"),
+                "material": sorted(p.get("material", "") for p in parts),
+            },
+            "measured": f"{flex.get('force_n')} N, {[p.get('strain_pct') for p in parts]}% strain",
+        }
+    for load in report.get("loads") or []:
+        items[f"load {load['name']} on {load.get('on')}"] = {
+            "ok": bool(load.get("ok")),
+            "declared": {
+                "force_n": load.get("force_n"),
+                "max_deflection_mm": load.get("max_deflection_mm"),
+                "material": load.get("material"),
+            },
+            "measured": f"{load.get('strain_pct')}% strain, {load.get('largest_mm')} mm",
+        }
+    for item in report.get("stability") or []:
+        worst = item.get("worst") or {}
+        items[f"stability {item['name']} of {item.get('on')}"] = {
+            "ok": bool(item.get("ok")),
+            "declared": {"min_tilt_deg": item.get("min_tilt_deg"), "carries": item.get("carries")},
+            "measured": f"{worst.get('tilt_deg')}° before it tips",
+        }
+    return items
+
+
+def _moved_declared(old: dict[str, Any], new: dict[str, Any]) -> dict[str, Any]:
+    """What moved of a declaration; a force or a parts' material that got computed is not a move."""
+    return {k: new[k] for k, v in old.items() if v not in (None, []) and new.get(k) != v}
 
 
 def _compare(previous: dict, current: dict, same_mesh: bool) -> list[dict[str, Any]]:

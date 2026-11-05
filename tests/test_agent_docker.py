@@ -11,6 +11,7 @@ from pathlib import Path
 
 import pytest
 
+from cadverify.agent import physical
 from cadverify.agent.loop import Limits, run_session
 from cadverify.agent.sandbox import IMAGE, Sandbox
 from cadverify.agent.tools import ToolBox
@@ -44,7 +45,7 @@ echo(cadverify_spec = [
 ]);
 """
 STL = "exports/model.default.44136fa3.stl"
-ALL_BUT_G8 = ("G1", "G2", "G3", "G4", "G5", "G7")
+ALL_BUT_G8 = ("G1", "G2", "G3", "G4", "G5", "G6", "G7")
 
 
 def _session(tmp_path, source):
@@ -56,7 +57,7 @@ def _session(tmp_path, source):
         "Done.",
     ]
     with Sandbox(tmp_path / "workspace") as box:
-        toolbox = ToolBox(box, tmp_path / "tools")
+        toolbox = ToolBox(box, tmp_path / "tools", require_brief=False)
         session = run_session(FakeModel(script), toolbox, "p", Limits(max_requests=5), tmp_path)
     return session
 
@@ -115,7 +116,7 @@ def test_a_sheet_finding_is_confirmed_with_numbers_before_the_fix(tmp_path):
         "Done.",
     ]
     with Sandbox(tmp_path / "workspace") as box:
-        toolbox = ToolBox(box, tmp_path / "tools")
+        toolbox = ToolBox(box, tmp_path / "tools", require_brief=False)
         session = run_session(FakeModel(script), toolbox, "p", Limits(max_requests=6), tmp_path)
     summaries = [t["summary"] for it in session["iterations"] for t in it["tool_calls"]]
     assert "confirm with numbers" in summaries[3]
@@ -141,7 +142,7 @@ def test_the_exploration_tools_end_to_end(tmp_path):
         "Done.",
     ]
     with Sandbox(tmp_path / "workspace") as box:
-        toolbox = ToolBox(box, tmp_path / "tools")
+        toolbox = ToolBox(box, tmp_path / "tools", require_brief=False)
         session = run_session(FakeModel(script), toolbox, "p", Limits(max_requests=7), tmp_path)
     assert session["status"] == "green", session["final"]["gates"]
     logs = [json.loads(p.read_text()) for p in sorted((tmp_path / "tools").iterdir())]
@@ -186,7 +187,7 @@ def test_an_assembly_closes_green(tmp_path):
         close,
     ]
     with Sandbox(tmp_path / "workspace") as box:
-        toolbox = ToolBox(box, tmp_path / "tools", requirements={"units": 1})
+        toolbox = ToolBox(box, tmp_path / "tools", requirements={"units": 1}, require_brief=False)
         model = FakeModel(script)
         session = run_session(model, toolbox, "p", Limits(max_requests=5), tmp_path)
     final = session["final"]["gates"]
@@ -204,3 +205,185 @@ def test_an_assembly_closes_green(tmp_path):
         "unmeasured": [],
     }
     assert len(model.audit_payloads) == 1
+
+
+def test_no_cad_by_shell_before_the_brief_and_a_module_is_there_for_later_calls(tmp_path):
+    """The rule on scad_write holds for a shell too; what the model computes stays in reach."""
+    from tests.test_brief_review import BRIEF
+
+    with Sandbox(tmp_path / "workspace") as box:
+        toolbox = ToolBox(box, tmp_path / "tools")
+        write = json.dumps({"command": "echo 'cube(1);' > model.scad"})
+        result, _ = toolbox.call("run_shell", write, 1)
+        assert result["ok"] is False or "design_brief" in json.dumps(result)
+        assert not (tmp_path / "workspace" / "model.scad").exists()
+        assert toolbox.call("design_brief", json.dumps(BRIEF), 1)[0]["ok"] is True
+        save = "open('calc.py', 'w').write('def strain(t, d, L): return 3*t*d/(2*L*L)')"
+        assert toolbox.call("run_python", json.dumps({"code": save}), 1)[0]["exit_code"] == 0
+        use = (
+            "import calc, scipy\n"
+            "from cadverify.cadcheck.materials import MATERIALS\n"
+            "print(round(calc.strain(1, 1, 10), 4), MATERIALS['PLA'].bending_modulus_mpa)"
+        )
+        result, _ = toolbox.call("run_python", json.dumps({"code": use}), 1)
+        assert result["exit_code"] == 0, result
+        assert "0.015 2750.0" in result["stdout"]
+
+
+def test_a_load_and_a_stability_reach_g6_through_the_verification(tmp_path):
+    """A bar and what it declares, spec to gate, in the container that verifies."""
+    bar = """
+echo(cadverify_spec = [
+    ["bounds", [[0, 0, 0], [40, 10, 3]]],
+    ["bodies", 1],
+    ["through_holes", 0],
+    ["material", "PLA"],
+    ["loads", [["tip", [[38, 0, 2.9], [40, 10, 3.1]], [0, 0, -5], [[-1, 0, -1], [0.1, 10, 4]], 5]]],
+    ["stability", [["stands", [0, 0, -1], [], 5]]]
+]);
+cube([40, 10, 3]);
+"""
+    with Sandbox(tmp_path / "workspace") as box:
+        box.restore({"model.scad": bar.encode()})
+        toolbox = ToolBox(box, tmp_path / "tools", require_brief=False)
+        state = toolbox.gates()
+    assert state["gates"]["G6"]["ok"] is True, state["gates"]["G6"]
+    report = state["behaviour"]
+    load = report["loads"][0]
+    assert load["ok"] and load["picture_png"]
+    # F L^3 / (3 E I), with I = 10 * 27 / 12
+    assert abs(load["largest_mm"] - 5 * 40**3 / (3 * 2750 * 22.5)) < 0.4
+    assert report["stability"][0]["worst"]["margin_mm"] > 0
+
+
+def test_a_load_with_no_material_leaves_g6_red_with_the_reason(tmp_path):
+    bar = """
+echo(cadverify_spec = [
+    ["bounds", [[0, 0, 0], [40, 10, 3]]],
+    ["bodies", 1],
+    ["through_holes", 0],
+    ["loads", [["tip", [[38, 0, 2.9], [40, 10, 3.1]], [0, 0, -5], [[-1, 0, -1], [0.1, 10, 4]]]]]
+]);
+cube([40, 10, 3]);
+"""
+    with Sandbox(tmp_path / "workspace") as box:
+        box.restore({"model.scad": bar.encode()})
+        toolbox = ToolBox(box, tmp_path / "tools", require_brief=False)
+        state = toolbox.gates()
+    assert state["gates"]["G6"]["ok"] is False
+    assert "no material" in state["gates"]["G6"]["detail"][0]
+
+
+def test_a_spec_that_does_not_parse_leaves_g6_red_not_empty(tmp_path):
+    """What it declares could not be read, so it was not computed: never green by omission."""
+    bar = """
+echo(cadverify_spec = [["bounds", [[0, 0, 0], [40, 10, 3]]], ["material", "wood"]]);
+cube([40, 10, 3]);
+"""
+    with Sandbox(tmp_path / "workspace") as box:
+        box.restore({"model.scad": bar.encode()})
+        toolbox = ToolBox(box, tmp_path / "tools", require_brief=False)
+        state = toolbox.gates()
+    assert state["gates"]["G6"]["ok"] is False
+    assert "did not parse" in state["gates"]["G6"]["detail"][0]
+
+
+def test_a_family_runs_every_value_and_finds_the_one_that_fails(tmp_path):
+    """A bar that gets thinner along its range: fine at the default, over its limit at one end."""
+    bar = """
+thick = 3;
+echo(cadverify_spec = [
+    ["bounds", [[0, 0, 0], [40, 10, thick]]],
+    ["bodies", 1],
+    ["through_holes", 0],
+    ["material", "PLA"],
+    ["family", [["thick", [3, 1.2]]]],
+    ["loads", [["tip", [[38, 0, thick - 0.1], [40, 10, thick + 0.1]], [0, 0, -3],
+                [[-1, 0, -1], [0.1, 10, thick + 1]]]]]
+]);
+cube([40, 10, thick]);
+"""
+    with Sandbox(tmp_path / "workspace") as box:
+        box.restore({"model.scad": bar.encode()})
+        toolbox = ToolBox(box, tmp_path / "tools", require_brief=False)
+        state = toolbox.gates()
+    assert state["behaviour"]["ok"] is True, state["behaviour"]["problems"]
+    assert state["gates"]["G6"]["ok"] is False
+    assert all("thick = 1.2" in d for d in state["gates"]["G6"]["detail"])
+    rows = state["family"][0]["rows"]
+    assert [r["value"] for r in rows] == [3, 1.2]
+    assert [r["ok"] for r in rows] == [True, False]
+    # A cantilever's strain goes as 1/t^2: 2.25% of (3/1.2)^2 of the first.
+    first, second = rows[0]["loads"][0]["strain_pct"], rows[1]["loads"][0]["strain_pct"]
+    assert second / first == pytest.approx((3 / 1.2) ** 2, rel=0.25)
+
+
+def test_a_parameter_named_to_fix_a_failure_has_to_move_what_it_says(tmp_path):
+    """The bar's thickness moves its strain; a parameter that draws nothing does not; one that is
+    not in the source cannot be moved."""
+    bar = """
+thick = 3;
+paint = 1;
+echo(cadverify_spec = [
+    ["bounds", [[0, 0, 0], [40, 10, thick]]],
+    ["bodies", 1],
+    ["through_holes", 0],
+    ["material", "PLA"],
+    ["tune", [["it bends too much", "thick", 4, "load tip"],
+              ["it looks wrong", "paint", 2, "load tip"],
+              ["it is too short", "length", 50, "load tip"]]],
+    ["loads", [["tip", [[38, 0, thick - 0.1], [40, 10, thick + 0.1]], [0, 0, -3],
+                [[-1, 0, -1], [0.1, 10, thick + 1]]]]]
+]);
+cube([40, 10, thick]);
+"""
+    with Sandbox(tmp_path / "workspace") as box:
+        box.restore({"model.scad": bar.encode()})
+        toolbox = ToolBox(box, tmp_path / "tools", require_brief=False)
+        state = toolbox.gates()
+    assert state["behaviour"]["ok"] is True, state["behaviour"]["problems"]
+    rows = {row["param"]: row for row in state["tune"]["rows"]}
+    assert rows["thick"]["ok"] is True and rows["thick"]["moved"] > 0.2
+    assert rows["thick"]["after"] < rows["thick"]["before"]
+    assert rows["paint"]["ok"] is False and "which is nothing" in rows["paint"]["why"]
+    assert rows["length"]["ok"] is False and "not a top-level parameter" in rows["length"]["why"]
+    problems = physical.tune_problems(state)
+    assert any("paint" in p for p in problems) and any("length" in p for p in problems)
+    assert not any("'it bends too much'" in p for p in problems)
+
+
+def test_a_test_print_is_checked_as_a_part_and_stays_out_of_the_assembly(tmp_path):
+    """G3 does not ask for the probe in the assembly; G6 says when it cannot be compared."""
+    source = """
+part = "assembly"; // [assembly, bar, test_bar]
+cadverify_only = "";
+module instance(name, part, unit = 1) {
+    echo(cadverify_instance = [name, part, unit]);
+    if (cadverify_only == "" || cadverify_only == name) children();
+}
+module bar() cube([40, 10, 3]);
+if (part == "assembly") instance("bar1", "bar") bar();
+if (part == "bar") {
+    echo(cadverify_spec = [
+        ["bounds", [[0, 0, 0], [40, 10, 3]]], ["bodies", 1], ["through_holes", 0]
+    ]);
+    bar();
+}
+if (part == "test_bar") {
+    echo(cadverify_spec = [
+        ["bounds", [[0, 0, 0], [10, 10, 3]]], ["bodies", 1], ["through_holes", 0],
+        ["probe_of", "flex bar/nothing"]
+    ]);
+    cube([10, 10, 3]);
+}
+"""
+    with Sandbox(tmp_path / "workspace") as box:
+        box.restore({"model.scad": source.encode()})
+        toolbox = ToolBox(box, tmp_path / "tools", require_brief=False)
+        state = toolbox.gates()
+    assert {p["part"] for p in state["parts"]} == {"bar", "test_bar"}
+    assert not any("test_bar" in d for d in state["gates"]["G3"]["detail"])
+    assert any("test_bar" in d for d in state["gates"]["G6"]["detail"])
+    probe = state["probes"][0]
+    assert probe["of"] == "flex bar/nothing" and "load of its own" in probe["error"]
+    assert probe["slice"]["ok"] is True and probe["slice"]["grams"] > 0

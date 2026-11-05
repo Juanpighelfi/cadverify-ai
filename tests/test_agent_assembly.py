@@ -79,6 +79,7 @@ def verify_two_parts(assembly=None, spec=SPEC, check=GOOD_CHECK, printability=No
                 "sha256": PART_SHA[p],
             },
             "printability": template["printability"],
+            "slice": template["slice"],
         }
         for p in PARTS
     ]
@@ -91,7 +92,7 @@ def two_part_toolbox(tmp_path, verify=None, assembly=None, **kwargs) -> ToolBox:
     workspace.mkdir(exist_ok=True)
     box = FakeSandbox(workspace, verify or verify_two_parts(), assembly or assembly_report())
     box.restore({"model.scad": SOURCE.encode()})
-    return ToolBox(box, tmp_path / "tools", **kwargs)
+    return ToolBox(box, tmp_path / "tools", require_brief=False, **kwargs)
 
 
 def evaluate(verify, views=(INSTANCE_SHAS,), close_views=()):
@@ -428,7 +429,7 @@ def test_the_auditor_reads_what_each_green_gate_verified():
     state["parts"][0]["mesh"] = mesh
     verified = closing.summary(state)
     assert verified["gates"]["G4"] is False and "G8" not in verified["gates"]
-    assert set(verified["green_means"]) == {"G1", "G2", "G3", "G5", "G7"}
+    assert set(verified["green_means"]) == {"G1", "G2", "G3", "G5", "G6", "G7"}
     assert "0 bad edges" in verified["green_means"]["G2"]
     assert "close view of every detail of kind view" in verified["green_means"]["G7"]
     assert verified["parts"][0]["mesh"]["bad_edges"] == 0

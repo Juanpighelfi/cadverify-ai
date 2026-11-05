@@ -718,6 +718,10 @@ def _profile_panel(profiles: list[tuple[str, section.Profile]], plane) -> Image.
                 (x0, y0), (x1, y1) = ring_px.min(axis=0), ring_px.max(axis=0)
                 tl, tt, tr, tb = d.textbbox((0, 0), text, font=font(13))
                 if tr - tl + 6 <= x1 - x0 and tb - tt + 4 <= y1 - y0:
+                    # Below the cross of the plane's point when the hole is centered on it.
+                    ox0, oy0 = px(0.0, 0.0)
+                    if abs(cx - ox0) < (tr - tl) / 2 + 9 and abs(cy - oy0) < (tb - tt) / 2 + 9:
+                        cy = min(cy + (tb - tt) / 2 + 13, y1 - (tb - tt) / 2 - 2)
                     d.text((cx, cy), text, fill=HOLE_TEXT, font=font(13), anchor="mm")
                 else:
                     color = tuple(c / 255 for c in HOLE_TEXT)
