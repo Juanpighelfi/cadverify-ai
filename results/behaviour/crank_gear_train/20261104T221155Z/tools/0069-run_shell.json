@@ -1,0 +1,37 @@
+{
+  "seq": 69,
+  "iteration": 60,
+  "name": "run_shell",
+  "arguments": {
+    "cmd": "cd /tmp/flexonly && python - <<'EOF'\nsrc = open('model.scad').read()\nold = '''        [\"assembly_order\", [[[\"leaf\"], [0, 0, 0]], [[\"block\"], [0, -2, 0]]],\n        [\"material\", \"PLA\"]]);'''\nnew = '''        [\"assembly_order\", [[[\"leaf\"], [0, 0, 0]], [[\"block\"], [0, -2, 0]]]],\n        [\"material\", \"PLA\"]]);'''\nassert src.count(old)==1\nopen('model.scad','w').write(src.replace(old,new))\nprint(\"ok\")\nEOF\ntimeout 200 cadcheck assembly --out-dir /tmp/flexonly/aout model.scad 2>&1 | python -c \"import json,sys; d=json.load(sys.stdin); print('ok:',d['ok']); print('G3:',d['problems']['G3'][:2]); print('G4:',str(d['problems']['G4'])[:1500])\"",
+    "timeout_s": 240.0
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 2.661,
+    "stdout": "ok\nok: False\nG3: ['the assembly could not be evaluated: ERROR: Parser error: syntax error in file model.scad, line 44']\nG4: []\n",
+    "stderr": "",
+    "stdout_bytes": 127,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 4.738,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "51a8f8b4289e2e3d"
+}

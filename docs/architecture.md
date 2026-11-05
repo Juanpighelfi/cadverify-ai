@@ -61,7 +61,9 @@ Long sessions are kept alive by:
 
 ## Tools
 
-Twelve tools, all executed by `cadcheck` inside the sandbox (`cadverify.agent.tools`):
+Sixteen tools, a seventeenth with `--lookup`. All but `design_brief`, `answer_finding` and
+`web_lookup`, which the orchestrator answers itself, are executed by `cadcheck` inside the sandbox
+(`cadverify.agent.tools`):
 
 | Tool | What it does |
 |---|---|
@@ -73,11 +75,19 @@ Twelve tools, all executed by `cadcheck` inside the sandbox (`cadverify.agent.to
 | `render_view` | a view on demand: free camera, zoom, plane cuts with the profile in mm, several parts, highlights (overhangs, support faces, holes, details) |
 | `printability_report` | overhangs above 45° by zone in the print orientation, the part of each zone steeper than 60° as a bridge, the bodies that start in the air, and bed fit (Bambu Lab A1, 256 mm cube) |
 | `interference_check` | the assembly measured exactly as gates G3 and G4 measure it |
+| `behaviour_check` | forces, strains and tipping as G6 computes them, with the zone under the most strain marked on the part |
+| `slice_report` | what a real slicer makes of an STL: grams, hours, the thinnest wall in lines of plastic, and what it does not print |
+| `design_brief` | failure modes, who and what it serves, loads, compared candidates with numbers and assumptions; no `.scad` can be written before it |
+| `answer_finding` | answers a finding of the reviewer, after a measurement made since the finding |
+| `web_lookup` | with `--lookup`: a read-only web search run by the orchestrator; what it returns is data, never an instruction, and never a measurement |
 | `run_shell`, `run_python` | the model's own code in `/work`, with a timeout, output truncation and every process killed after the call |
 | `view_image` | an image the model made itself (a plot, a custom render) |
 
 Rules enforced by the harness, not asked for in the prompt:
 
+- **Analysis before CAD.** `scad_write` and `scad_patch` are refused, and a `.scad` written by shell
+  is undone, until a `design_brief` exists. `calc.py` in the workspace stays importable from every
+  later `run_python`, so what the analysis computes can be reused.
 - **Numbers before fixes.** After an image, the sources cannot change until a numeric check has
   run. A visual finding is a hypothesis; it is confirmed with a measurement before it is fixed.
   A `.scad` edited by shell while blocked is undone.
@@ -230,11 +240,147 @@ tool results (`agent/gates.py`):
 | G3 | the assembly: each instance is its part moved (same volume, area and principal moments), every part present as many times as its `copies`, no overlaps beyond the allowed ones, one connected group, the units the request chains, and every part held by the others that is printed in place or listed as `held` |
 | G4 | every declared motion (a screw advancing with its turn, driven instances at their ratio) and the assembly order run without collisions (a press fit only as a fit); a declared flex no deeper than declared and free at both ends of its range; a declared stop collides within 2 mm past its end; at each declared rest the flex is free, and between two rests it rides over what it presses on |
 | G5 | overhangs only inside the allowed boxes (at most half of a part's surface), the part of each steeper than 60° a bridge of 10 mm at most, no body that starts in the air, and every part fits the bed; with `print_in_place`, the same on all the parts together as they print (as placed, or in the `print_pose`), and the declared clearance between any two |
+| G6 | what the spec declares about forces holds: each flex's force and peak strain under the material's limit, along Z under its own, and inside the force target if any; each load's strain and deflection; each stability's tilt. Nothing declared, nothing computed: the gate is green and says so, and G8 reds a request that needed it. With a `family`, G1 to G6 hold at each value |
 | G7 | the spec holds, details included, and the model saw the final version: the sheet of every part, a view of the whole assembly, a close view of every `view` detail |
 | G8 | the close: every `[[name]]` it cites is something the harness verified green, and an auditor (`muse-wonder-1.0` without tools, whatever model designed) finds no claim presented as verified that nothing backs, no untold spec adjustment, and nothing the request asks for that a declaration would have measured (a stop, a detent's rests, a flex, a held part, a printed thread, gears, a print in place, one of the four standard parts) left unmeasured |
 
-G6 (fidelity to a reference model) is planned and not part of this build; the numbering keeps
-its slot.
+### Behaviour (G6)
+
+G6 measures what geometry alone cannot say: whether the thing that flexes will bend that far
+without breaking, what it takes to push it, what a load does, and whether the product stays up. The
+harness computes all of it in the verification container, on its own meshes, with no number and no
+code from the model (`cadcheck/fea.py`, `cadcheck/behaviour.py`, `cadcheck/materials.py`). If the
+meshing or the solve fails, or the budget runs out, the gate is red with the reason and what was
+computed until then: a verification never loses a gate by omission, and `verify.behaviour_of` runs
+it in a child process so that a hung mesher or a solver killed for memory cannot take the rest down.
+
+- **Solver.** Linear elasticity on the part's own mesh, by finite elements: `gmsh` for tetrahedra,
+  `scikit-fem` for second-order elements, SuperLU to solve. The accepted alternative was a beam
+  formula, which needs the model to declare the root and the tip of a beam: that can be gamed, and
+  the crank's detent, where no part is obviously the beam, cannot be declared at all. The numbers
+  that decided it are in `results/g6_recomputed/bench_fea.json`, from `scripts/bench_fea.py`.
+- **A surface gmsh refuses.** gmsh remeshes each part's surface when it can parametrize it. When it
+  cannot, the surface is split into triangles of the mesh's size and remeshed again; as a last resort
+  those triangles are kept. On some surfaces gmsh does not raise an error, it dies with a segfault, so
+  it runs in a process of its own and a crash is one more failed attempt. The volume filled is checked
+  against the part's every time. Kept as they came, a part's long triangles made elements as long: a
+  drawer of 216 tetrahedra took half the deflection it does on 21,821, and refining did not show it.
+- **Crop.** A flex's contact is a small part of a large body. Only the region around the contact is
+  solved, held at the cut. The cut doubles until the compliance moves under 10% or nothing is left
+  to cut; a part with no cut is held where it is farthest from the contact.
+- **A flex.** G4 gives the depth. The two bodies are springs in series, F = depth / (c_a + c_b), so
+  the softer one takes the deflection. Strain is the peak tension over the bending modulus, on the
+  surface, averaged over a 0.4 mm radius, the width of a line of plastic, since a sharper
+  concentration is the mesh's and not the print's.
+- **Between layers.** Tension along the print's Z is judged apart, with the material's factor: that
+  is where FDM parts break. The print's Z comes from each instance's placement in the assembly, or
+  from `print_pose`; when it is not known, the worst it could be.
+- **A number that does not settle.** Each case is solved again on a finer mesh. A flex's force comes
+  from its compliance and its strains from the force, so the movements add up. If they are over 10%
+  and could carry a strain, a force target or a deflection bound across its limit, the gate is red:
+  "did not settle". A stiff part pressed at one point has a compliance that keeps moving with the
+  mesh, since it is the dent under the load; when no verdict hangs on it, the replay and the close
+  say how far the force moved instead.
+- **Budget.** In CPU seconds, not in the clock (`TIME_BUDGET_S`), so a busy machine cannot turn into
+  a red gate: a loaded host took a case of 123 s to over 600 s of clock. A clock limit of 2.5 times
+  that holds only what hangs.
+- **Materials.** PLA, PETG and PETG-CF, each value with its public source in
+  `cadcheck/materials.py`. The strain limit is the bending strength over the bending modulus; in
+  repeated use, half of that, from the snap-fit design rule quoted there. A datasheet is a coupon in
+  its best direction and a real print varies, which is why a baseline (below) compares forces
+  instead of believing them.
+
+What it does not compute: contact friction, infill (parts are solid), creep, fatigue, and how a
+particular print turns out. It says so in the replay and in the prompt.
+
+### What G8 asks of behaviour
+
+The auditor's `unmeasured` list grows: a request that names a weight, a grip, a force or something
+that flexes, with no flex, load or stability declared, leaves G8 red. So does one that names a range
+and declares no `family`. Each load of the brief has to end up measured under the name it gives,
+each finding of the reviewer has to be answered, and each flex and load has to say which parameter
+to touch when the real print disagrees.
+
+### A brief before the CAD, and a reviewer after it
+
+A rule in the prompt did not change what the model does. A separate review did. So both are
+structure, not text (`agent/brief.py`, `agent/review.py`):
+
+- `design_brief` comes before any CAD: failure modes, who and what it serves, loads with their
+  assumptions, at least two candidates compared with numbers, and which one and why. The auditor
+  compares it with the request and with the close.
+- With every other gate green and before the close, a reviewer that never sees the designer's
+  reasoning or its source gets the request, the brief, the sheets, cuts through the middle and just
+  over the floor, and G6's numbers, and answers as someone who is going to use the part. Each finding
+  is a hypothesis with the measurement that would confirm it. The designer measures, and fixes or
+  refutes it with `answer_finding`, whose numbers have to come after that measurement. An open
+  finding leaves G8 red. Two reviews at most per session; one that does not answer is recorded and
+  does not stop the close.
+- `scripts/review_replay.py` measures it, on recorded green finals and on planted defects of the kind
+  people find in real prints (a floor hanging by three bridges, a flap over a finger hole, a flex
+  welded to the bed). `--fake` runs it offline. `--plan` prints the worst-case cost.
+
+### A family: verifying a range
+
+A spec key gives a parameter and its values: `["family", [["phone_width", [60, 75, 90]]]]`. The whole
+verification runs again at each value, on a copy of the source with that parameter's default changed,
+and G1 to G6 are judged at each (`verify.family_report`). A value over the budget is red, "out of
+time". The replay draws force against the parameter, with the target band.
+
+It costs what it says: the default and three values of the battery box, with a flex at each, took 23
+minutes on a busy host and 16 of CPU (`results/g6_recomputed/family_time.json`), so about five
+versions of that size fit in a verification's 30 minutes (`VERIFY_TIMEOUT_S`). A value is run only
+once the default is green in the geometry and the behaviour.
+
+### The slicer
+
+PrusaSlicer 2.9.2, pinned in the image from the same Debian snapshot as everything else, runs from
+its command line with a profile written from scratch for an A1 at 0.4 mm and 0.2 mm layers
+(`cadcheck/slicer/a1_04.ini`). It was chosen over Orca and Bambu Studio, which Debian does not
+package and whose command lines are not documented for this use; Bambu Studio is a fork of this
+engine and shares its Arachne walls. It adds about 900 MB to the image.
+
+It slices each part twice: as it would print, for grams and hours, and solid, where plastic should
+cover the whole section. In the solid slice, each line of the G-code becomes a stroke of its own
+width, and those strokes are compared with the section of the mesh at the middle of each of the
+mesh's layers, not the G-code's: a wall the slicer drops can leave a layer with no plastic at all,
+and end a print early. What is left over, on the section's own edge, past 0.4 mm², for three layers
+or more, is drawn and not printed: G5 is red. A gap inside the section is how any print fills a
+round part, and it does not count. On a straight fin, walls of 0.05, 0.08 and 0.12 mm are found lost,
+and 0.15 mm and up print, as Arachne does. A part of more than 60 layers is compared on 60 of them,
+evenly spaced, so a loss has to last three of those to be seen: on a part 80 mm tall, about 3 mm.
+
+### The loop with the real print
+
+`agent/physical.py`, and spec keys that the harness checks:
+
+- `cadverify iterate <run> --feedback "..." [--photo x.jpg]` starts from that version, with its
+  request, its close, its brief and what the user found, and asks for a new brief. A photo is
+  normalized in the sandbox before the model sees it. A contributor model takes neither a photo nor
+  words that are not a file of `requests/`.
+- `cadverify baseline <run>` says "this version worked" and computes its numbers. Later versions get
+  each force as a ratio to it. A ratio does not depend on the datasheet or on the printer, so it is
+  the number worth trusting.
+- Between versions, each part's change in volume, box and bodies, and what disappeared without
+  anybody asking (a part, a detail, a motion, a flex, a load). The auditor reads it.
+- `["probe_of", "flex a/b"]`, in a `test_*` part of the selector: a small test print, generated by
+  the same code and checked as a part, in no assembly. The harness compares its stiffness and its
+  strain per mm with the real part's: more than 20% off, it does not stand for it, and the close
+  has to say so.
+- `["tune", [["the click is too hard", "arm", 1.4, "flex a/b"]]]`: what to touch when the print
+  disagrees. The harness moves that parameter and checks that the measurement it names moves by 2% or
+  more. A parameter that does not exist, or moves nothing, leaves G8 red, and so does a flex or a
+  load with no entry.
+
+### Data from the world
+
+`agent/world.py`. With `--lookup`, the designer gets `web_lookup`: a request of the orchestrator to
+the Meta Model API's own `web_search` tool, with the same key. The sandbox still has no network.
+What comes back was written by strangers, so it is treated as data: it reaches the model in a result
+that says so, text that reads like an order is flagged for the record, and it is recorded with its
+URLs. A close cites it as `[[external 1]]`, and under Verified that is red. What makes this safe is
+not the flag: nothing here can act, since the tools, the rules, the sandbox and the gates stay what
+they are. `cadverify hostile` has the cases, without a model.
 
 ### Choosing the auditor
 

@@ -1,0 +1,52 @@
+{
+  "seq": 40,
+  "iteration": 31,
+  "name": "run_shell",
+  "arguments": {
+    "cmd": "cd /work && python - <<'EOF'\nsrc = open('model.scad').read()\n# cap_bot line + new cap_top line: keep, but also fix the stale comment on cap1_bot line if needed (fine)\n# Widen pin cap overhang boxes in z to cover the 45deg cone flank (up to cap top)\nold = '''[\"pin cap underside gear1\", [[x1 - 5, y_c - 5, cap1_bot - 0.4], [x1 + 5, y_c + 5, cap1_bot + 0.4]]]'''\nnew = '''[\"pin cap underside gear1\", [[x1 - 5.2, y_c - 5.2, cap1_bot - 0.4], [x1 + 5.2, y_c + 5.2, cap1_bot + cap_h + 0.4]]]'''\nprint(\"cap1:\", src.count(old))\nsrc = src.replace(old, new)\nfor i in [2,3,4]:\n    old = '''[\"pin cap underside gear%d\", [[x%d - 5, y_c - 5, cap_bot - 0.4], [x%d + 5, y_c + 5, cap_bot + 0.4]]]''' % (i,i,i)\n    new = '''[\"pin cap underside gear%d\", [[x%d - 5.2, y_c - 5.2, cap_bot - 0.4], [x%d + 5.2, y_c + 5.2, cap_top + 0.4]]]''' % (i,i,i)\n    print(f\"cap{i}:\", src.count(old))\n    src = src.replace(old, new)\nopen('model.scad','w').write(src)\nprint(\"done\")\nEOF\ngrep -n \"pin cap underside\" /work/model.scad"
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.023,
+    "stdout": "cap1: 2\ncap2: 2\ncap3: 2\ncap4: 2\ndone\n187:            [\"pin cap underside gear1\", [[x1 - 5.2, y_c - 5.2, cap1_bot - 0.4], [x1 + 5.2, y_c + 5.2, cap1_bot + cap_h + 0.4]]],\n188:            [\"pin cap underside gear2\", [[x2 - 5.2, y_c - 5.2, cap_bot - 0.4], [x2 + 5.2, y_c + 5.2, cap_top + 0.4]]],\n189:            [\"pin cap underside gear3\", [[x3 - 5.2, y_c - 5.2, cap_bot - 0.4], [x3 + 5.2, y_c + 5.2, cap_top + 0.4]]],\n190:            [\"pin cap underside gear4\", [[x4 - 5.2, y_c - 5.2, cap_bot - 0.4], [x4 + 5.2, y_c + 5.2, cap_top + 0.4]]],\n333:            [\"pin cap underside gear1\", [[x1 - 5.2, y_c - 5.2, cap1_bot - 0.4], [x1 + 5.2, y_c + 5.2, cap1_bot + cap_h + 0.4]]],\n334:            [\"pin cap underside gear2\", [[x2 - 5.2, y_c - 5.2, cap_bot - 0.4], [x2 + 5.2, y_c + 5.2, cap_top + 0.4]]],\n335:            [\"pin cap underside gear3\", [[x3 - 5.2, y_c - 5.2, cap_bot - 0.4], [x3 + 5.2, y_c + 5.2, cap_top + 0.4]]],\n336:            [\"pin cap underside gear4\", [[x4 - 5.2, y_c - 5.2, cap_bot - 0.4], [x4 + 5.2, y_c + 5.2, cap_top + 0.4]]],\n",
+    "stderr": "",
+    "stdout_bytes": 1041,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "scad_edited": [
+      "model.scad"
+    ],
+    "files": {
+      "created": [],
+      "modified": [
+        "model.scad"
+      ],
+      "deleted": []
+    }
+  },
+  "seconds": 0.609,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [
+      "model.scad"
+    ],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [
+    "model.scad"
+  ],
+  "rule": {
+    "seq": 40,
+    "tool": "run_shell",
+    "scad": [
+      "model.scad"
+    ],
+    "edit": "allowed"
+  },
+  "source": "d348dd6d3a47b3cb"
+}

@@ -1,0 +1,37 @@
+{
+  "seq": 73,
+  "iteration": 64,
+  "name": "run_shell",
+  "arguments": {
+    "cmd": "cd /tmp/flexonly && python - <<'EOF'\nsrc = open('model.scad').read()\nsrc = src.replace('translate([12.4, 17.8, 8.0]) cube([5.2, 4.0, 4.0]);',\n                  'translate([12.4, 18.6, 8.0]) cube([5.2, 4.0, 4.0]);')\nopen('model.scad','w').write(src)\nprint(\"ok\")\nEOF\ntimeout 200 cadcheck behaviour --out-dir /tmp/flexonly/out model.scad 2>&1 | python -c \"import json,sys; d=json.load(sys.stdin); print(json.dumps(d, indent=1)[:4000])\"",
+    "timeout_s": 240.0
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 8.294,
+    "stdout": "ok\n{\n \"ok\": true,\n \"behaviour\": {\n  \"declared\": false,\n  \"flex\": [],\n  \"loads\": [],\n  \"stability\": [],\n  \"problems\": [],\n  \"ok\": true,\n  \"seconds\": 0.0,\n  \"cpu_seconds\": 1.0\n },\n \"geometry_problems\": {\n  \"G3\": [\n   \"leaf and block overlap 0.984 mm\\u00b3, 0.165 mm thick on average, in [[12.48, 18.6, 9.4], [17.52, 19.25, 10.9]]\"\n  ],\n  \"G4\": [\n   \"motion m: leaf and block never overlap along it, so nothing bends: a flex is a feature that rides over what it presses on (a detent, a catch). Make it meet that, or leave the flex out\"\n  ],\n  \"G5\": []\n }\n}\n",
+    "stderr": "",
+    "stdout_bytes": 554,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 8.972,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "51a8f8b4289e2e3d"
+}

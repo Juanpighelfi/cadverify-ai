@@ -1,0 +1,99 @@
+{
+  "seq": 6,
+  "iteration": 6,
+  "name": "design_brief",
+  "arguments": {
+    "candidates": [
+      {
+        "assumptions": [
+          "PLA bending modulus E=2750 MPa, bending strength 76 MPa (Bambu PLA Basic datasheet)",
+          "repeated-use allowable 1.38% in-plane (50% of elastic limit), 0.69% between layers (halved again across layers)",
+          "ride-over depth 0.5 mm declared flex gear1/base; bump tip 0.25 inside rim + 0.25 wedging",
+          "diagonal leaf 1.26 mm thick x 5.04 mm wide, plan run 8 mm, bends in-plane with root fillet r1.5",
+          "measured values are the harness G6 numbers on this version (6.46 N, 0.74%)"
+        ],
+        "name": "diagonal in-plane leaf + finger + bump (kept, leaf 1.26 mm)",
+        "numbers": {
+          "G6 flex force at bump (N)": 6.46,
+          "G6 peak strain (%)": 0.74,
+          "allowable repeated in-plane strain (%)": 1.38,
+          "force window (N)": 10.0,
+          "force window low (N)": 2.0
+        }
+      },
+      {
+        "assumptions": [
+          "same PLA numbers as above",
+          "short arc wall fused to plate along whole bottom edge, as drawn two sessions ago",
+          "numbers are the G6 values the user reports on that version (fact, outranks prior estimates)"
+        ],
+        "name": "short plate-fused arc wall (failed, superseded)",
+        "numbers": {
+          "G6 ride-over force (N)": 202.0,
+          "G6 peak strain (%)": 7.2,
+          "G6 interlayer strain (%)": 6.1,
+          "allowable repeated in-plane strain (%)": 1.38,
+          "allowable interlayer strain (%)": 0.69
+        }
+      }
+    ],
+    "chosen": "diagonal in-plane leaf + finger + bump (kept, leaf 1.26 mm)",
+    "failure_modes": [
+      {
+        "check": "G6 flex gear1/base force within [2, 10] N and strain < 1.38% in-plane / 0.69% between layers",
+        "mode": "click too stiff to turn by hand, or too vague to count quarter turns"
+      },
+      {
+        "check": "G6 flex gear1/base strain; user-reported 7.2%/6.1% on arc wall vs 1.38%/0.69% allowed",
+        "mode": "detent root fatigues and snaps after repeated clicks"
+      },
+      {
+        "check": "interference_check motion crank_turn 0..360 collision-free + print_in_place >= 0.2",
+        "mode": "crank stalls or gears fuse and never turn free"
+      },
+      {
+        "check": "G6 load click_push must find mesh surface under the load box",
+        "mode": "probe load placed off the bump finds no surface and cannot be compared with flex gear1/base"
+      },
+      {
+        "check": "G7 detail views seen on final meshes",
+        "mode": "close views missing so profile/shape never visually confirmed"
+      }
+    ],
+    "loads": [
+      {
+        "assumption": "diagonal leaf k over 0.5 mm ride-over; tangential crank force from notch wedge; G6 measured 6.46 N",
+        "measured_as": "flex gear1/base",
+        "value": "~6.5 N tangential at the bump",
+        "what": "hand force on the crank riding the detent bump over the flange rim"
+      },
+      {
+        "assumption": "same leaf/finger/bump on a 30x25x3 chip, chip clamped at its south edge, push south on the bump north face",
+        "measured_as": "click_push",
+        "value": "2.5 N probe push on the test bump",
+        "what": "probe push on the test_detent bump standing in for the click"
+      }
+    ],
+    "serves": {
+      "range": "fixed train z=18/12/16/10 on 100x60 mm base; crank peg r2.6 at 8.5 mm radius; quarter-turn clicks to count turns; PLA, 0.4 mm nozzle, no supports",
+      "who": "anyone turning the crank by hand (adult or child fingers, a few N of finger force)"
+    },
+    "why": "The fused arc-wall assumption broke: short and thick it needs ~202 N (user-reported G6 fact) against a 2-10 N hand budget, with 7.2%/6.1% strain against 1.38%/0.69% allowed, so the crank would stall or the wall would break. The long thin diagonal leaf bends in-plane with root fillet, and the harness measures 6.46 N and 0.74% on this version, inside the asked window. So the geometry is kept unchanged (leaf 1.26 mm); only the probe load box, which sits 1.25 mm north of any mesh surface, is moved onto the bump face so click_push can be compared with flex gear1/base, and the missing G7 close views are retaken on the final meshes."
+  },
+  "result": {
+    "ok": true,
+    "chosen": "diagonal in-plane leaf + finger + bump (kept, leaf 1.26 mm)",
+    "cad_allowed": true
+  },
+  "seconds": 0.12,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "301bbe4c13b1e69b"
+}

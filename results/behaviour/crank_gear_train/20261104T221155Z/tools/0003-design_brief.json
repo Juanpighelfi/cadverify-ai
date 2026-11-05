@@ -1,0 +1,99 @@
+{
+  "seq": 3,
+  "iteration": 3,
+  "name": "design_brief",
+  "arguments": {
+    "candidates": [
+      {
+        "assumptions": [
+          "PLA bending modulus E=2750 MPa (datasheet)",
+          "allowable repeated-use strain 1.38% in-plane, 0.69% between layers (half elastic limit 76 MPa/E, halved again across layers)",
+          "ride-over depth 0.7 mm (bump tip 0.7 past flange rim)",
+          "tangential crank force = 1.86x radial spring force (notch-mouth corner at (1.3, 0.7) from bump centre)",
+          "gear flange and pedestal rigid vs the fin"
+        ],
+        "name": "floating cantilever fin with reach finger (in-plane bending)",
+        "numbers": {
+          "bending stiffness N/mm": 5.6,
+          "interlayer strain (%)": 0.2,
+          "peak strain (%)": 1.1,
+          "radial force at 0.7mm (N)": 3.2,
+          "tangential click force (N)": 6.0
+        }
+      },
+      {
+        "assumptions": [
+          "same PLA numbers as above",
+          "short arc wall fused to plate along its whole bottom edge, as drawn before",
+          "numbers are the G6 values the user reports on the current version"
+        ],
+        "name": "short plate-fused arc wall (previous design)",
+        "numbers": {
+          "G6 interlayer strain (%)": 6.1,
+          "G6 peak strain (%)": 7.2,
+          "G6 ride-over force (N)": 202.0
+        }
+      },
+      {
+        "assumptions": [
+          "same PLA numbers",
+          "beam doubly supported at flange height",
+          "bridge rule: unsupported span 10 mm max"
+        ],
+        "name": "doubly-supported bridge beam",
+        "numbers": {
+          "ride-over force 10mm span (N)": 127.0,
+          "span needed for 5N (mm)": 30.0
+        }
+      }
+    ],
+    "chosen": "floating cantilever fin with reach finger (in-plane bending)",
+    "failure_modes": [
+      {
+        "check": "interference_check motion sweep 0..360 collision-free + print_in_place >= 0.2",
+        "mode": "crank stalls: crank-peg sweep strikes the detent finger once per turn"
+      },
+      {
+        "check": "G6 flex force within [2, 10] N",
+        "mode": "click too stiff to turn or too vague to count"
+      },
+      {
+        "check": "G6 peak strain < 1.38% in-plane and < 0.69% between layers",
+        "mode": "fin root fatigues and snaps after repeated clicks"
+      },
+      {
+        "check": "print_in_place clearance >= 0.2 and motion free at rests",
+        "mode": "fin/finger fuses to plate, gear or flange and never frees"
+      }
+    ],
+    "loads": [
+      {
+        "assumption": "fin k~5 N/mm over 0.7 mm ride-over, wedge factor 1.86 from notch-corner geometry",
+        "measured_as": "flex gear1/base",
+        "value": "~6 N tangential (~3 N radial at the bump)",
+        "what": "hand force on the crank riding the detent bump over the flange rim"
+      }
+    ],
+    "serves": {
+      "range": "fixed gear train z=18/12/16/10 on 100x60 mm base; crank knob r2.6 at 8.5 mm radius; quarter-turn clicks to count turns",
+      "who": "anyone turning the crank by hand (adult or child fingers, a few N of finger force)"
+    },
+    "why": "The fused arc wall cannot work: short and thick it needs ~202 N (G6, user-confirmed fact) against a hand-force budget of 2-10 N, its root reaches 7.2%/6.1% strain against 1.38%/0.69% allowed, and the crank-peg sweep physically strikes any rim-riding finger once per turn (peg annulus r 5.9..11.1 covers the rim contact at r ~10.3, same z-range), which is the stall. A long thin fin floating 0.6 over the plate bends in-plane (no peel at a plate bond, root moment carried as in-plane stress at the pedestal), lands mid-window on force and under both strain limits; a doubly-fixed beam would need a 30 mm span that breaks the 10 mm bridge rule. The peg base is raised onto the flange top (invisible: same handle size, same top height) so its sweep passes 0.4 over the finger."
+  },
+  "result": {
+    "ok": true,
+    "chosen": "floating cantilever fin with reach finger (in-plane bending)",
+    "cad_allowed": true
+  },
+  "seconds": 0.15,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "35331a6aead9d26b"
+}

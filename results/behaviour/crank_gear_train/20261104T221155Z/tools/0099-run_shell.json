@@ -1,0 +1,37 @@
+{
+  "seq": 99,
+  "iteration": 90,
+  "name": "run_shell",
+  "arguments": {
+    "cmd": "cd /tmp/lenparam && for T in 1.26 0.84; do python3 -c \"\nsrc = open('model.scad').read()\nimport re\nsrc = re.sub(r'cube\\(\\[5\\.04, [0-9.]+, 19\\.0\\]\\)', 'cube([5.04, $T, 19.0])', src)\nopen('model.scad','w').write(src)\nprint('set t=$T')\n\"\ntimeout 280 cadcheck behaviour --out-dir /tmp/lenparam/bout model.scad 2>&1 | grep -E 'force_n|strain_pct|z_strain_pct|past the|to ride over' | head -12\necho \"===== t=$T done =====\"\ndone",
+    "timeout_s": 300.0
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 80.802,
+    "stdout": "set t=1.26\n        \"force_n\": 6.75,\n            \"strain_pct\": 0.045,\n            \"z_strain_pct\": 0.013,\n            \"strain_pct\": 0.995,\n            \"z_strain_pct\": 0.727,\n      \"motion m, flex disc / finger: finger pulls its layers apart at 0.73% at [12.87, 14.5, 11.09], past the 0.69% of PLA between layers: bend it along the layers, or print it another way up\",\n===== t=1.26 done =====\nset t=0.84\n        \"force_n\": 149.86,\n            \"strain_pct\": 1.069,\n            \"z_strain_pct\": 0.291,\n            \"strain_pct\": 0.634,\n            \"z_strain_pct\": 0.111,\n      \"motion m, flex disc / finger: it takes 149.9 N to ride over, and the spec asks for 2 to 10 N: make it softer (a longer or thinner arm) or shallower\"\n===== t=0.84 done =====\n",
+    "stderr": "",
+    "stdout_bytes": 744,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 81.402,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "51a8f8b4289e2e3d"
+}

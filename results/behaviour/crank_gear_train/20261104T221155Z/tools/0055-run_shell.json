@@ -1,0 +1,36 @@
+{
+  "seq": 55,
+  "iteration": 46,
+  "name": "run_shell",
+  "arguments": {
+    "cmd": "cd /work && cat > /tmp/flexcalc.py <<'EOF'\n# Analytical check of detent leaf stiffness (diagonal cantilever, in-plane bending)\n# Leaf: t=1.68 (bending thickness), b=5.04 (width), L~=11.87 diagonal length\n# Load at bump in -y; effective bending of leaf about x-axis\nimport math\nE = 2750.0  # PLA bending modulus N/mm2\nt = 1.68; b = 5.04\nleaf_run = 8.9; leaf_rise = 7.7\nL = math.sqrt(leaf_run**2 + leaf_rise**2)\nprint(f\"leaf L = {L:.2f} mm\")\nI = b*t**3/12\nk_perp = 3*E*I/L**3  # transverse stiffness at tip for load perp to leaf axis\nprint(f\"I = {I:.3f} mm4, k_perp = {k_perp:.3f} N/mm\")\n# load is horizontal (-y); angle between load dir and leaf-perp\nang = math.atan(leaf_run/leaf_rise)  # leaf tilt from vertical\nprint(f\"leaf tilt = {math.degrees(ang):.1f} deg\")\nk_y = k_perp / math.cos(ang)**2  # approx: only perp component does work... actually stiffness along y = k_perp/cos^2\nprint(f\"k_y approx = {k_y:.3f} N/mm\")\nfor d in [0.226, 0.5]:\n    print(f\"d={d}: F={k_y*d:.2f} N\")\n# strain\nfor d in [0.226, 0.5]:\n    s = 3*t*d/(2*L**2)\n    print(f\"d={d}: strain={s*100:.2f}%\")\nEOF\npython /tmp/flexcalc.py"
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.021,
+    "stdout": "leaf L = 11.77 mm\nI = 1.991 mm4, k_perp = 10.080 N/mm\nleaf tilt = 49.1 deg\nk_y approx = 23.546 N/mm\nd=0.226: F=5.32 N\nd=0.5: F=11.77 N\nd=0.226: strain=0.41%\nd=0.5: strain=0.91%\n",
+    "stderr": "",
+    "stdout_bytes": 177,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 0.44,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "51a8f8b4289e2e3d"
+}

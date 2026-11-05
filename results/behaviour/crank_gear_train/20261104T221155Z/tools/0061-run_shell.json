@@ -1,0 +1,37 @@
+{
+  "seq": 61,
+  "iteration": 52,
+  "name": "run_shell",
+  "arguments": {
+    "cmd": "cd /tmp && rm -rf flexonly && mkdir flexonly && cd flexonly && cat > model.scad <<'EOF'\npart = \"assembly\";\ncadverify_only = \"\";\nmodule instance(name, part, unit = 1) {\n    echo(cadverify_instance = [name, part, unit]);\n    if (cadverify_only == \"\" || cadverify_only == name) children();\n}\nmodule leaf() {\n    cube([30, 25, 3]);\n    translate([15, 6.1, 2.5]) rotate([-40.85, 0, 0])\n        translate([-2.52, -0.84, 0]) cube([5.04, 1.68, 11.77]);\n    translate([15 - 2.52, 6.4, 3.0]) rotate([0, 90, 0])\n        cylinder(r = 1.5, h = 5.04, $fn = 24);\n    translate([15 - 2.52, 14.1, 9.4]) cube([5.04, 4.5, 1.5]);\n    translate([15, 18.6, 9.4]) cylinder(r = 0.65, h = 1.5, $fn = 24);\n}\nmodule block() {\n    translate([12.4, 16.6, 8.0]) cube([5.2, 4.0, 4.0]);\n}\nif (part == \"leaf\") {\n    echo(cadverify_spec = [\n        [\"bounds\", [[0, 0, 0], [30, 25, 10.9]]],\n        [\"bodies\", 1], [\"through_holes\", 0],\n        [\"support_faces\", [[\"bed\", \"-z\", 500]]],\n        [\"overhangs_allowed\", [[\"u\", [[12, 3.5, 2.0], [18, 21.2, 10.5]]]]],\n        [\"copies\", 1], [\"material\", \"PLA\"],\n        [\"details\", []]]);\n    leaf();\n} else if (part == \"block\") {\n    echo(cadverify_spec = [\n        [\"bounds\", [[12.4, 16.6, 8.0], [17.6, 20.6, 12.0]]],\n        [\"bodies\", 1], [\"through_holes\", 0],\n        [\"support_faces\", [[\"bed\", \"-z\", 10]]],\n        [\"overhangs_allowed\", []],\n        [\"copies\", 1], [\"material\", \"PLA\"],\n        [\"details\", []]]);\n    block();\n} else if (part == \"assembly\") {\n    echo(cadverify_spec = [\n        [\"bounds\", [[0, 0, 0], [30, 25, 12.0]]],\n        [\"allowed_interferences\", []],\n        [\"motions\", [[\"m\", [\"leaf\"], \"slide\", [0, -1, 0], [0, 0.5],\n            [\"flex\", [[\"leaf\", \"block\", 0.5, \"test\", [2, 10]]]]]],\n        [\"assembly_order\", [[[\"leaf\", \"block\"], [0, 0, 0]]]],\n        [\"material\", \"PLA\"]]);\n    instance(\"leaf\", \"leaf\") leaf();\n    instance(\"block\", \"block\") block();\n}\nEOF\ntimeout 200 cadcheck behaviour --out-dir /tmp/flexonly/out model.scad 2>&1 | tail -40",
+    "timeout_s": 240.0
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 3.872,
+    "stdout": "{\n  \"ok\": true,\n  \"behaviour\": {\n    \"declared\": false,\n    \"flex\": [],\n    \"loads\": [],\n    \"stability\": [],\n    \"problems\": [],\n    \"ok\": true,\n    \"seconds\": 0.0,\n    \"cpu_seconds\": 0.9\n  },\n  \"geometry_problems\": null\n}\n",
+    "stderr": "",
+    "stdout_bytes": 224,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 4.601,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "51a8f8b4289e2e3d"
+}

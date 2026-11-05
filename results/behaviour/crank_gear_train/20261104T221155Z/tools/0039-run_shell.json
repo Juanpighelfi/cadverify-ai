@@ -1,0 +1,52 @@
+{
+  "seq": 39,
+  "iteration": 30,
+  "name": "run_shell",
+  "arguments": {
+    "cmd": "cd /work && python - <<'EOF'\nsrc = open('model.scad').read()\nold = '''            [\"crank_turn\", [\"gear1\"], \"rotate\", [x1, y_c, 0], [0, 0, 1], [0, 360],\n                [\"held\", [\"gear2\", \"gear3\", \"gear4\"]],\n                [\"drives\", ['''\nnew = '''            [\"crank_turn\", [\"gear1\"], \"rotate\", [x1, y_c, 0], [0, 0, 1], [0, 360],\n                [\"drives\", ['''\nassert src.count(old)==1\nsrc = src.replace(old, new)\nold2 = '''        [\"assembly_order\", [\n            [[\"base\", \"gear1\", \"gear2\", \"gear3\", \"gear4\"], [0, 0, 0]]\n        ]],\n        [\"held\", [\"gear1\", \"gear2\", \"gear3\", \"gear4\"]],\n        [\"print_in_place\", 0.2],'''\nnew2 = '''        [\"assembly_order\", [\n            [[\"base\", \"gear1\", \"gear2\", \"gear3\", \"gear4\"], [0, 0, 0]]\n        ]],\n        [\"print_in_place\", 0.2],'''\nassert src.count(old2)==1\nsrc = src.replace(old2, new2)\nopen('model.scad','w').write(src)\nprint(\"reverted held experiments\")\nEOF\ngrep -n '\"held\"' /work/model.scad"
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.022,
+    "stdout": "reverted held experiments\n339:        [\"held\", [\"gear1\", \"gear2\", \"gear3\", \"gear4\"]],\n",
+    "stderr": "",
+    "stdout_bytes": 86,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "scad_edited": [
+      "model.scad"
+    ],
+    "files": {
+      "created": [],
+      "modified": [
+        "model.scad"
+      ],
+      "deleted": []
+    }
+  },
+  "seconds": 0.495,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [
+      "model.scad"
+    ],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [
+    "model.scad"
+  ],
+  "rule": {
+    "seq": 39,
+    "tool": "run_shell",
+    "scad": [
+      "model.scad"
+    ],
+    "edit": "allowed"
+  },
+  "source": "c59a74ebb8ede85b"
+}

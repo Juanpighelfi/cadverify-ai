@@ -1,0 +1,37 @@
+{
+  "seq": 87,
+  "iteration": 78,
+  "name": "run_shell",
+  "arguments": {
+    "cmd": "cd /tmp/rotonly && python3 -c \"\nsrc = open('model.scad').read()\nold = '[[\\\"disc\\\"], [0, 1, 0]]'\nnew = '[[\\\"disc\\\"], [0, 0, -1]]'\nassert src.count(old)==1\nopen('model.scad','w').write(src.replace(old,new))\nprint('ok')\n\"\ntimeout 120 cadcheck assembly --out-dir /tmp/rotonly/aout model.scad 2>&1 | python3 -c \"import json,sys; d=json.load(sys.stdin); print('ok:',d['ok']); print('G3:',str(d['problems']['G3'])[:800]); print('G4:',str(d['problems']['G4'])[:2500])\"",
+    "timeout_s": 180.0
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 4.67,
+    "stdout": "ok\nok: True\nG3: []\nG4: []\n",
+    "stderr": "",
+    "stdout_bytes": 26,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 5.125,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "51a8f8b4289e2e3d"
+}

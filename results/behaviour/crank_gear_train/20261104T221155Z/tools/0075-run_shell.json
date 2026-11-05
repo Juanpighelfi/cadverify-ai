@@ -1,0 +1,37 @@
+{
+  "seq": 75,
+  "iteration": 66,
+  "name": "run_shell",
+  "arguments": {
+    "cmd": "cd /tmp/rotonly && python - <<'EOF'\nsrc = open('model.scad').read()\nsrc = src.replace('[[\"disc\", \"finger\"], [0, 0, 0]]', '[[[\"finger\"], [0, 0, 0]], [[\"disc\"], [0, 0, 10]]]')\nsrc = src.replace('[[\"bounds\", [[0, 0, 0], [30, 25, 12.5]]],', '[[\"bounds\", [[0, 0, 0], [30, 41, 12.5]]],')\nopen('model.scad','w').write(src)\nprint(\"ok\")\nEOF\ntimeout 200 cadcheck assembly --out-dir /tmp/rotonly/aout model.scad 2>&1 | python -c \"import json,sys; d=json.load(sys.stdin); print('ok:',d['ok']); print('G3:',str(d['problems']['G3'])[:800]); print('G4:',str(d['problems']['G4'])[:2500])\"",
+    "timeout_s": 240.0
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 2.429,
+    "stdout": "ok\nok: False\nG3: [\"invalid assembly spec: assembly_order [['finger'], [0, 0, 0]]: the instances are a list of names\"]\nG4: [\"the assembly order is missing (assembly_order in the assembly's spec): every instance, in order, with the direction it moves along as it comes in\"]\n",
+    "stderr": "",
+    "stdout_bytes": 272,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 3.219,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "51a8f8b4289e2e3d"
+}

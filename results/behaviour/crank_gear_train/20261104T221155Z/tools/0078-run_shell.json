@@ -1,0 +1,37 @@
+{
+  "seq": 78,
+  "iteration": 69,
+  "name": "run_shell",
+  "arguments": {
+    "cmd": "cd /tmp/rotonly && python - <<'EOF'\nsrc = open('model.scad').read()\nsrc = src.replace('[[\"bounds\", [[0, 0, 0], [30, 41, 12.5]]],', '[[\"bounds\", [[0, 0, 0], [30, 41, 12.5]]],\\n        [\"print_in_place\", 0.2],')\nsrc = src.replace('[[[\"finger\"], [0, 0, 0]], [[\"disc\"], [0, 0, 10]]]', '[[[\"finger\", \"disc\"], [0, 0, 0]]]')\nopen('model.scad','w').write(src)\nprint(\"ok\")\nEOF\ntimeout 200 cadcheck assembly --out-dir /tmp/rotonly/aout model.scad 2>&1 | python -c \"import json,sys; d=json.load(sys.stdin); print('ok:',d['ok']); print('G3:',str(d['problems']['G3'])[:800]); print('G4:',str(d['problems']['G4'])[:2500])\"",
+    "timeout_s": 240.0
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 6.425,
+    "stdout": "ok\nok: False\nG3: ['assembly bounds: max y: measured 40.913, specified 25 (off by +15.913 mm)']\nG4: ['assembly_order, step 1 places finger, disc together, and only an assembly printed in place starts out in more than one part: start with one and bring each of the others in along its direction']\n",
+    "stderr": "",
+    "stdout_bytes": 295,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 7.143,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "51a8f8b4289e2e3d"
+}

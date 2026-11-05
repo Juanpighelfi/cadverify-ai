@@ -1,0 +1,37 @@
+{
+  "seq": 77,
+  "iteration": 68,
+  "name": "run_shell",
+  "arguments": {
+    "cmd": "cd /tmp/rotonly && python - <<'EOF'\nsrc = open('model.scad').read()\nold = '''[[[[\"finger\"], [0, 0, 0]], [[\"disc\"], [0, 0, 10]]]]'''\nnew = '''[[[\"finger\"], [0, 0, 0]], [[\"disc\"], [0, 0, 10]]]'''\nassert src.count(old)==1\nopen('model.scad','w').write(src.replace(old,new))\nprint(\"ok\")\nEOF\ntimeout 200 cadcheck assembly --out-dir /tmp/rotonly/aout model.scad 2>&1 | python -c \"import json,sys; d=json.load(sys.stdin); print('ok:',d['ok']); print('G3:',str(d['problems']['G3'])[:800]); print('G4:',str(d['problems']['G4'])[:2500])\"",
+    "timeout_s": 240.0
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 7.151,
+    "stdout": "ok\nok: False\nG3: ['assembly bounds: max y: measured 40.913, specified 25 (off by +15.913 mm)']\nG4: ['assembly_order, step 2: disc does not go in moving along [0, 0, 1]: it hits finger on 72.51 mm² of its shadow (zone [[5.362, 19.162, 0.0], [24.662, 24.912, 0.0]]); it would go in along -y, -z']\n",
+    "stderr": "",
+    "stdout_bytes": 296,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 9.385,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "51a8f8b4289e2e3d"
+}

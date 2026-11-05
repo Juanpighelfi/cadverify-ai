@@ -1,0 +1,52 @@
+{
+  "seq": 25,
+  "iteration": 20,
+  "name": "run_shell",
+  "arguments": {
+    "cmd": "cd /work && python - <<'EOF'\nsrc = open('model.scad').read()\nold = '''[\"finger underside 4.5 bridge\", [[12, 15.8, 9.0], [18, 21.2, 9.8]]],\n            [\"leaf underside 49deg\", [[12, 3.5, 2.0], [18, 17, 10.5]]]'''\nnew = '''[\"leaf and finger undersides\", [[12, 3.5, 2.0], [18, 21.2, 10.5]]]'''\nprint(\"occurrences:\", src.count(old))\nsrc = src.replace(old, new)\nopen('model.scad','w').write(src)\nprint(\"done\")\nEOF\ngrep -n \"leaf and finger\" /work/model.scad\nopenscad -o /tmp/t.scad --check-parameters model.scad 2>&1 | head; echo \"---compile---\"\npython -c \"print('ok')\""
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.095,
+    "stdout": "occurrences: 1\ndone\n190:            [\"detent leaf and finger undersides\", [[x1 - detent_b/2 - 0.6, 5.5, 2.0], [x1 + detent_b/2 + 0.6, bump_y + 0.7, 9.8]]]\n289:            [\"leaf and finger undersides\", [[12, 3.5, 2.0], [18, 21.2, 10.5]]]\n336:            [\"detent leaf and finger undersides\", [[x1 - detent_b/2 - 0.6, 5.5, 2.0], [x1 + detent_b/2 + 0.6, bump_y + 0.7, 9.8]]]\nCould not parse '--check-parameters model.scad' as flag\nUsage: openscad [options] file.scad\nAllowed options:\n  --export-format arg               overrides format of exported scad file when\n                                    using option '-o', arg can be any of its \n                                    supported file extensions.  For ASCII stl \n                                    export, specify 'asciistl', and for binary \n                                    stl export, specify 'binstl'.  ASCII export\n                                    is the current stl default, but binary stl \n                                    is planned as the future default so \n---compile---\nok\n",
+    "stderr": "",
+    "stdout_bytes": 1049,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "scad_edited": [
+      "model.scad"
+    ],
+    "files": {
+      "created": [],
+      "modified": [
+        "model.scad"
+      ],
+      "deleted": []
+    }
+  },
+  "seconds": 0.634,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [
+      "model.scad"
+    ],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [
+    "model.scad"
+  ],
+  "rule": {
+    "seq": 25,
+    "tool": "run_shell",
+    "scad": [
+      "model.scad"
+    ],
+    "edit": "allowed"
+  },
+  "source": "8643045916bfd813"
+}

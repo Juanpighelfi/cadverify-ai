@@ -1,0 +1,36 @@
+{
+  "seq": 86,
+  "iteration": 77,
+  "name": "run_shell",
+  "arguments": {
+    "cmd": "cd /tmp/rotonly && python - <<'EOF'\nsrc = open('model.scad').read()\nold = '''[[[\"finger\"], [0, 0, 0]], [[\"disc\"], [0, 1, 0]]]'''\nnew = '''[[[\"finger\"], [0, 0, 0]], [[\"disc\"], [0, 0, 1]]]'\nassert src.count(old)==1\nsrc = src.replace(old, new)\n# fix trailing bracket\nold2 = '''[[\"disc\"], [0, 0, 1]]]]'''\nassert src.count(old2)==0\nprint([l.strip() for l in src.split('\\n') if 'assembly_order' in l])\nopen('model.scad','w').write(src)\nprint(\"wrote, check brackets\")\nEOF\ngrep -n \"assembly_order\" model.scad"
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.03,
+    "stdout": "47:        [\"assembly_order\", [[[\"finger\"], [0, 0, 0]], [[\"disc\"], [0, 1, 0]]]],\n",
+    "stderr": "  File \"<stdin>\", line 7\n    old2 = '''[[\"disc\"], [0, 0, 1]]]]'''\n                                   ^\nSyntaxError: unmatched ']'\n",
+    "stdout_bytes": 81,
+    "stderr_bytes": 130,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 1.052,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "51a8f8b4289e2e3d"
+}

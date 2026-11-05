@@ -1,0 +1,36 @@
+{
+  "seq": 82,
+  "iteration": 73,
+  "name": "run_shell",
+  "arguments": {
+    "cmd": "cd /tmp/rotonly && python - <<'EOF'\nsrc = open('model.scad').read()\nsrc = src.replace('[[\"bounds\", [[0, 0, 0], [30, 41, 12.5]]],', '[[\"bounds\", [[0, 0, 0], [30, 41, 12.5]]],')\n# fix: assembly_order with print_in_place first step may hold several parts - use single-part first step + print_in_place\nold = '''        [\"assembly_order\", [[[[\"finger\", \"disc\"], [0, 0, 0]]]],'''\nif src.count(old)==0:\n    import re\n    print([l.strip() for l in src.split('\\n') if 'assembly_order' in l])\nelse:\n    print(\"found\")\nEOF\ngrep -n \"assembly_order\\|print_in_place\\|finger., .disc\" model.scad | head"
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.042,
+    "stdout": "['[\"assembly_order\", [[[\"finger\", \"disc\"], [0, 0, 0]]]],']\n47:        [\"assembly_order\", [[[\"finger\", \"disc\"], [0, 0, 0]]]],\n",
+    "stderr": "",
+    "stdout_bytes": 125,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 0.59,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "51a8f8b4289e2e3d"
+}

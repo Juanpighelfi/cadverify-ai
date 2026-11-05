@@ -1,0 +1,37 @@
+{
+  "seq": 71,
+  "iteration": 62,
+  "name": "run_shell",
+  "arguments": {
+    "cmd": "cd /tmp/flexonly && python - <<'EOF'\n# motions line has unbalanced brackets: [[\"m\", ...]]]] -> check: [\"motions\", [ MOTION ]] where MOTION=[\"m\", [\"leaf\"], \"slide\", [0,-1,0], [0,0.5], FLEX]. FLEX=[\"flex\",[[...]]] so MOTION ends with ]] then motions closes ]]. Total: [\"motions\", [ [...] ]] = [[\"m\"...]]]] -> [[\"m\", [\"leaf\"], \"slide\", [0,-1,0], [0,0.5], [\"flex\", [[\"leaf\",\"block\",0.5,\"test\",[2,10]]]]]]\nsrc = open('model.scad').read()\nold = '''        [\"motions\", [[\"m\", [\"leaf\"], \"slide\", [0, -1, 0], [0, 0.5],\n            [\"flex\", [[\"leaf\", \"block\", 0.5, \"test\", [2, 10]]]]]],'''\nnew = '''        [\"motions\", [[\"m\", [\"leaf\"], \"slide\", [0, -1, 0], [0, 0.5],\n            [\"flex\", [[\"leaf\", \"block\", 0.5, \"test\", [2, 10]]]]]]],'''\nassert src.count(old)==1\nopen('model.scad','w').write(src.replace(old,new))\nprint(\"ok\")\nEOF\nopenscad -o /tmp/x.stl model.scad -D 'part=\"assembly\"' 2>&1 | head -3\ntimeout 200 cadcheck assembly --out-dir /tmp/flexonly/aout model.scad 2>&1 | python -c \"import json,sys; d=json.load(sys.stdin); print('ok:',d['ok']); print('G3:',d['problems']['G3'][:2]); print('G4:',str(d['problems']['G4'])[:1500])\"",
+    "timeout_s": 240.0
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 1.729,
+    "stdout": "ok\nECHO: cadverify_spec = [[\"bounds\", [[0, 0, 0], [30, 25, 12]]], [\"allowed_interferences\", []], [\"motions\", [[\"m\", [\"leaf\"], \"slide\", [0, -1, 0], [0, 0.5], [\"flex\", [[\"leaf\", \"block\", 0.5, \"test\", [2, 10]]]]]]], [\"assembly_order\", [[[\"leaf\"], [0, 0, 0]], [[\"block\"], [0, -2, 0]]]], [\"material\", \"PLA\"]]\nECHO: cadverify_instance = [\"leaf\", \"leaf\", 1]\nECHO: cadverify_instance = [\"block\", \"block\", 1]\nok: False\nG3: [\"the instance leaf says it is the part 'leaf', which is neither a printable option of the part selector ([]), 'external' nor a standard:<module> of cadverify_parts.scad\", \"the instance block says it is the part 'block', which is neither a printable option of the part selector ([]), 'external' nor a standard:<module> of cadverify_parts.scad\"]\nG4: ['motion m: leaf and block never overlap along it, so nothing bends: a flex is a feature that rides over what it presses on (a detent, a catch). Make it meet that, or leave the flex out']\n",
+    "stderr": "",
+    "stdout_bytes": 951,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 2.319,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "51a8f8b4289e2e3d"
+}

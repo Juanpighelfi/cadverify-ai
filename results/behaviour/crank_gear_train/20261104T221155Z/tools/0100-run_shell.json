@@ -1,0 +1,52 @@
+{
+  "seq": 100,
+  "iteration": 91,
+  "name": "run_shell",
+  "arguments": {
+    "cmd": "cd /work && python3 -c \"\nsrc = open('model.scad').read()\nsrc = src.replace('detent_t = 1.68;', 'detent_t = 1.26;')\nsrc = src.replace('1.68, bending', '1.26, bending')\nsrc = src.replace('[\\\"detent_leaf_thickness\\\", \\\"thickness\\\", [x1, 12.41, 4.2], [0, -0.6542447333039448, 0.7562829027183214], 1.68]', '[\\\"detent_leaf_thickness\\\", \\\"thickness\\\", [x1, 12.41, 4.2], [0, -0.6542447333039448, 0.7562829027183214], 1.26]')\nsrc = src.replace('1.68, measured', '1.26, measured')\nsrc = src.replace('[\\\"test_leaf_thickness\\\", \\\"thickness\\\", [15, 12.31, 4.2], [0, -0.6542447333039448, 0.7562829027183214], 1.68]', '[\\\"test_leaf_thickness\\\", \\\"thickness\\\", [15, 12.31, 4.2], [0, -0.6542447333039448, 0.7562829027183214], 1.26]')\nsrc = src.replace('\\\"detent_t\\\", 1.26, \\\"flex', '\\\"detent_t\\\", 0.84, \\\"flex')\nsrc = src.replace('\\\"detent_t\\\", 1.26, \\\"load', '\\\"detent_t\\\", 0.84, \\\"load')\nopen('model.scad','w').write(src)\nprint('t set to 1.26')\n\"\ngrep -n \"detent_t\" model.scad | head"
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 0.023,
+    "stdout": "t set to 1.26\n23:detent_t = 1.26;     // leaf thickness across (mm, 4 lines) - soften: 1.26\n127:        translate([-detent_b/2, -detent_t/2, 0]) cube([detent_b, detent_t, leaf_L]);\n170:        translate([-detent_b/2, -detent_t/2, 0]) cube([detent_b, detent_t, leaf_L]);\n296:        [\"tune\", [[\"test click too stiff, thin the leaf\", \"detent_t\", 0.84, \"load click_push\"]]],\n343:            [\"click too stiff, thin the leaf\", \"detent_t\", 0.84, \"flex gear1/base\"],\n",
+    "stderr": "",
+    "stdout_bytes": 461,
+    "stderr_bytes": 0,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "scad_edited": [
+      "model.scad"
+    ],
+    "files": {
+      "created": [],
+      "modified": [
+        "model.scad"
+      ],
+      "deleted": []
+    }
+  },
+  "seconds": 0.536,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [
+      "model.scad"
+    ],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [
+    "model.scad"
+  ],
+  "rule": {
+    "seq": 100,
+    "tool": "run_shell",
+    "scad": [
+      "model.scad"
+    ],
+    "edit": "allowed"
+  },
+  "source": "fe37807c292b6b68"
+}

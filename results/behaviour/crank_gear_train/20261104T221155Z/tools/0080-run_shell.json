@@ -1,0 +1,37 @@
+{
+  "seq": 80,
+  "iteration": 71,
+  "name": "run_shell",
+  "arguments": {
+    "cmd": "cd /tmp/rotonly && python - <<'EOF'\nsrc = open('model.scad').read()\nold = '[[\"bounds\", [[0, 0, 0], [30, 25, 12.5]]],'\nassert src.count(old)==1\nsrc = src.replace(old, '[[\"bounds\", [[0, 0, 0], [30, 41, 12.5]]],')\nopen('model.scad','w').write(src)\nprint(\"ok\")\nEOF\ntimeout 200 cadcheck assembly --out-dir /tmp/rotonly/aout model.scad 2>&1 | python -c \"import json,sys; d=json.load(sys.stdin); print('ok:',d['ok']); print('G3:',str(d['problems']['G3'])[:800]); print('G4:',str(d['problems']['G4'])[:2500]); print('flex:',str(d.get('motions'))[:1500])\"",
+    "timeout_s": 240.0
+  },
+  "result": {
+    "ok": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 4.108,
+    "stdout": "ok: False\nG3: ['assembly bounds: max y: measured 40.913, specified 25 (off by +15.913 mm)']\nG4: ['assembly_order, step 1 places finger, disc together, and only an assembly printed in place starts out in more than one part: start with one and bring each of the others in along its direction']\nflex: [{'name': 'm', 'kind': 'rotate', 'range': [0.0, 360.0], 'flex': [{'a': 'disc', 'b': 'finger', 'max_mm': 0.5, 'reason': 'test', 'force_n': [2.0, 10.0], 'ok': True, 'poses': [5.199, 354.801], 'depth_mm': 0.23, 'at': 158.556, 'overlap_stl': '/tmp/rotonly/aout/flex-m-62c6-discfinger-db73.stl', 'matrices': {'disc': [[-0.93077506, -0.36559238, 0.0, 39.929397294], [0.36559238, -0.93077506, 0.0, 52.439366091], [0.0, 0.0, 1.0, 0.0], [0.0, 0.0, 0.0, 1.0]], 'finger': [[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0], [0.0, 0.0, 0.0, 1.0]]}}], 'rests': [{'at': 0.0, 'ok': True, 'rides_to_next': True}, {'at': 90.0, 'ok': True, 'rides_to_next': True}, {'at': 180.0, 'ok': True, 'rides_to_next': True}, {'at': 270.0, 'ok': True, 'rides_to_next': True}, {'at': 360.0, 'ok': True}], 'ok': True, 'steps': 278, 'step': 1.2996}]\n",
+    "stderr": "Traceback (most recent call last):\n  File \"<stdin>\", line 3, in <module>\nAssertionError\n",
+    "stdout_bytes": 1130,
+    "stderr_bytes": 88,
+    "stdout_omitted_bytes": 0,
+    "stderr_omitted_bytes": 0,
+    "files": {
+      "created": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "seconds": 4.654,
+  "image": null,
+  "files": {
+    "new": [],
+    "modified": [],
+    "deleted": [],
+    "not_mirrored": []
+  },
+  "scad_changed": [],
+  "rule": null,
+  "source": "51a8f8b4289e2e3d"
+}
